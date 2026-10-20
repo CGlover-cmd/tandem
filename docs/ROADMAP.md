@@ -15,8 +15,9 @@ _Update this section at the end of every working session._
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
-- **Next:** Spike B, a test tone on the soundbar, then each HomePod mini. The tester must be in
-  the room to confirm they hear it, and may be asked for a PIN or the Home app access setting.
+  Spike B passed: a test tone streamed cleanly to the soundbar and both HomePod minis, with no
+  pairing ([findings](spikes/spike-b-audio.md)).
+- **Next:** Spike C, WASAPI loopback capture and the virtual audio device options (ADR-0005).
 
 ## Scope
 
@@ -84,7 +85,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Dev environment check; device discovery scan (all reference devices found)
 - [x] Privacy guardrails: `.gitignore`, PII/secret pre-commit hooks, redaction policy
 - [x] Spike A: pair with Apple TV over Companion; remote commands; now-playing ([go](spikes/spike-a-apple-tv.md))
-- [ ] Spike B: play a test tone on the soundbar, then each HomePod mini
+- [x] Spike B: play a test tone on the soundbar, then each HomePod mini ([go](spikes/spike-b-audio.md))
 - [ ] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005)
 - [ ] Spike D: mirroring feasibility: pairing and FairPlay setup handshake, against UxPlay first, then Apple TV
 - [ ] Spike E: NVENC H.264 screen encode latency
