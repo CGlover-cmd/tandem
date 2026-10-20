@@ -64,4 +64,6 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.
 - Engine never imports UI code; UI talks to the engine only through the service API.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
-- Model guidance: Opus/high for protocol, encryption, sync and architecture; Sonnet/medium for UI, tests, packaging and docs.
+- Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
+  quality over token cost). Extra-high effort only for the hardest debugging (mirroring encryption,
+  multi-output sync); return to high afterwards.

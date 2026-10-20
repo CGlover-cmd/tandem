@@ -75,10 +75,10 @@ Decisions are recorded in [docs/adr](adr/).
 
 ## Phases
 
-Model guidance per phase: **Opus/high** for protocol, encryption, sync and architecture work;
-**Sonnet/medium** for UI, tests, packaging and docs.
+Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phases marked
+**hardest** may use extra-high effort for difficult debugging.
 
-### Phase 0 · Environment check and risk spikes (Opus/high)
+### Phase 0 · Environment check and risk spikes
 - [x] Dev environment check; device discovery scan (all reference devices found)
 - [x] Privacy guardrails: `.gitignore`, PII/secret pre-commit hooks, redaction policy
 - [ ] Spike A: pair with Apple TV over Companion; remote commands; now-playing
@@ -107,12 +107,12 @@ access-setting problems), settings.
 ### Phase 3 · Apple TV control
 Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power and volume.
 
-### Phase 4 · Audio to one device (Opus)
+### Phase 4 · Audio to one device
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.
 Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod mini.
 **Exit:** one hour with no dropouts, <5% CPU, survives Wi-Fi blips. **🚩 v0.1 alpha.**
 
-### Phase 5 · Multi-output audio router (Opus)
+### Phase 5 · Multi-output audio router (hardest)
 Pick any combination of outputs: AirPlay devices **and** the PC's own speakers. Local output is
 delayed to match the AirPlay buffer so everything plays in sync. Per-output volume, saved groups.
 **Exit:** HomePods, soundbar and PC speakers stay within ~20 ms of each other for 30 minutes.
@@ -120,7 +120,7 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 ### Phase 6 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
 
-### Phase 7 · Screen mirroring (Opus/high · only if Spike D says go)
+### Phase 7 · Screen mirroring (hardest · only if Spike D says go)
 Whole screen first, then a single window. Resolution and frame-rate presets, encoder selection,
 audio and video in sync. Targets 1080p30 at <250 ms, stretching to 4K/60. Extending the desktop
 onto the TV is a stretch goal (needs a signed virtual-display driver).
