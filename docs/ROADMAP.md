@@ -75,11 +75,10 @@ Decisions are recorded in [docs/adr](adr/).
 
 ## Phases
 
-Sizes: **S** 1–2 sessions · **M** 3–5 · **L** 6–10 · **XL** open-ended.
-Model guidance: **Opus/high** for protocol, encryption, sync and architecture work;
+Model guidance per phase: **Opus/high** for protocol, encryption, sync and architecture work;
 **Sonnet/medium** for UI, tests, packaging and docs.
 
-### Phase 0 · Environment check and risk spikes (M · Opus/high)
+### Phase 0 · Environment check and risk spikes (Opus/high)
 - [x] Dev environment check; device discovery scan (all reference devices found)
 - [x] Privacy guardrails: `.gitignore`, PII/secret pre-commit hooks, redaction policy
 - [ ] Spike A: pair with Apple TV over Companion; remote commands; now-playing
@@ -90,14 +89,14 @@ Model guidance: **Opus/high** for protocol, encryption, sync and architecture wo
 - [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
 
-### Phase 1 · Core engine (M)
+### Phase 1 · Core engine
 Device registry, continuous discovery, connection state machine with reconnect and backoff, pairing
 flows, encrypted credential vault, event bus, settings, structured logging, redacted diagnostics
 bundle, developer command-line tool.
 **Exit:** the command-line tool discovers, pairs, connects and disconnects all reference devices
 reliably, with ≥80% test coverage of the engine core.
 
-### Phase 2 · UX design and UI shell (M)
+### Phase 2 · UX design and UI shell
 Apple-inspired design system: generous corner radii, soft depth, translucent surfaces, fluid
 spring animations, SF-style type scale on Segoe UI Variable, light and dark mode. Accessibility
 (keyboard, screen reader, WCAG AA contrast) and text ready for translation. Screens: app shell,
@@ -105,54 +104,35 @@ tray quick menu, device grid, PIN pairing sheet, onboarding checklist (detects H
 access-setting problems), settings.
 **Exit:** first-run pairing completed by a tester without help.
 
-### Phase 3 · Apple TV control (S)
+### Phase 3 · Apple TV control
 Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power and volume.
 
-### Phase 4 · Audio to one device (L · Opus)
+### Phase 4 · Audio to one device (Opus)
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.
 Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod mini.
 **Exit:** one hour with no dropouts, <5% CPU, survives Wi-Fi blips. **🚩 v0.1 alpha.**
 
-### Phase 5 · Multi-output audio router (L · Opus)
+### Phase 5 · Multi-output audio router (Opus)
 Pick any combination of outputs: AirPlay devices **and** the PC's own speakers. Local output is
 delayed to match the AirPlay buffer so everything plays in sync. Per-output volume, saved groups.
 **Exit:** HomePods, soundbar and PC speakers stay within ~20 ms of each other for 30 minutes.
 
-### Phase 6 · Send media to Apple TV (M)
+### Phase 6 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
 
-### Phase 7 · Screen mirroring (XL · Opus/high · only if Spike D says go)
+### Phase 7 · Screen mirroring (Opus/high · only if Spike D says go)
 Whole screen first, then a single window. Resolution and frame-rate presets, encoder selection,
 audio and video in sync. Targets 1080p30 at <250 ms, stretching to 4K/60. Extending the desktop
 onto the TV is a stretch goal (needs a signed virtual-display driver).
 
-### Phase 8 · Hardening and v1.0 (M · can start before Phase 7 finishes)
+### Phase 8 · Hardening and v1.0 (can start before Phase 7 finishes)
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
 
-### Phase 9 · Smart-home control (L–XL · feasibility spike first)
+### Phase 9 · Smart-home control (feasibility spike first)
 Targets: smart plugs, lamps and TV power. Accessories already set up in Apple Home generally won't
 accept a second controller, so the paths are: Matter multi-admin, HomeKit (HAP) control through
 aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
-
-## Timeline
-
-Rough estimates, not commitments. A **session** is a focused 1–3 hour block with the tester
-available for hardware steps. The calendar column assumes about 3 sessions a week; usage limits,
-device surprises and availability can stretch it.
-
-| Milestone | Phases | Sessions | Calendar (cumulative) |
-|---|---|---|---|
-| Risks known, go/no-go per feature | 0 | 3–5 | ~1–2 weeks |
-| Engine, UI shell, Apple TV remote | 1–3 | +7–12 | ~4–6 weeks |
-| **v0.1 alpha:** audio to one device | 4 | +6–10 | ~2–3 months |
-| Multi-output audio incl. PC speakers | 5 | +6–10 | ~3 months |
-| Send media to Apple TV | 6 | +3–5 | ~3–4 months |
-| **v1.0:** installer, signing, docs (mirroring may follow in 1.x) | 8 | +3–5 | ~4 months |
-| Screen mirroring, if feasible | 7 | +10–20, open-ended | ~5–6 months |
-| Smart-home control | 9 | +8–15 | ~6–8 months |
-
-If Spike D shows mirroring is blocked, Phase 7 is dropped or parked, and v1.0 ships without it.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).

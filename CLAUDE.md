@@ -1,13 +1,18 @@
 # Tandem: project notes for Claude
 
 Open-source Windows AirPlay sender (Apple TV, HomePod, AirPlay 2 speakers), later smart-home
-control. Plan, scope, timeline and phase status: docs/ROADMAP.md. Decisions: docs/adr/.
+control. Plan, scope and phase status: docs/ROADMAP.md. Decisions: docs/adr/.
 Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 
 ## Session routine
 - **Start:** read "Status and next step" in docs/ROADMAP.md and continue from there.
-- **End:** update that section (and phase checkboxes), commit, and push, so the next session can
-  pick up from the repo alone.
+- **During:** keep the docs in step with the work, in the same commit as the change:
+  - README.md: whenever status, features, install or usage steps change.
+  - CLAUDE.md: whenever a new decision, convention, environment fact or tooling gotcha appears.
+  - docs/adr/: whenever an architecture decision is made or changed.
+- **End** (also when the maintainer says "wrap up"): update "Status and next step" and the phase
+  checkboxes in docs/ROADMAP.md, check README and CLAUDE.md are current, then commit and push,
+  so the next session can pick up from the repo alone.
 
 ## Maintainer decisions (from planning)
 - Apple-inspired look: rounded corners, translucency, smooth animation.
@@ -16,6 +21,7 @@ Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 - Mirroring: whole screen first, then single windows.
 - Support Windows 10 22H2+ as well as Windows 11. No Chromecast.
 - Build order follows dependencies and risk, not feature preference.
+- No timelines or duration estimates in the docs.
 - Test only on the reference devices in ROADMAP; other AirPlay devices on the network are excluded.
 - Phase 9 targets: smart plugs, smart lamps and TV power on/off.
 
