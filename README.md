@@ -3,7 +3,8 @@
 Tandem is a free, open-source Windows app for sending audio, video and your screen to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 
-> **Status: pre-alpha, Phase 0 (research spikes).** Nothing to install yet.
+> **Status: pre-alpha, Phase 0 (research spikes).** Nothing to install yet. Pairing and remote
+> control of Apple TV are proven in a spike.
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals

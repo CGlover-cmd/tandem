@@ -47,6 +47,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
 - Test receivers: Raspberry Pi 3 (shairport-sync, UxPlay). Not set up yet.
+- Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
+  or identifiers). For PIN pairing, run the script in the background and write the PIN the
+  maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
 - GPU: NVIDIA (NVENC) plus AMD integrated graphics.
 - GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
