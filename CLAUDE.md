@@ -51,6 +51,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
   maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
 - GPU: NVIDIA (NVENC) plus AMD integrated graphics.
+- Audio capture: miniaudio (a pyatv dependency) does WASAPI loopback; its Python wrapper lacks a
+  loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
+  On this laptop loopback follows the Windows volume and mute (Spike C).
 - GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git

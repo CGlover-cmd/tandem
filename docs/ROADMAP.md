@@ -16,8 +16,12 @@ _Update this section at the end of every working session._
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
   Spike B passed: a test tone streamed cleanly to the soundbar and both HomePod minis, with no
-  pairing ([findings](spikes/spike-b-audio.md)).
-- **Next:** Spike C, WASAPI loopback capture and the virtual audio device options (ADR-0005).
+  pairing ([findings](spikes/spike-b-audio.md)). Spike C passed: WASAPI loopback captures the
+  PC's audio with no gaps at low CPU, but follows the Windows volume and mute; ADR-0005 accepted
+  (loopback by default, optional user-installed virtual audio device)
+  ([findings](spikes/spike-c-loopback.md)).
+- **Next:** Spike D, mirroring feasibility (pairing and FairPlay setup handshake), against UxPlay
+  first, which needs the Raspberry Pi test receiver set up.
 
 ## Scope
 
@@ -86,7 +90,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Privacy guardrails: `.gitignore`, PII/secret pre-commit hooks, redaction policy
 - [x] Spike A: pair with Apple TV over Companion; remote commands; now-playing ([go](spikes/spike-a-apple-tv.md))
 - [x] Spike B: play a test tone on the soundbar, then each HomePod mini ([go](spikes/spike-b-audio.md))
-- [ ] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005)
+- [x] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005) ([go, with a limit](spikes/spike-c-loopback.md))
 - [ ] Spike D: mirroring feasibility: pairing and FairPlay setup handshake, against UxPlay first, then Apple TV
 - [ ] Spike E: NVENC H.264 screen encode latency
 - [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
@@ -151,7 +155,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | tvOS / HomePod updates break protocols | Medium | Track pyatv upstream; version-gated code paths |
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
-| Virtual audio driver licensing/signing | Medium | ADR-0005; prefer an existing signed driver installed separately |
+| Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |
 | Trademark complaint | Low | Neutral name, plain compatibility wording |
