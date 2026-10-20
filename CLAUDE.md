@@ -65,7 +65,8 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Engine never imports UI code; UI talks to the engine only through the service API.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
-  quality over token cost). Claude can't change its own effort, so when a task would fail or be
-  very inefficient at high (mirroring encryption, multi-output sync, a bug that survives two
-  attempts), pause and recommend the maintainer switch to extra-high, with a one-line reason.
-  Recommend switching back once it's solved.
+  quality over token cost). When a task would fail or be very inefficient at high (mirroring
+  encryption, multi-output sync, a bug that survives two attempts), switch to extra-high, then back
+  to high once it's solved. A coordinator does this itself for threads it started
+  (`set_session_effort`; the app asks the maintainer to approve the raise). No session can change
+  its own effort, so for itself it recommends the switch to the maintainer, with a one-line reason.
