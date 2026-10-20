@@ -1,7 +1,23 @@
 # Tandem: project notes for Claude
 
 Open-source Windows AirPlay sender (Apple TV, HomePod, AirPlay 2 speakers), later smart-home
-control. Plan and phase status: docs/ROADMAP.md. Decisions: docs/adr/.
+control. Plan, scope, timeline and phase status: docs/ROADMAP.md. Decisions: docs/adr/.
+Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
+
+## Session routine
+- **Start:** read "Status and next step" in docs/ROADMAP.md and continue from there.
+- **End:** update that section (and phase checkboxes), commit, and push, so the next session can
+  pick up from the repo alone.
+
+## Maintainer decisions (from planning)
+- Apple-inspired look: rounded corners, translucency, smooth animation.
+- Audio outputs: any mix of AirPlay devices and the PC's own speakers. A virtual audio driver
+  install is acceptable if needed (ADR-0005).
+- Mirroring: whole screen first, then single windows.
+- Support Windows 10 22H2+ as well as Windows 11. No Chromecast.
+- Build order follows dependencies and risk, not feature preference.
+- Test only on the reference devices in ROADMAP; other AirPlay devices on the network are excluded.
+- Phase 9 targets: smart plugs, smart lamps and TV power on/off.
 
 ## Non-negotiable: privacy first
 The GitHub repo is PUBLIC. Follow docs/PRIVACY.md without exception:
@@ -24,8 +40,19 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3 (shairport-sync, UxPlay).
+- Test receivers: Raspberry Pi 3 (shairport-sync, UxPlay). Not set up yet.
 - GPU: NVIDIA (NVENC) plus AMD integrated graphics.
+- GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
+- Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
+  when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git
+  also fails on very long temp-file paths.
+
+## Local-only state (not in GitHub, by design)
+- `local/discovery-scan.json` and `local/denylist.txt` (private terms for the commit hook).
+- The virtualenv and the GitHub sign-in.
+- To rebuild on a fresh machine: create the venv, then run
+  `python -m pip install pyatv pre-commit detect-secrets==1.5.0`, then `python -m pre_commit install`,
+  then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
 - Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.

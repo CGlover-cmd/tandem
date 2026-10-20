@@ -7,6 +7,33 @@ Smart-home control (HomeKit / Matter) follows once the AirPlay core is solid.
 > Name: **Tandem**. Names and branding must not use Apple trademarks (AirPlay, Apple, HomePod,
 > HomeKit). We describe compatibility in plain words, e.g. "works with Apple TV and HomePod".
 
+## Status and next step
+
+_Update this section at the end of every working session._
+
+- **Current phase:** 0, environment check and risk spikes.
+- **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
+  public repo with GitHub secret scanning and push protection.
+- **Next:** Spike A, pairing with the Apple TV. The tester must be at the TV to read a 4-digit PIN.
+
+## Scope
+
+**In scope**
+- Windows 11 and Windows 10 22H2+ (x64)
+- Sending to AirPlay receivers: discovery, pairing, Apple TV remote control
+- System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
+- Sending video files and links to Apple TV
+- Screen mirroring: whole screen first, then single windows (experimental, feasibility-gated)
+- Smart-home control of plugs, lamps and TV power (Phase 9)
+- Apple-inspired, accessible UI with a system tray menu; English first, translation-ready
+
+**Out of scope** (revisit only after v1.0, if users ask)
+- Chromecast / Google Cast
+- Receiving AirPlay (Windows acting as a speaker or screen)
+- macOS, Linux, mobile or Windows on ARM builds
+- Mirroring DRM-protected video (streaming services block capture; it shows as black)
+- Any telemetry
+
 ## Principles
 
 1. **Test the riskiest parts first, build in dependency order.** Phase 0 checks every risky
@@ -22,7 +49,8 @@ Smart-home control (HomeKit / Matter) follows once the AirPlay core is solid.
 
 Apple TV 4K (2nd gen), HomePod mini ×2 (not stereo-paired), a third-party AirPlay 2 surround
 soundbar, a Raspberry Pi 3 for open-source test receivers, and a Windows 11 laptop with an NVIDIA
-GPU (NVENC) on Wi-Fi.
+GPU (NVENC) on Wi-Fi. Other AirPlay devices on the network (e.g. smart TVs) are excluded from
+testing for now.
 
 ## Architecture
 
@@ -98,7 +126,7 @@ Whole screen first, then a single window. Resolution and frame-rate presets, enc
 audio and video in sync. Targets 1080p30 at <250 ms, stretching to 4K/60. Extending the desktop
 onto the TV is a stretch goal (needs a signed virtual-display driver).
 
-### Phase 8 · Hardening and v1.0 (M)
+### Phase 8 · Hardening and v1.0 (M · can start before Phase 7 finishes)
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
 
@@ -106,6 +134,25 @@ Foundation, free for open source), docs site, contributor docs, reproducible bui
 Targets: smart plugs, lamps and TV power. Accessories already set up in Apple Home generally won't
 accept a second controller, so the paths are: Matter multi-admin, HomeKit (HAP) control through
 aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
+
+## Timeline
+
+Rough estimates, not commitments. A **session** is a focused 1–3 hour block with the tester
+available for hardware steps. The calendar column assumes about 3 sessions a week; usage limits,
+device surprises and availability can stretch it.
+
+| Milestone | Phases | Sessions | Calendar (cumulative) |
+|---|---|---|---|
+| Risks known, go/no-go per feature | 0 | 3–5 | ~1–2 weeks |
+| Engine, UI shell, Apple TV remote | 1–3 | +7–12 | ~4–6 weeks |
+| **v0.1 alpha:** audio to one device | 4 | +6–10 | ~2–3 months |
+| Multi-output audio incl. PC speakers | 5 | +6–10 | ~3 months |
+| Send media to Apple TV | 6 | +3–5 | ~3–4 months |
+| **v1.0:** installer, signing, docs (mirroring may follow in 1.x) | 8 | +3–5 | ~4 months |
+| Screen mirroring, if feasible | 7 | +10–20, open-ended | ~5–6 months |
+| Smart-home control | 9 | +8–15 | ~6–8 months |
+
+If Spike D shows mirroring is blocked, Phase 7 is dropped or parked, and v1.0 ships without it.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).
