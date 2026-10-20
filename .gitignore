@@ -1,0 +1,33 @@
+﻿# Private, machine-only data (see docs/PRIVACY.md)
+local/
+*.pcap
+*.pcapng
+*.har
+*.log
+.env
+.env.*
+*credentials*
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store

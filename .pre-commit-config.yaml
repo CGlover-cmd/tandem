@@ -1,0 +1,32 @@
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: local
+    hooks:
+      - id: check-private-info
+        name: Block private information (docs/PRIVACY.md)
+        entry: python tools/check_private_info.py
+        language: system
+        types: [text]
+        stages: [pre-commit]
+      - id: check-private-info-message
+        name: Block private information in commit message
+        entry: python tools/check_private_info.py
+        language: system
+        stages: [commit-msg]
+      - id: block-local-folder
+        name: Block files from local/
+        entry: local/ is private and must never be committed
+        language: fail
+        files: ^local/
+        stages: [pre-commit]
+
+      # Secret scanning. Run via `python -m` because Windows Smart App Control blocks
+      # unsigned console-script .exe launchers (and gitleaks' Go toolchain).
+      - id: detect-secrets
+        name: Block secrets (detect-secrets)
+        entry: python -m detect_secrets.pre_commit_hook --baseline .secrets.baseline
+        language: python
+        additional_dependencies: [detect-secrets==1.5.0]
+        exclude: ^\.secrets\.baseline$
+        stages: [pre-commit]
