@@ -11,6 +11,8 @@ from pyatv.const import DeviceModel, PairingRequirement, Protocol
 from pyatv.interface import AppleTV, BaseConfig, DeviceListener, PairingHandler
 from pyatv.storage import AbstractStorage
 
+from tandem.engine.adapters.pyatv_control import PyatvController
+from tandem.engine.control import Controller
 from tandem.engine.models import Device, DeviceKind, Service
 from tandem.engine.pairing import PairingFactory, PairingHandle
 from tandem.engine.service import UnknownDeviceError
@@ -210,3 +212,8 @@ class PyatvBackend:
                 removed = await self._storage.remove_settings(settings) or removed
         self._configs.pop(device_id, None)  # cached services still carry the old credentials
         return removed
+
+    def controller(self, link: Link) -> Controller | None:
+        if isinstance(link, PyatvLink):
+            return PyatvController(link.atv)
+        return None

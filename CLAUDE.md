@@ -68,6 +68,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Apple TV pairing takes two PINs: remote control (Companion), then AirPlay. pyatv also lists
   AirPlay audio (RAOP) as needing pairing, but the TV never shows a PIN for it, so `pair` skips
   it unless asked. A Companion attempt can be rejected once; retrying with a fresh PIN worked.
+- The reference Apple TV's Volume Control is "Auto via IR (TV)": the Siri Remote sets the TV's
+  volume by infrared, so Tandem reports no volume control for it (ADR-0009). Media titles from
+  now-playing are personal: the developer tool hides them; Claude never passes `--show-private`.
 - GPU: NVIDIA (NVENC) plus AMD integrated graphics. The built-in 4K 60 Hz display runs on the
   NVIDIA GPU, so desktop duplication captures there (Spike E). AMF is slow on this laptop.
 - Video spike tooling (Spike E): PyAV (bundled FFmpeg, NVENC/AMF/MF/x264) and dxcam. Use

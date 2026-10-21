@@ -62,6 +62,11 @@ python -m tandem pair apple_tv
 python -m tandem connect all
 python -m tandem forget apple_tv
 python -m tandem diagnose
+python -m tandem controls apple_tv
+python -m tandem remote apple_tv up up select
+python -m tandem media apple_tv pause
+python -m tandem playing apple_tv --watch 30
+python -m tandem volume apple_tv up
 ```
 
 `pair`, `connect` and `forget` take a target: `all`, a kind (`apple_tv`, `homepod`, `receiver`),
@@ -70,6 +75,11 @@ part of a model name, or a device's own name. `pair` asks for each PIN the devic
 and reconnects after drops until Ctrl+C). `diagnose` writes a zip of logs and device details
 with names, addresses and identifiers replaced, for attaching to a bug report; it never
 includes pairing credentials.
+
+The Apple TV commands connect, act and disconnect. `controls` lists what the device can do right
+now (it changes with what's playing). Media titles are hidden unless `--show-private` is given.
+An Apple TV that changes the TV's volume by infrared (its Volume Control setting) can't have
+its volume changed from Tandem; `volume` says so.
 
 Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
 

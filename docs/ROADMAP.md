@@ -38,8 +38,13 @@ _Update this section at the end of every working session._
   connected to and disconnected from every reference device: the Apple TV (remote control and
   AirPlay PINs), both HomePod minis and the soundbar (no pairing needed).
   `python -m tandem diagnose` writes a redacted diagnostics bundle.
-- **Next:** Phase 3 in the engine: remote keys, media controls, now-playing, power and volume,
-  behind a clean API for the UI. The test Pi has UxPlay and shairport-sync, both on demand.
+- **Phase 3 so far (engine):** the control API is built (ADR-0009) and checked live on the
+  Apple TV: remote keys move the selection, play and pause work, now-playing follows, and
+  the play controls appear once a video plays. Volume reports none on the reference setup
+  (the TV's volume is set by IR from the Siri Remote).
+- **Next:** the Phase 3 UI on the HeroUI front end (remote pad, now-playing card, app
+  launcher), once the UI's engine adapter exists. The test Pi has UxPlay and
+  shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
   replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
@@ -153,6 +158,14 @@ access-setting problems), settings.
 
 ### Phase 3 · Apple TV control
 Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power and volume.
+- [x] Engine control API: `Engine.controls()`, capabilities and push events (ADR-0009)
+- [x] Remote keys, media commands, seek, now-playing, artwork, power, apps, text entry
+- [x] Volume as level, steps or none; the Apple TV offers steps only (ADR-0009)
+- [x] Developer tool: `controls`, `remote`, `media`, `playing`, `power`, `volume`, `apps`,
+  `launch`, `type`
+- [x] Live check on the Apple TV: keys move the selection, play and pause work, now-playing
+  follows; volume reports none (the TV's volume is set by IR from the Siri Remote)
+- [ ] UI: remote pad, now-playing card and app launcher on the new front end
 
 ### Phase 4 · Audio to one device
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.
