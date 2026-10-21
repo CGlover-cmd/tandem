@@ -25,10 +25,13 @@ _Update this section at the end of every working session._
   now. Receivers accept it, but there is no open-source way to send it (pyatv has no mirroring
   sender) and the video is keyed by FairPlay; we will not reverse-engineer or bypass FairPlay in
   a public project. Phase 7 is shelved; everything else is FairPlay-free and on track. ADR-0006
-  accepted ([findings](spikes/spike-d-mirroring.md)).
-- **Next:** Spike E, NVENC H.264 encode latency (independent of the mirroring no-go; reusable if
-  a legitimate mirroring path ever opens), and Spike F, the Raspberry Pi 3 as an audio test
-  receiver (shairport-sync). The test Pi is already set up with UxPlay from Spike D.
+  accepted ([findings](spikes/spike-d-mirroring.md)). Spike E passed for 1080p: capture, NVENC
+  encode and decode back take about 60 ms on the PC, and 1080p30 runs at full rate from Python.
+  4K60 would need frames to stay on the GPU (a native helper), which only matters if mirroring
+  reopens ([findings](spikes/spike-e-encode.md)).
+- **Next:** Spike F, the Raspberry Pi 3 as an audio test receiver (shairport-sync). It is the
+  last Phase 0 spike; then close Phase 0 with the go/no-go table. The test Pi is already set up
+  with UxPlay from Spike D.
 
 ## Scope
 
@@ -99,7 +102,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Spike B: play a test tone on the soundbar, then each HomePod mini ([go](spikes/spike-b-audio.md))
 - [x] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005) ([go, with a limit](spikes/spike-c-loopback.md))
 - [x] Spike D: mirroring feasibility ([no-go: FairPlay-gated, Phase 7 shelved](spikes/spike-d-mirroring.md); ADR-0006)
-- [ ] Spike E: NVENC H.264 screen encode latency
+- [x] Spike E: NVENC H.264 screen encode latency ([go for 1080p; 4K60 needs a GPU-only path](spikes/spike-e-encode.md))
 - [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
 
@@ -167,6 +170,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
 | Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
+| 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 7 reopens |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |
 | Trademark complaint | Low | Neutral name, plain compatibility wording |

@@ -56,7 +56,12 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
   maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
-- GPU: NVIDIA (NVENC) plus AMD integrated graphics.
+- GPU: NVIDIA (NVENC) plus AMD integrated graphics. The built-in 4K 60 Hz display runs on the
+  NVIDIA GPU, so desktop duplication captures there (Spike E). AMF is slow on this laptop.
+- Video spike tooling (Spike E): PyAV (bundled FFmpeg, NVENC/AMF/MF/x264) and dxcam. Use
+  `VideoFrame.from_numpy_buffer`, not `from_ndarray` (36 ms per 4K frame). dxcam 0.3.0 crashes in
+  `release()`/COM cleanup, so spikes end with `os._exit`. PyAV can't pass D3D11 GPU frames to an
+  encoder (no hw_frames_ctx), so a zero-copy capture-to-NVENC path needs native code.
 - Audio capture: miniaudio (a pyatv dependency) does WASAPI loopback; its Python wrapper lacks a
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
   On this laptop loopback follows the Windows volume and mute (Spike C).
@@ -69,7 +74,8 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - `local/discovery-scan.json` and `local/denylist.txt` (private terms for the commit hook).
 - The virtualenv and the GitHub sign-in.
 - To rebuild on a fresh machine: create the venv, then run
-  `python -m pip install pyatv pre-commit detect-secrets==1.5.0`, then `python -m pre_commit install`,
+  `python -m pip install pyatv pre-commit detect-secrets==1.5.0` (plus `av dxcam numpy` for
+  the Spike E script), then `python -m pre_commit install`,
   then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
