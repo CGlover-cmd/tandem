@@ -36,6 +36,8 @@ _Update this section at the end of every working session._
 - **Next:** close Phase 0: write the go/no-go table per feature, confirm the ADRs, and update
   the risk register. All six spikes are done. The test Pi has UxPlay and shairport-sync, both
   on demand.
+- **In parallel, Phase 1:** the engine foundation is built (see the Phase 1 checklist below;
+  ADR-0007). Next in Phase 1: pairing flows and `pair` / `connect` / `disconnect` commands.
 
 ## Scope
 
@@ -116,6 +118,14 @@ flows, encrypted credential vault, event bus, settings, structured logging, reda
 bundle, developer command-line tool.
 **Exit:** the command-line tool discovers, pairs, connects and disconnects all reference devices
 reliably, with ≥80% test coverage of the engine core.
+- [x] Package skeleton, tooling (ruff, pyright strict, pytest) and Windows CI
+- [x] Event bus, device registry, continuous discovery
+- [x] Connection state machine with reconnect and backoff
+- [x] Settings, redacted structured logging, DPAPI credential vault (ADR-0007)
+- [x] Developer tool: `discover`, `watch`
+- [ ] Pairing flows (PIN entry); `pair`, `connect`, `disconnect` commands
+- [ ] Redacted diagnostics bundle
+- [ ] Exit check on the reference devices
 
 ### Phase 2 · UX design and UI shell
 Apple-inspired design system: generous corner radii, soft depth, translucent surfaces, fluid

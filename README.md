@@ -10,6 +10,8 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > Screen mirroring was investigated and shelved: it is
 > gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
 > ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
+> The core engine (Phase 1) is under way: discovery, connection handling, settings, redacted
+> logs and an encrypted credential store exist, with a developer command-line tool.
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals
@@ -34,6 +36,28 @@ python tools/build_denylist.py
 ```
 
 Architecture decisions are recorded in [docs/adr](docs/adr/).
+
+### Development
+
+Tandem needs Python 3.11+ on Windows. Keep the virtualenv outside any synced folder, then
+install the package with its development tools:
+
+```
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m ruff check src tests
+python -m pyright --pythonpath <path to your venv's python.exe>
+```
+
+The developer tool lists AirPlay devices on your network. Names and addresses are replaced
+with placeholders such as `<device-1>`, so the output is safe to paste into an issue:
+
+```
+python -m tandem discover
+python -m tandem watch
+```
+
+Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
 
 ## Legal
 
