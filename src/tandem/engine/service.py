@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from tandem.engine import diagnostics, pairing
+from tandem.engine.control import Controller, DeviceControls
+from tandem.engine.control_hub import ControlHub
 from tandem.engine.discovery import Discovery, Sleep
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
@@ -43,6 +45,10 @@ class Backend(Protocol):
 
     async def forget(self, device_id: str) -> bool:
         """Delete the device's stored credentials. Returns False if there were none."""
+        ...
+
+    def controller(self, link: Link) -> Controller | None:
+        """Remote and media controls on an open link; None if the device has none."""
         ...
 
 
@@ -78,6 +84,16 @@ class Engine:
             sleep=sleep,
         )
         self._sessions: dict[str, ConnectionSession] = {}
+        self._controls = ControlHub(self.bus, backend.controller, self._live_link)
+
+    def _live_link(self, device_id: str) -> Link | None:
+        session = self._sessions.get(device_id)
+        return session.link if session else None
+
+    def controls(self, device_id: str) -> DeviceControls:
+        """Remote, media, volume and power controls for a device. They work while it is
+        connected (see `connect`) and raise NotConnectedError otherwise."""
+        return self._controls.controls(device_id)
 
     async def open(self) -> None:
         await self._backend.load()
@@ -87,6 +103,7 @@ class Engine:
         await self.discovery.stop()
         for device_id in list(self._sessions):
             await self.disconnect(device_id)
+        await self._controls.close()
 
     async def scan(self) -> list[Device]:
         """Scan once and return every visible device."""

@@ -216,3 +216,91 @@ def test_pair_skips_airplay_audio_when_airplay_is_offered(
     output = _run(backend, "pair", "apple_tv")
     assert "Pairing airplay" in output
     assert "Pairing raop" not in output
+
+
+# --- Phase 3 control commands ----------------------------------------------------------
+
+
+@pytest.fixture
+def tv_backend() -> FakeBackend:
+    from tandem.engine.control import MediaType, NowPlaying, PlayState
+
+    backend = FakeBackend([TV])
+    backend.controller_options = {
+        "now_playing": NowPlaying(
+            state=PlayState.PLAYING,
+            media_type=MediaType.VIDEO,
+            title="Invented Film",
+            position=12,
+            total_time=100,
+            app_name="Example Video",
+        )
+    }
+    return backend
+
+
+def test_controls_command_hides_titles(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    output = _run(tv_backend, "controls", "apple_tv")
+    assert "Can: apps, artwork" in output
+    assert "Volume: level (now 40)" in output
+    assert "Power: on" in output
+    assert "playing  video  app: Example Video  title: (hidden)  12/100 s" in output
+    assert "Invented Film" not in output
+    assert tv_backend.links[TV.id][0].closed  # disconnects afterwards
+
+
+def test_playing_show_private(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    assert "Invented Film" in _run(tv_backend, "--show-private", "playing", "apple_tv")
+
+
+def test_remote_and_media_commands(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    from tandem.engine.control import KeyAction, MediaCommand, RemoteKey
+
+    output = _run(tv_backend, "remote", "apple_tv", "up", "select", "--gap", "0")
+    assert "up: sent in" in output
+    assert "select: sent in" in output
+    assert tv_backend.controllers[TV.id].calls == [
+        ("press", RemoteKey.UP, KeyAction.TAP),
+        ("press", RemoteKey.SELECT, KeyAction.TAP),
+    ]
+    assert "pause: sent" in _run(tv_backend, "media", "apple_tv", "pause")
+    assert tv_backend.controllers[TV.id].calls == [("media", MediaCommand.PAUSE)]
+
+
+def test_volume_commands(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    from tandem.engine.control import VolumeControl
+
+    assert "Volume control: level, level 40" in _run(tv_backend, "volume", "apple_tv")
+    assert "volume 55: sent" in _run(tv_backend, "volume", "apple_tv", "55")
+    assert tv_backend.controllers[TV.id].calls == [("set_volume", 55.0)]
+
+    tv_backend.controller_options["volume_control"] = VolumeControl.STEPS
+    assert "volume up: sent" in _run(tv_backend, "volume", "apple_tv", "up")
+    output = _run(tv_backend, "volume", "apple_tv", "30", code=1)
+    assert "not supported right now: volume level" in output
+
+    tv_backend.controller_options["volume_control"] = VolumeControl.NONE
+    output = _run(tv_backend, "volume", "apple_tv")
+    assert "Volume control: none" in output
+    assert "infrared" in output
+    assert "volume must be between" in _run(tv_backend, "volume", "apple_tv", "500", code=1)
+
+
+def test_power_apps_launch_and_type(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    assert "Power: on" in _run(tv_backend, "power", "apple_tv")
+    assert "power off: sent" in _run(tv_backend, "power", "apple_tv", "off")
+    assert "Example Video  (com.example.video)" in _run(tv_backend, "apps", "apple_tv")
+    assert "launch com.example.video: sent" in _run(
+        tv_backend, "launch", "apple_tv", "com.example.video"
+    )
+    assert "text: sent" in _run(tv_backend, "type", "apple_tv", "search words")
+
+
+def test_control_command_without_connection(tandem_home: Path, tv_backend: FakeBackend) -> None:
+    tv_backend.connect_failures[TV.id] = [OSError(), OSError(), OSError()]
+    assert "Could not connect" in _run(tv_backend, "controls", "apple_tv", code=1)
+
+
+def test_control_command_needs_one_target(tandem_home: Path) -> None:
+    backend = FakeBackend([SPEAKER, SPEAKER_2])
+    assert "2 devices match" in _run(backend, "controls", "homepod", code=1)

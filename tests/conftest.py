@@ -11,6 +11,19 @@ from typing import Any
 
 import pytest
 
+from tandem.engine.control import (
+    App,
+    Artwork,
+    Capability,
+    ControlError,
+    ControlUpdate,
+    KeyAction,
+    MediaCommand,
+    NowPlaying,
+    PowerState,
+    RemoteKey,
+    VolumeControl,
+)
 from tandem.engine.models import Device, DeviceKind, Service
 
 
@@ -95,6 +108,7 @@ def _reset_tandem_logging() -> Iterator[None]:  # pyright: ignore[reportUnusedFu
 class FakeLink:
     def __init__(self) -> None:
         self.closed = False
+        self.device_id = ""
 
     async def close(self) -> None:
         self.closed = True
@@ -153,6 +167,8 @@ class FakeBackend:
         self.links: dict[str, list[FakeLink]] = {}
         self.lost_callbacks: dict[str, Callable[[BaseException | None], None]] = {}
         self.describe_enabled = True
+        self.controllers: dict[str, FakeController] = {}
+        self.controller_options: dict[str, Any] = {}
 
     async def load(self) -> None:
         self.loaded = True
@@ -200,6 +216,7 @@ class FakeBackend:
             if failures:
                 raise failures.pop(0)
             link = FakeLink()
+            link.device_id = device_id
             self.links.setdefault(device_id, []).append(link)
             self.lost_callbacks[device_id] = on_lost
             return link
@@ -210,3 +227,102 @@ class FakeBackend:
         before = len(self.credentials)
         self.credentials = {c for c in self.credentials if c[0] != device_id}
         return len(self.credentials) != before
+
+    def controller(self, link: Any) -> FakeController | None:
+        if not isinstance(link, FakeLink):
+            return None
+        controller = FakeController(**self.controller_options)
+        self.controllers[link.device_id] = controller
+        return controller
+
+
+ALL_CAPABILITIES = frozenset(Capability)
+
+
+class FakeController:
+    """Records every command; `push` sends an update as the device would."""
+
+    def __init__(
+        self,
+        *,
+        capabilities: frozenset[Capability] = ALL_CAPABILITIES,
+        volume_control: VolumeControl = VolumeControl.LEVEL,
+        volume: float | None = 40.0,
+        power: PowerState = PowerState.ON,
+        now_playing: NowPlaying | None = None,
+        fail: ControlError | None = None,
+    ) -> None:
+        self.caps = capabilities
+        self.vol_control = volume_control
+        self.level = volume
+        self.power_state = power
+        self.playing = now_playing or NowPlaying()
+        self.fail = fail
+        self.calls: list[tuple[Any, ...]] = []
+        self.on_update: Callable[[ControlUpdate], None] | None = None
+        self.stopped = False
+        self.apps_list = [App("com.example.video", "Example Video")]
+
+    def capabilities(self) -> frozenset[Capability]:
+        return self.caps
+
+    def volume_control(self) -> VolumeControl:
+        return self.vol_control
+
+    def volume(self) -> float | None:
+        return self.level if self.vol_control is VolumeControl.LEVEL else None
+
+    def power(self) -> PowerState:
+        return self.power_state
+
+    async def _record(self, *call: Any) -> None:
+        if self.fail is not None:
+            raise self.fail
+        self.calls.append(call)
+
+    async def press(self, key: RemoteKey, action: KeyAction) -> None:
+        await self._record("press", key, action)
+
+    async def media(self, command: MediaCommand) -> None:
+        await self._record("media", command)
+
+    async def seek(self, position: float) -> None:
+        await self._record("seek", position)
+
+    async def set_volume(self, level: float) -> None:
+        await self._record("set_volume", level)
+
+    async def volume_step(self, up: bool) -> None:
+        await self._record("volume_step", up)
+
+    async def set_power(self, on: bool) -> None:
+        await self._record("set_power", on)
+
+    async def now_playing(self) -> NowPlaying:
+        if self.fail is not None:
+            raise self.fail
+        return self.playing
+
+    async def artwork(self, width: int | None, height: int | None) -> Artwork | None:
+        await self._record("artwork", width, height)
+        return Artwork(b"PNG", "image/png", width or 1, height or 1)
+
+    async def apps(self) -> list[App]:
+        await self._record("apps")
+        return list(self.apps_list)
+
+    async def launch(self, app_id: str) -> None:
+        await self._record("launch", app_id)
+
+    async def set_text(self, text: str) -> None:
+        await self._record("set_text", text)
+
+    def start(self, on_update: Callable[[ControlUpdate], None]) -> None:
+        self.on_update = on_update
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def push(self, update: ControlUpdate) -> None:
+        assert self.on_update is not None
+        self.on_update(update)

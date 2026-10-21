@@ -14,12 +14,24 @@ import asyncio
 import logging
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import TextIO
 
 from tandem import __version__
 from tandem.engine import paths
+from tandem.engine.control import (
+    ControlError,
+    ControlsAvailable,
+    ControlStatus,
+    DeviceControls,
+    KeyAction,
+    MediaCommand,
+    NowPlaying,
+    NowPlayingChanged,
+    RemoteKey,
+    VolumeControl,
+)
 from tandem.engine.logs import configure_logging
 from tandem.engine.models import Device, Service
 from tandem.engine.pairing import PairingError, PairingState, PairingStateChanged, PinProvider
@@ -151,7 +163,44 @@ def _parser() -> argparse.ArgumentParser:
     diagnose.add_argument(
         "--out", type=Path, help="folder for the bundle (default: the app's diagnostics folder)"
     )
+    _add_control_parsers(commands, add_target, add_scan_timeout)
     return parser
+
+
+def _add_control_parsers(
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],  # pyright: ignore[reportPrivateUsage]
+    add_target: Callable[[argparse.ArgumentParser], None],
+    add_scan_timeout: Callable[[argparse.ArgumentParser, float], None],
+) -> None:
+    def control(name: str, help_text: str) -> argparse.ArgumentParser:
+        command = commands.add_parser(name, help=help_text)
+        add_target(command)
+        add_scan_timeout(command, 5.0)
+        return command
+
+    control("controls", "connect and list what the device can do right now")
+    remote = control("remote", "press remote keys")
+    remote.add_argument("keys", nargs="+", choices=[k.value for k in RemoteKey], metavar="KEY")
+    remote.add_argument(
+        "--action",
+        choices=[a.value for a in KeyAction],
+        default="tap",
+        help="tap, double_tap, hold",
+    )
+    remote.add_argument("--gap", type=float, default=0.3, help="seconds between key presses")
+    media = control("media", "play, pause, skip and so on")
+    media.add_argument("media_command", choices=[c.value for c in MediaCommand], metavar="COMMAND")
+    playing = control("playing", "show what is playing")
+    playing.add_argument("--watch", type=float, default=0.0, help="keep printing for N seconds")
+    power = control("power", "show or change power state")
+    power.add_argument("state", nargs="?", choices=["on", "off"])
+    volume = control("volume", "show the volume, step it, or set a level")
+    volume.add_argument("change", nargs="?", help="up, down, or a level from 0 to 100")
+    control("apps", "list installed apps")
+    launch = control("launch", "open an app by its id (see `apps`)")
+    launch.add_argument("app_id")
+    type_text = control("type", "replace the text in the focused text field")
+    type_text.add_argument("text")
 
 
 def _matches(devices: Sequence[Device], target: str) -> list[Device]:
@@ -340,7 +389,187 @@ async def _diagnose(engine: Engine, args: argparse.Namespace, printer: _Printer)
     return 0
 
 
+def _now_playing_line(now: NowPlaying, printer: _Printer, show_private: bool) -> str:
+    """One line about what's playing. Titles are hidden unless --show-private."""
+
+    def hidden(value: str | None) -> str | None:
+        return value if show_private or value is None else "(hidden)"
+
+    parts = [now.state.value, now.media_type.value]
+    if now.app_name:
+        parts.append(f"app: {now.app_name}")
+    title = hidden(now.title)
+    if title:
+        parts.append(f"title: {title}")
+    if now.position is not None and now.total_time:
+        parts.append(f"{now.position:.0f}/{now.total_time:.0f} s")
+    return printer.text("  ".join(parts))
+
+
+async def _with_controls(
+    engine: Engine,
+    args: argparse.Namespace,
+    printer: _Printer,
+    action: Callable[[DeviceControls, ControlStatus], Awaitable[int]],
+) -> int:
+    """Connect to one device, run `action` on its controls, then disconnect."""
+    selected = _select(await engine.scan(), args, printer, single=True)
+    if not selected:
+        return 1
+    device = selected[0]
+    ready = asyncio.ensure_future(
+        engine.bus.wait_for(ControlsAvailable, lambda e: e.device_id == device.id, timeout=30)
+    )
+    try:
+        await engine.connect(device.id, timeout=30, max_attempts=3)
+        status = (await ready).status
+    except (ConnectionFailedError, TimeoutError):
+        ready.cancel()
+        printer.line(f"Could not connect to {printer.label(device)}")
+        await engine.disconnect(device.id)
+        return 1
+    try:
+        return await action(engine.controls(device.id), status)
+    except ControlError as exc:
+        printer.line(f"{printer.label(device)}: {exc}")
+        return 1
+    except ValueError as exc:
+        printer.line(str(exc))
+        return 1
+    finally:
+        await engine.disconnect(device.id)
+
+
+async def _controls(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def show(_controls: DeviceControls, status: ControlStatus) -> int:
+        printer.line("Can: " + (", ".join(sorted(c.value for c in status.capabilities)) or "-"))
+        level = "" if status.volume is None else f" (now {status.volume:.0f})"
+        printer.line(f"Volume: {status.volume_control.value}{level}")
+        printer.line(f"Power: {status.power.value}")
+        printer.line(
+            "Playing: " + _now_playing_line(status.now_playing, printer, args.show_private)
+        )
+        return 0
+
+    return await _with_controls(engine, args, printer, show)
+
+
+async def _remote(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def press(controls: DeviceControls, _status: ControlStatus) -> int:
+        for index, key in enumerate(args.keys):
+            if index:
+                await asyncio.sleep(args.gap)
+            started = time.perf_counter()
+            await controls.press(RemoteKey(key), KeyAction(args.action))
+            printer.line(f"  {key}: sent in {(time.perf_counter() - started) * 1000:.0f} ms")
+        return 0
+
+    return await _with_controls(engine, args, printer, press)
+
+
+async def _media(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def send(controls: DeviceControls, _status: ControlStatus) -> int:
+        await controls.media(MediaCommand(args.media_command))
+        printer.line(f"  {args.media_command}: sent")
+        return 0
+
+    return await _with_controls(engine, args, printer, send)
+
+
+async def _playing(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def show(controls: DeviceControls, status: ControlStatus) -> int:
+        printer.line(_now_playing_line(status.now_playing, printer, args.show_private))
+        if args.watch > 0:
+
+            def on_change(event: NowPlayingChanged) -> None:
+                if event.device_id == controls.device_id:
+                    printer.line(_now_playing_line(event.now_playing, printer, args.show_private))
+
+            unsubscribe = engine.bus.subscribe(NowPlayingChanged, on_change)
+            try:
+                await asyncio.sleep(args.watch)
+            finally:
+                unsubscribe()
+        return 0
+
+    return await _with_controls(engine, args, printer, show)
+
+
+async def _power(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def run(controls: DeviceControls, status: ControlStatus) -> int:
+        if args.state is None:
+            printer.line(f"Power: {status.power.value}")
+            return 0
+        await controls.set_power(args.state == "on")
+        printer.line(f"  power {args.state}: sent")
+        return 0
+
+    return await _with_controls(engine, args, printer, run)
+
+
+VOLUME_HINT = (
+    "  This device takes no volume changes. An Apple TV set to change volume by infrared (IR)"
+    " leaves it to its own remote. If the TV supports HDMI-CEC, Settings > Remotes and"
+    " Devices > Volume Control may offer a CEC option; otherwise use the TV remote."
+)
+
+
+async def _volume(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def run(controls: DeviceControls, status: ControlStatus) -> int:
+        change: str | None = args.change
+        if change is None:
+            level = "" if status.volume is None else f", level {status.volume:.0f}"
+            printer.line(f"Volume control: {status.volume_control.value}{level}")
+            if status.volume_control is VolumeControl.NONE:
+                printer.line(VOLUME_HINT)
+            return 0
+        if change in ("up", "down"):
+            await (controls.volume_up() if change == "up" else controls.volume_down())
+        else:
+            await controls.set_volume(float(change))
+        printer.line(f"  volume {change}: sent")
+        return 0
+
+    return await _with_controls(engine, args, printer, run)
+
+
+async def _apps(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def run(controls: DeviceControls, _status: ControlStatus) -> int:
+        for app in sorted(await controls.apps(), key=lambda a: a.name.casefold()):
+            printer.line(f"  {app.name}  ({app.id})")
+        return 0
+
+    return await _with_controls(engine, args, printer, run)
+
+
+async def _launch(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def run(controls: DeviceControls, _status: ControlStatus) -> int:
+        await controls.launch(args.app_id)
+        printer.line(f"  launch {args.app_id}: sent")
+        return 0
+
+    return await _with_controls(engine, args, printer, run)
+
+
+async def _type(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    async def run(controls: DeviceControls, _status: ControlStatus) -> int:
+        await controls.set_text(args.text)
+        printer.line("  text: sent")
+        return 0
+
+    return await _with_controls(engine, args, printer, run)
+
+
 _COMMANDS = {
+    "controls": _controls,
+    "remote": _remote,
+    "media": _media,
+    "playing": _playing,
+    "power": _power,
+    "volume": _volume,
+    "apps": _apps,
+    "launch": _launch,
+    "type": _type,
     "diagnose": _diagnose,
     "discover": _discover,
     "watch": _watch,
