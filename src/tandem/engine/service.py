@@ -12,9 +12,10 @@ import dataclasses
 import time
 from collections.abc import Callable, Sequence
 from contextlib import suppress
-from typing import Protocol
+from pathlib import Path
+from typing import Any, Protocol
 
-from tandem.engine import pairing
+from tandem.engine import diagnostics, pairing
 from tandem.engine.discovery import Discovery, Sleep
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
@@ -185,3 +186,22 @@ class Engine:
         if session is not None:
             with suppress(Exception):
                 await session.close()
+
+    def diagnostics(
+        self,
+        out_dir: Path,
+        *,
+        log_dir: Path | None = None,
+        settings: dict[str, Any] | None = None,
+    ) -> Path:
+        """Write a redacted diagnostics bundle (devices, connection states, logs)."""
+        devices = [
+            diagnostics.DeviceSummary(
+                device,
+                self._sessions[device.id].state if device.id in self._sessions else None,
+            )
+            for device in self.registry.devices()
+        ]
+        return diagnostics.write_bundle(
+            out_dir, self.redactor, devices=devices, settings=settings, log_dir=log_dir
+        )
