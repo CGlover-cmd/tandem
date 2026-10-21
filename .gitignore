@@ -31,3 +31,7 @@ dist/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Front end (ADR-0010): dependencies, and the build that ships inside the package
+node_modules/
+src/tandem/ui/static/

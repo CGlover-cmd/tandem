@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
 from tandem.ui.backend import (
+    BACKGROUNDS,
+    Appearance,
+    AppearanceChanged,
     BackendEvent,
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
     LinkState,
     PairingError,
+    Theme,
     WrongPinError,
 )
 from tandem.ui.demo_backend import DEMO_DEVICES, FLAKY_DEVICE, WRONG_PIN, DemoBackend
@@ -90,3 +97,41 @@ async def test_speakers_need_no_pairing(backend: DemoBackend) -> None:
 
     with pytest.raises(PairingError):
         await backend.begin_pairing("demo-speaker-1")
+
+
+async def test_appearance_defaults_and_publishes_changes(backend: DemoBackend) -> None:
+    events: list[BackendEvent] = []
+    backend.subscribe(events.append)
+    assert backend.appearance() == Appearance()
+
+    choice = Appearance(Theme.DARK, "aurora")
+    await backend.set_appearance(choice)
+
+    assert backend.appearance() == choice
+    assert events == [AppearanceChanged(choice)]
+
+
+async def test_appearance_survives_a_restart(tmp_path: Path) -> None:
+    path = tmp_path / "ui" / "appearance.json"
+    await DemoBackend(appearance_file=path).set_appearance(Appearance(Theme.LIGHT, "dusk"))
+
+    assert DemoBackend(appearance_file=path).appearance() == Appearance(Theme.LIGHT, "dusk")
+
+
+def test_unreadable_appearance_file_falls_back_to_defaults(tmp_path: Path) -> None:
+    path = tmp_path / "appearance.json"
+    path.write_text('{"theme": "neon", "background": "plaid"}', encoding="utf-8")
+
+    assert DemoBackend(appearance_file=path).appearance() == Appearance()
+
+
+def test_unknown_background_is_rejected() -> None:
+    with pytest.raises(ValueError, match="background"):
+        Appearance(Theme.SYSTEM, "plaid")
+
+
+def test_front_end_offers_the_same_backgrounds() -> None:
+    theme = Path(__file__).parents[2] / "web" / "src" / "theme.ts"
+    ids = re.findall(r'^\s+id: "([a-z]+)",$', theme.read_text(encoding="utf-8"), re.MULTILINE)
+
+    assert tuple(ids) == BACKGROUNDS

@@ -4,15 +4,23 @@ Behaviour worth seeing in the UI:
 - devices appear one at a time, as discovery would find them;
 - the TV needs PIN pairing first (any 4 digits work except 0000, which is "wrong");
 - the soundbar's first connection attempt fails, so the retry state shows.
+
+The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
+given, so a background picked in Settings survives a restart.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
+from pathlib import Path
 
 from tandem.ui.backend import (
+    Appearance,
+    AppearanceChanged,
     BackendEvent,
     DeviceKind,
     DeviceRemoved,
@@ -23,9 +31,12 @@ from tandem.ui.backend import (
     Listener,
     PairingError,
     PairingFlow,
+    Theme,
     Unsubscribe,
     WrongPinError,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 Sleep = Callable[[float], Awaitable[None]]
 
@@ -43,9 +54,16 @@ FLAKY_DEVICE = "demo-soundbar"
 
 class DemoBackend:
     def __init__(
-        self, *, sleep: Sleep = asyncio.sleep, delay: float = 0.6, retry_after: float = 2.0
+        self,
+        *,
+        sleep: Sleep = asyncio.sleep,
+        delay: float = 0.6,
+        retry_after: float = 2.0,
+        appearance_file: Path | None = None,
     ):
         self._sleep = sleep
+        self._appearance_file = appearance_file
+        self._appearance = _load_appearance(appearance_file)
         self._delay = delay
         self._retry_after = retry_after
         self._devices: dict[str, DeviceSnapshot] = {}
@@ -106,6 +124,15 @@ class DemoBackend:
         await self._sleep(self._delay)
         return _DemoPairing(lambda pin: self._finish_pairing(device_id, pin))
 
+    def appearance(self) -> Appearance:
+        return self._appearance
+
+    async def set_appearance(self, appearance: Appearance) -> None:
+        self._appearance = appearance
+        if self._appearance_file is not None:
+            _save_appearance(self._appearance_file, appearance)
+        self._publish(AppearanceChanged(appearance))
+
     # Internals
 
     async def _connect(self, device_id: str) -> None:
@@ -162,6 +189,26 @@ class DemoBackend:
     def _publish(self, event: BackendEvent) -> None:
         for listener in list(self._listeners):
             listener(event)
+
+
+def _load_appearance(path: Path | None) -> Appearance:
+    if path is None or not path.exists():
+        return Appearance()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return Appearance(Theme(data["theme"]), str(data["background"]))
+    except (OSError, ValueError, KeyError, TypeError):
+        _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
+        return Appearance()
+
+
+def _save_appearance(path: Path, appearance: Appearance) -> None:
+    data = {"theme": appearance.theme.value, "background": appearance.background}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        _LOGGER.warning("Couldn't save the appearance setting")
 
 
 class _DemoPairing:

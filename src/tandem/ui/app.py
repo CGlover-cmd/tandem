@@ -1,4 +1,8 @@
-"""Start the Tandem window and tray icon."""
+"""Start Tandem: the engine-side server, the window and the tray icon (ADR-0010).
+
+Threads: pywebview's window must own the main thread on Windows, so the asyncio loop (the
+backend, `AppController` and `UiServer`) runs on a second thread and pystray on a third.
+"""
 
 from __future__ import annotations
 
@@ -6,43 +10,22 @@ import argparse
 import asyncio
 import logging
 import sys
-from pathlib import Path
-from typing import cast
+import threading
+from collections.abc import Sequence
+from typing import Any
 
-import qasync
-from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QGuiApplication, QWindow
-from PySide6.QtQml import QQmlApplicationEngine, QQmlError
-from PySide6.QtQuick import QQuickWindow
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon
-
+from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
-from tandem.ui.platform import add_qt_dll_directory, reduce_motion
-from tandem.ui.tray import Tray, app_icon
-from tandem.ui.viewmodels import AppViewModel
-
-QML_DIR = Path(__file__).resolve().parent / "qml"
+from tandem.ui.platform import reduce_motion, ui_data_dir
+from tandem.ui.server import UiServer
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def create_engine(vm: QObject) -> QQmlApplicationEngine:
-    """Load the main window with `vm` as its `app` property."""
-    engine = QQmlApplicationEngine()
-    engine.warnings.connect(_log_qml_warnings)
-    engine.addImportPath(str(QML_DIR))
-    engine.setInitialProperties({"app": vm})
-    engine.loadFromModule("Tandem", "Main")
-    return engine
+WINDOW_SIZE = (980, 660)
+MIN_SIZE = (560, 440)
 
 
-def _log_qml_warnings(warnings: list[QQmlError]) -> None:
-    for warning in warnings:
-        _LOGGER.warning("QML: %s", warning.toString())
-
-
-def main(argv: list[str] | None = None) -> int:
-    argv = sys.argv if argv is None else argv
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="tandem-ui", description="Tandem's window.")
     parser.add_argument(
         "--demo",
@@ -50,77 +33,127 @@ def main(argv: list[str] | None = None) -> int:
         help="use invented devices (the only mode until the engine is wired in)",
     )
     parser.add_argument(
-        "--screenshot",
-        metavar="PNG",
-        type=Path,
-        help="render the window with demo devices to an image, then exit",
+        "--no-window",
+        action="store_true",
+        help="only run the local server and print the page address (for development)",
     )
     parser.add_argument(
-        "--theme",
-        choices=("light", "dark"),
-        help="with --screenshot: force light or dark mode",
+        "--port", type=int, default=0, help="local port for the server (default: any free one)"
     )
     parser.add_argument(
-        "--pairing", action="store_true", help="with --screenshot: show the pairing sheet"
+        "--dev-origin",
+        action="append",
+        default=[],
+        metavar="ORIGIN",
+        help="also accept the page from this origin, e.g. the Vite dev server",
     )
-    args = parser.parse_args(argv[1:])
+    return parser.parse_args(argv)
+
+
+def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
+    backend = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
+    controller = AppController(backend, demo_mode=True, reduce_motion=reduce_motion())
+    server = UiServer(controller, port=args.port, extra_origins=args.dev_origin)
+    return controller, server
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-
-    add_qt_dll_directory()
-    QApplication.setApplicationName("Tandem")
-    QApplication.setOrganizationName("Tandem")
-    app = QApplication(argv[:1])
-    app.setWindowIcon(app_icon())
-    # Quitting goes through our own event so the asyncio loop can shut down cleanly.
-    app.setQuitOnLastWindowClosed(False)
-    return cast(int, qasync.run(_run(app, args)))
+    if args.no_window:
+        return asyncio.run(_serve_only(args))
+    return _run_with_window(args)  # pragma: no cover - needs a desktop; checked by hand
 
 
-async def _run(app: QApplication, args: argparse.Namespace) -> int:
-    screenshot: Path | None = args.screenshot
-    if screenshot is not None and args.theme is not None:
-        scheme = Qt.ColorScheme.Dark if args.theme == "dark" else Qt.ColorScheme.Light
-        QGuiApplication.styleHints().setColorScheme(scheme)
-    can_hide = screenshot is None and QSystemTrayIcon.isSystemTrayAvailable()
-    backend = DemoBackend()
-    vm = AppViewModel(
-        backend,
-        demo_mode=True,
-        reduce_motion=reduce_motion() or screenshot is not None,
-        can_hide_to_tray=can_hide,
-    )
-    engine = create_engine(vm)
-    roots = engine.rootObjects()
-    if not roots or not isinstance(roots[0], QQuickWindow):
+async def _serve_only(args: argparse.Namespace) -> int:
+    controller, server = build(args)
+    await server.start()
+    controller.runner.run(controller.start())
+    # Printed, not logged: the address carries this launch's token.
+    print(f"Tandem is running. Open {server.url}", flush=True)
+    for origin in args.dev_origin:
+        print(f"  or, from the dev server: {origin}/?token={server.token}", flush=True)
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await server.stop()
+        await controller.stop()
+    return 0
+
+
+def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - checked by hand
+    import webview  # pyright: ignore[reportMissingTypeStubs]
+
+    from tandem.ui.icon import write_ico
+    from tandem.ui.tray import Tray
+
+    wv: Any = webview
+    loop = asyncio.new_event_loop()
+    controller, server = build(args)
+    ready = threading.Event()
+    stopped = threading.Event()
+    failed: list[BaseException] = []
+
+    async def boot() -> None:
+        await server.start()
+        controller.runner.run(controller.start())
+
+    def run_loop() -> None:
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(boot())
+        except Exception as error:
+            failed.append(error)
+            ready.set()
+            stopped.set()
+            return
+        ready.set()
+        loop.run_forever()
+        loop.run_until_complete(server.stop())
+        loop.run_until_complete(controller.stop())
+        loop.close()
+        stopped.set()
+
+    threading.Thread(target=run_loop, name="tandem-engine", daemon=True).start()
+    ready.wait()
+    if failed:
+        _LOGGER.error("Tandem couldn't start its local server: %s", type(failed[0]).__name__)
         return 1
-    window = roots[0]
 
-    quit_event = asyncio.Event()
-    vm.quitRequested.connect(quit_event.set)
+    quitting = threading.Event()
+    window: Any = wv.create_window(
+        "Tandem",
+        server.url,
+        width=WINDOW_SIZE[0],
+        height=WINDOW_SIZE[1],
+        min_size=MIN_SIZE,
+        background_color="#F5F5F7",
+    )
 
     def show_window() -> None:
         window.show()
-        if window.visibility() == QWindow.Visibility.Minimized:
-            window.showNormal()
-        window.raise_()
-        window.requestActivate()
+        window.restore()
 
-    tray = Tray(vm, show_window=show_window, quit_app=quit_event.set) if can_hide else None
-    vm.runner.run(vm.start())
+    def quit_app() -> None:
+        quitting.set()
+        window.destroy()
 
-    if screenshot is not None:
-        await asyncio.sleep(2.0)
-        if args.pairing:
-            vm.pairDevice("demo-tv")
-        await asyncio.sleep(1.5)
-        app.processEvents()
-        ok = window.grabWindow().save(str(screenshot))
-        await vm.stop()
-        return 0 if ok else 1
+    tray = Tray(controller, loop, show_window=show_window, quit_app=quit_app)
 
-    await quit_event.wait()
-    if tray is not None:
-        tray.hide()
-    window.hide()
-    await vm.stop()
+    def on_closing() -> bool:
+        # Closing the window keeps Tandem running in the tray; Quit in the tray ends it.
+        if quitting.is_set():
+            return True
+        threading.Thread(target=window.hide, daemon=True).start()
+        tray.told_hidden()
+        return False
+
+    window.events.closing += on_closing
+    tray.start()
+    icon = write_ico(ui_data_dir() / "tandem.ico")
+    wv.start(icon=str(icon), private_mode=True)
+
+    tray.stop()
+    loop.call_soon_threadsafe(loop.stop)
+    stopped.wait(timeout=5)
     return 0

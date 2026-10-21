@@ -1,6 +1,6 @@
 # ADR-0002: PySide6 + QML for the interface
 
-- Status: Accepted
+- Status: Superseded by [ADR-0010](0010-heroui-web-front-end.md) (HeroUI web front end)
 - Date: 2026-10-20
 
 ## Context
