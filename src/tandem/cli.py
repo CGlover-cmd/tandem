@@ -34,7 +34,14 @@ from tandem.engine.control import (
 )
 from tandem.engine.logs import configure_logging
 from tandem.engine.models import Device, Service
-from tandem.engine.pairing import PairingError, PairingState, PairingStateChanged, PinProvider
+from tandem.engine.pairing import (
+    PAIRING_ORDER,
+    PairingError,
+    PairingState,
+    PairingStateChanged,
+    PinProvider,
+    services_to_pair,
+)
 from tandem.engine.redact import Redactor
 from tandem.engine.registry import DeviceAdded, DeviceEvent, DeviceLost
 from tandem.engine.service import Backend, Engine
@@ -44,7 +51,6 @@ from tandem.engine.settings import SettingsStore
 BackendFactory = Callable[[], Backend]
 
 # Order to pair in when a device needs several services (Companion first, as in Spike A).
-_PAIRING_ORDER = [Service.COMPANION, Service.AIRPLAY, Service.RAOP, Service.MRP, Service.DMAP]
 _PIN_POLL = 0.5
 
 
@@ -292,13 +298,9 @@ async def _pair(engine: Engine, args: argparse.Namespace, printer: _Printer) -> 
     device = selected[0]
     if args.service:
         wanted = {Service(value) for value in args.service}
+        services = [s for s in PAIRING_ORDER if s in wanted]
     else:
-        wanted = set(device.needs_pairing)
-        if Service.AIRPLAY in device.services:
-            # On a device with full AirPlay, pyatv also lists AirPlay audio (RAOP) as needing
-            # pairing, but the Apple TV never shows a PIN for it. Pair AirPlay only.
-            wanted.discard(Service.RAOP)
-    services = [s for s in _PAIRING_ORDER if s in wanted]
+        services = services_to_pair(device)
     if not services:
         printer.line(f"{printer.label(device)} needs no pairing.")
         return 0

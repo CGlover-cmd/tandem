@@ -124,7 +124,18 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
     assert pairing.state == "enterPin"
     assert pairing.error == {"code": "wrongPin"}
 
+    assert pairing.snapshot()["step"] == 1
+    assert pairing.snapshot()["steps"] == 2
+
     pairing.submit_pin(" 4821 ")
+    await controller.runner.drain()
+    assert pairing.state == "enterPin"  # the TV shows its second PIN (AirPlay)
+    assert pairing.step == 2
+    tv = controller.device("demo-tv")
+    assert tv is not None
+    assert tv.needs_pairing
+
+    pairing.submit_pin("1357")
     await controller.runner.drain()
     assert pairing.state == "done"
     assert pairing.error is None
@@ -222,7 +233,9 @@ async def test_device_leaving_closes_its_pairing_sheet(backend: DemoBackend) -> 
 
 
 class _FailingSubmit:
-    async def submit_pin(self, pin: str) -> None:
+    steps = 1
+
+    async def submit_pin(self, pin: str) -> bool:
         raise PairingError("")
 
     async def cancel(self) -> None:
@@ -345,8 +358,9 @@ async def test_commands_drive_the_controller(backend: DemoBackend) -> None:
 
     controller.handle({"type": "pair", "id": "demo-tv"})
     await controller.runner.drain()
-    controller.handle({"type": "submitPin", "pin": "1234"})
-    await controller.runner.drain()
+    for pin in ("1234", "5678"):
+        controller.handle({"type": "submitPin", "pin": pin})
+        await controller.runner.drain()
     assert controller.pairing.state == "done"
     controller.handle({"type": "closePairing"})
     assert controller.pairing.state == "closed"

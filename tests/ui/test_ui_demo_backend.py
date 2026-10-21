@@ -84,9 +84,11 @@ async def test_wrong_pin_then_right_pin_pairs(backend: DemoBackend) -> None:
     await backend.start()
     flow = await backend.begin_pairing("demo-tv")
 
+    assert flow.steps == 2
     with pytest.raises(WrongPinError):
         await flow.submit_pin(WRONG_PIN)
-    await flow.submit_pin("1234")
+    assert await flow.submit_pin("1234") is True  # second PIN follows
+    assert await flow.submit_pin("5678") is False
 
     tv: DeviceSnapshot = next(d for d in backend.devices() if d.id == "demo-tv")
     assert not tv.needs_pairing

@@ -2,7 +2,8 @@
 
 Behaviour worth seeing in the UI:
 - devices appear one at a time, as discovery would find them;
-- the TV needs PIN pairing first (any 4 digits work except 0000, which is "wrong");
+- the TV needs PIN pairing first, with two PINs like a real Apple TV (remote control, then
+  AirPlay); any 4 digits work except 0000, which is "wrong";
 - the soundbar's first connection attempt fails, so the retry state shows.
 
 The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
@@ -41,6 +42,7 @@ _LOGGER = logging.getLogger(__name__)
 Sleep = Callable[[float], Awaitable[None]]
 
 WRONG_PIN = "0000"
+TV_PIN_STEPS = 2
 
 # Invented devices only (docs/PRIVACY.md).
 DEMO_DEVICES = (
@@ -122,7 +124,9 @@ class DemoBackend:
         if not device.needs_pairing:
             raise PairingError("This device doesn't need pairing.")
         await self._sleep(self._delay)
-        return _DemoPairing(lambda pin: self._finish_pairing(device_id, pin))
+        return _DemoPairing(
+            TV_PIN_STEPS, lambda pin, last: self._finish_pairing(device_id, pin, last)
+        )
 
     def appearance(self) -> Appearance:
         return self._appearance
@@ -146,11 +150,12 @@ class DemoBackend:
             await self._sleep(self._delay)
         self._update(device_id, state=LinkState.CONNECTED)
 
-    async def _finish_pairing(self, device_id: str, pin: str) -> None:
+    async def _finish_pairing(self, device_id: str, pin: str, last: bool) -> None:
         await self._sleep(self._delay)
         if pin == WRONG_PIN:
             raise WrongPinError("That PIN didn't match.")
-        self._update(device_id, needs_pairing=False)
+        if last:
+            self._update(device_id, needs_pairing=False)
 
     def _get(self, device_id: str) -> DeviceSnapshot:
         try:
@@ -212,11 +217,20 @@ def _save_appearance(path: Path, appearance: Appearance) -> None:
 
 
 class _DemoPairing:
-    def __init__(self, finish: Callable[[str], Awaitable[None]]) -> None:
+    def __init__(self, steps: int, finish: Callable[[str, bool], Awaitable[None]]) -> None:
+        self._steps = steps
+        self._done = 0
         self._finish = finish
 
-    async def submit_pin(self, pin: str) -> None:
-        await self._finish(pin)
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    async def submit_pin(self, pin: str) -> bool:
+        last = self._done + 1 == self._steps
+        await self._finish(pin, last)
+        self._done += 1
+        return not last
 
     async def cancel(self) -> None:
         return None

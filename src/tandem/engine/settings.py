@@ -10,6 +10,7 @@ import dataclasses
 import json
 import logging
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from enum import Enum
@@ -21,6 +22,8 @@ from tandem.engine.events import Event, EventBus
 _LOGGER = logging.getLogger(__name__)
 
 SETTINGS_VERSION = 1
+
+_NAME = re.compile(r"[a-z][a-z0-9-]{0,31}")
 
 
 class Theme(Enum):
@@ -35,10 +38,14 @@ class Settings:
     start_minimized: bool = False
     launch_at_startup: bool = False
     discovery_interval_s: float = 10.0
+    background: str = "mist"
+    """The window background picked in Settings; the UI owns the list of names (ADR-0010)."""
 
     def __post_init__(self) -> None:
         if not 2.0 <= self.discovery_interval_s <= 300.0:
             raise ValueError("discovery_interval_s must be between 2 and 300 seconds")
+        if not _NAME.fullmatch(self.background):
+            raise ValueError("background must be a short lowercase name")
 
     def to_json(self) -> dict[str, Any]:
         data: dict[str, Any] = {"version": SETTINGS_VERSION}

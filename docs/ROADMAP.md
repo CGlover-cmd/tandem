@@ -48,11 +48,13 @@ _Update this section at the end of every working session._
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
   replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
-  Settings with a theme choice and a window-background picker (neutral tones or gradients),
-  all against the demo backend with invented devices (ADR-0008). Design tokens are checked for
-  WCAG AA on every background. Next for the UI: an engine adapter from its `Backend` contract
-  to the engine's service API (`tandem.engine.service.Engine`), storing `Appearance` in the
-  engine's settings, then the onboarding checklist. Phase 3's remote pad goes in `web/` too.
+  Settings with a theme choice and a window-background picker (neutral tones or gradients).
+  Design tokens are checked for WCAG AA on every background. The window now runs on the real
+  engine (`tandem.bridge`): it lists the devices on the network, connects and disconnects them,
+  and pairs an Apple TV with both of its PINs (remote control, then AirPlay); the appearance is
+  saved in the engine's settings. `--demo` still shows invented devices. Next for the UI: the
+  maintainer pairs the Apple TV from the window (first hardware check), then the onboarding
+  checklist. Phase 3's remote pad goes in `web/` too.
 
 ## Scope
 

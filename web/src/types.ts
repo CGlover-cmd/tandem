@@ -26,6 +26,9 @@ export interface Pairing {
   deviceId: string;
   deviceName: string;
   error: Problem | null;
+  /** Which PIN this is, of how many: an Apple TV shows one for remote control, then AirPlay. */
+  step: number;
+  steps: number;
 }
 
 export interface Appearance {

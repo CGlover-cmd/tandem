@@ -72,6 +72,7 @@ class PairingController:
     """The PIN pairing sheet.
 
     States: closed → starting → enterPin ⇄ checking → done; any → failed; cancel → closed.
+    A device that asks for several PINs goes checking → enterPin with `step` one higher.
     """
 
     def __init__(
@@ -90,6 +91,8 @@ class PairingController:
         self.device_id = ""
         self.device_name = ""
         self.error: Problem | None = None
+        self.step = 1
+        self.steps = 1
         self._flow: PairingFlow | None = None
         self._attempt = 0  # ignores results from an attempt the user has cancelled
 
@@ -99,6 +102,8 @@ class PairingController:
             "deviceId": self.device_id,
             "deviceName": self.device_name,
             "error": self.error,
+            "step": self.step,
+            "steps": self.steps,
         }
 
     def open(self, device_id: str, device_name: str) -> None:
@@ -108,6 +113,8 @@ class PairingController:
         self.device_id = device_id
         self.device_name = device_name
         self.error = None
+        self.step = 1
+        self.steps = 1
         self._set_state("starting")
         self._runner.run(self._begin(self._attempt))
 
@@ -146,11 +153,12 @@ class PairingController:
             await flow.cancel()
             return
         self._flow = flow
+        self.steps = max(1, flow.steps)
         self._set_state("enterPin")
 
     async def _submit(self, attempt: int, flow: PairingFlow, pin: str) -> None:
         try:
-            await flow.submit_pin(pin)
+            more = await flow.submit_pin(pin)
         except WrongPinError:
             if attempt == self._attempt:
                 self.error = {"code": "wrongPin"}
@@ -161,6 +169,11 @@ class PairingController:
                 self._fail(str(error))
             return
         if attempt != self._attempt:
+            return
+        if more:
+            self.step += 1
+            self.steps = max(self.steps, self.step)
+            self._set_state("enterPin", force=True)
             return
         self._flow = None
         self._set_state("done")

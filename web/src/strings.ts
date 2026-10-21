@@ -45,6 +45,8 @@ export const strings = {
     title: (name: string) => `Pair ${name}`,
     starting: (name: string) => `Asking ${name} to show a PIN…`,
     enterPin: "Enter the 4-digit PIN shown on your TV.",
+    nextPin: "Your TV is showing a new PIN. Enter it to finish.",
+    stepOf: (step: number, steps: number) => `PIN ${step} of ${steps}`,
     pinLabel: "PIN",
     checking: "Checking the PIN…",
     done: (name: string) => `${name} is paired. Tandem will connect to it now.`,

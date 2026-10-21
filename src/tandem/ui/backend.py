@@ -101,10 +101,23 @@ class WrongPinError(PairingError):
 
 
 class PairingFlow(Protocol):
-    """One pairing attempt. The device shows a PIN; the user types it into Tandem."""
+    """One pairing attempt. The device shows a PIN; the user types it into Tandem.
 
-    async def submit_pin(self, pin: str) -> None:
-        """Finish pairing. Raises `WrongPinError` (retry allowed) or `PairingError`."""
+    Some devices ask for more than one: an Apple TV pairs remote control and AirPlay
+    separately, and shows a new PIN for each.
+    """
+
+    @property
+    def steps(self) -> int:
+        """How many PINs the user will enter in all (at least 1)."""
+        ...
+
+    async def submit_pin(self, pin: str) -> bool:
+        """Check the PIN the device is showing now.
+
+        Returns True if the device now shows the next PIN, False when pairing is complete.
+        Raises `WrongPinError` (the device shows a fresh PIN to retry) or `PairingError`.
+        """
         ...
 
     async def cancel(self) -> None: ...

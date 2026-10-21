@@ -25,4 +25,7 @@ not wait for it or import engine modules directly.
 - UI and engine work can proceed in parallel; the contract is the only meeting point.
 - The demo backend doubles as a test fixture and a way for contributors to try the UI without
   devices.
-- When the engine adapter lands, any mismatch shows up in one place: the adapter.
+- When the engine adapter lands, any mismatch shows up in one place: the adapter. It landed as
+  `tandem.bridge.EngineBackend`; the contract gained `Appearance` (ADR-0010) and pairing flows
+  with more than one PIN (`PairingFlow.steps`), because an Apple TV pairs remote control and
+  AirPlay separately.
