@@ -45,6 +45,8 @@ _Update this section at the end of every working session._
   with invented devices (ADR-0008). Next for the UI: an engine adapter from its `Backend`
   contract to the engine's service API (`tandem.engine.service.Engine`), then the onboarding
   checklist and settings screens.
+- **Proposed, awaiting the maintainer:** move the UI to HeroUI (React) in a WebView2 window
+  ([ADR-0009](adr/0009-heroui-web-front-end.md)), with a background picker in Settings.
 
 ## Scope
 
