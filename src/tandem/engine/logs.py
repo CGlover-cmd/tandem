@@ -58,10 +58,13 @@ def configure_logging(
     level: int = logging.INFO,
     console: bool = True,
     console_level: int = logging.WARNING,
+    library_level: int = logging.INFO,
 ) -> None:
     """Send the `tandem` logger (and pyatv's) to a redacted file and/or the console.
 
-    Replaces handlers from any earlier call, so it is safe to call again.
+    pyatv is held at `library_level` (INFO by default) because its debug output includes raw
+    protocol data, PINs and keys. Replaces handlers from any earlier call, so it is safe to
+    call again.
     """
     handlers: list[logging.Handler] = []
     if log_dir is not None:
@@ -84,7 +87,8 @@ def configure_logging(
             if getattr(old, "_tandem_handler", False):
                 logger.removeHandler(old)
                 old.close()
-        logger.setLevel(min(level, console_level) if console else level)
+        wanted = min(level, console_level) if console else level
+        logger.setLevel(max(wanted, library_level) if name == "pyatv" else wanted)
         logger.propagate = False
         for handler in handlers:
             handler._tandem_handler = True  # type: ignore[attr-defined]

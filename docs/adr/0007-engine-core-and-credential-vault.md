@@ -19,10 +19,15 @@ without real devices, and nothing it logs may reveal device names or addresses (
 - **Connections:** one state machine per device (disconnected, connecting, connected, waiting,
   failed) with exponential backoff and jitter. Events carry an error's type name, never its
   message, because messages can contain addresses.
-- **Credentials:** a pyatv storage backend (`CredentialVault`) that writes pyatv's storage model
-  as JSON encrypted with the Windows Data Protection API (DPAPI), bound to the signed-in user.
+- **Credentials:** a pyatv storage backend (`adapters/credential_vault.py`) that writes pyatv's
+  storage model as JSON encrypted with the Windows Data Protection API (DPAPI), bound to the
+  signed-in user. The encrypted file itself (`engine/vault.py`) knows nothing about pyatv.
   pyatv then saves and loads credentials itself during pair and connect. A vault that can't be
   read raises an error and is never overwritten.
+- **Service API:** `Engine` (`engine/service.py`) is what the UI and the developer tool call:
+  scan, pair, connect, disconnect, forget. It runs on a `Backend` (pyatv's is
+  `adapters/pyatv_adapter.py`). Pairing is a flow that publishes `PairingStateChanged` events
+  and asks a PIN provider for the PIN the device shows.
 - **Files:** everything lives in `%LOCALAPPDATA%\Tandem` (settings JSON, `credentials.bin`,
   `logs/`); the `TANDEM_HOME` variable overrides it.
 - **Logging:** JSON-lines files, rotated by size. Every line, file or console, passes through
