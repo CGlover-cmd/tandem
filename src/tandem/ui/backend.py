@@ -45,6 +45,28 @@ class DeviceSnapshot:
     """Seconds until the next attempt, when `state` is WAITING."""
 
 
+class Theme(Enum):
+    SYSTEM = "system"
+    LIGHT = "light"
+    DARK = "dark"
+
+
+NEUTRAL_BACKGROUNDS = ("mist", "sand", "slate")
+GRADIENT_BACKGROUNDS = ("sky", "dusk", "meadow", "sunrise", "aurora")
+BACKGROUNDS = NEUTRAL_BACKGROUNDS + GRADIENT_BACKGROUNDS
+"""Window backgrounds the user can pick in Settings. The front end defines their colours."""
+
+
+@dataclass(frozen=True, slots=True)
+class Appearance:
+    theme: Theme = Theme.SYSTEM
+    background: str = "mist"
+
+    def __post_init__(self) -> None:
+        if self.background not in BACKGROUNDS:
+            raise ValueError("unknown background")
+
+
 @dataclass(frozen=True, slots=True)
 class DeviceUpdated:
     device: DeviceSnapshot
@@ -60,7 +82,12 @@ class DiscoveryChanged:
     active: bool
 
 
-BackendEvent = DeviceUpdated | DeviceRemoved | DiscoveryChanged
+@dataclass(frozen=True, slots=True)
+class AppearanceChanged:
+    appearance: Appearance
+
+
+BackendEvent = DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
 
@@ -102,4 +129,10 @@ class Backend(Protocol):
 
     async def begin_pairing(self, device_id: str) -> PairingFlow:
         """Ask the device to show a PIN. Raises `PairingError` if it can't."""
+        ...
+
+    def appearance(self) -> Appearance: ...
+
+    async def set_appearance(self, appearance: Appearance) -> None:
+        """Save the user's choice and publish `AppearanceChanged`."""
         ...

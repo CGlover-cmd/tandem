@@ -1,47 +1,37 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QApplication
-
+from tandem.ui.backend import LinkState
+from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
-from tandem.ui.tray import Tray, app_icon
-from tandem.ui.viewmodels import AppViewModel
+from tandem.ui.tray import SEPARATOR, Entry, menu_entries
 
 
-def _menu_texts(tray: Tray) -> list[str]:
-    return [a.text() for a in tray.menu.actions() if not a.isSeparator()]
+async def test_menu_says_when_no_devices_are_found(backend: DemoBackend) -> None:
+    entries = menu_entries(AppController(backend))
+
+    assert entries == [
+        Entry("Open Tandem", "open"),
+        SEPARATOR,
+        Entry("Looking for devices…", enabled=False),
+        SEPARATOR,
+        Entry("Quit Tandem", "quit"),
+    ]
+    assert SEPARATOR.separator
+    assert not entries[0].separator
 
 
-def test_icon_has_every_tray_size(qapp: QApplication) -> None:
-    sizes = {s.width() for s in app_icon().availableSizes()}
-    assert {16, 20, 24, 32}.issubset(sizes)
+async def test_menu_lists_devices_with_their_state(backend: DemoBackend) -> None:
+    controller = AppController(backend)
+    await controller.start()
+    controller.connect("demo-speaker-1")
+    await controller.runner.drain()
+    backend._update("demo-soundbar", state=LinkState.CONNECTING)  # pyright: ignore[reportPrivateUsage]
 
+    devices = menu_entries(controller)[2:-2]
 
-async def test_menu_lists_devices_and_follows_state(
-    qapp: QApplication, backend: DemoBackend
-) -> None:
-    vm = AppViewModel(backend, can_hide_to_tray=True)
-    shown: list[bool] = []
-    quit_calls: list[bool] = []
-    tray = Tray(
-        vm, show_window=lambda: shown.append(True), quit_app=lambda: quit_calls.append(True)
-    )
-    assert "Looking for devices…" in _menu_texts(tray)
-
-    await vm.start()
-    texts = _menu_texts(tray)
-    assert texts[0] == "Open Tandem"
-    assert "Living Room TV (pair to use)" in texts
-    assert "Patio Speaker" in texts
-    assert texts[-1] == "Quit Tandem"
-
-    vm.activate("demo-speaker-1")
-    await vm.runner.drain()
-    menu = tray.menu
-    speaker = next(a for a in menu.actions() if a.text() == "Patio Speaker")
-    assert speaker.isChecked()
-
-    pair = next(a for a in menu.actions() if a.text().startswith("Living Room TV"))
-    pair.trigger()
-    assert shown == [True]
-    assert vm.pairing_flow.state == "starting"
-    tray.hide()
+    assert devices == [
+        Entry("Den Soundbar", "activate", "demo-soundbar", enabled=False),
+        Entry("Living Room TV (pair to use)", "pair", "demo-tv"),
+        Entry("Office Speaker", "activate", "demo-speaker-2"),
+        Entry("Patio Speaker", "activate", "demo-speaker-1", checked=True),
+    ]

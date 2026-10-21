@@ -1,8 +1,8 @@
-# ADR-0009: HeroUI web front end in a WebView2 window
+# ADR-0010: HeroUI web front end in a WebView2 window
 
-- Status: Proposed
+- Status: Accepted (maintainer, 2026-10-21)
 - Date: 2026-10-21
-- Supersedes: ADR-0002 (once accepted)
+- Supersedes: ADR-0002; replaces the QML parts of ADR-0008
 
 ## Context
 The maintainer wants the interface built with [HeroUI](https://heroui.com) (React components,
@@ -32,7 +32,7 @@ HeroUI 3 and Tailwind 4 completed, and pywebview opened it from a loopback aioht
 a WebView2 window with a pystray icon alongside. Buttons responded, a WebSocket to the engine
 connected, and a warm start to a rendered page took about 1.5 s.
 
-## Decision (proposed)
+## Decision
 Option B.
 
 - **Front end:** React 19 + HeroUI 3 + Tailwind CSS 4, TypeScript, built with Vite, in
@@ -54,11 +54,15 @@ Option B.
   A random per-launch token is required, and the server checks the `Host` and `Origin`
   headers, so other web pages and other users' processes can't drive it. Device names reach the
   page only for display; the server logs through `Redactor` (ADR-0007).
-- **Look:** one set of design tokens as CSS variables (light and dark, WCAG AA checked by a
-  test). The window background is a setting: neutral tones or colour gradients, drawn by the
-  page, with translucent "glass" cards over it.
-- **Retiring Qt:** the PySide6 + QML shell is removed once the HeroUI shell matches it (device
-  grid, pairing sheet, tray), along with the `ui` extra's PySide6 and qasync dependencies.
+- **Look:** one set of design tokens (`web/src/theme.ts`), written as CSS variables for light
+  and dark mode, with a test that checks WCAG AA contrast on every background. The window
+  background is a setting (theme and background are part of the `Backend` contract as
+  `Appearance`): three neutral tones and five colour gradients, drawn by the page, with
+  translucent "glass" cards over it.
+- **Building on this PC:** Smart App Control can block a native npm binary that is too new to
+  have reputation; `web/package.json` pins such packages to a version that loads.
+- **Retiring Qt:** the PySide6 + QML shell is removed, along with the `ui` extra's PySide6 and
+  qasync dependencies; its ViewModel logic moves to `tandem.ui.controller` with its tests.
 
 ## Consequences
 - Tandem becomes a web app in a native window: HeroUI's components and animation, and a much

@@ -77,11 +77,15 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Audio capture: miniaudio (a pyatv dependency) does WASAPI loopback; its Python wrapper lacks a
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
   On this laptop loopback follows the Windows volume and mute (Spike C).
-- PySide6 / QML: Python 3.8+ ignores PATH for DLL dependencies, so QML plugins (Layouts,
-  Controls, Effects) fail with "The specified module could not be found" unless the PySide6
-  folder is registered; `tandem.ui.platform.add_qt_dll_directory()` does this (app start and
-  `tests/ui/conftest.py`). QML property names must not start with `on` + capital (read as a signal
-  handler). The offscreen platform ignores colour-scheme overrides; set `Theme.dark` instead.
+- Front end (ADR-0010): Node 24 and npm are installed. Smart App Control can block a native npm
+  binary until it has reputation ("An Application Control policy has blocked this file"):
+  rolldown 1.2.15 was blocked, so `web/package.json` pins `rolldown` 1.2.14 via `overrides`.
+  If a build breaks that way after an upgrade, pin the last version that loads. TypeScript 7
+  (`tsc`), Tailwind's oxide and lightningcss load fine.
+- pywebview runs WebView2 through pythonnet; its window must own the main thread, so
+  `tandem.ui.app` runs asyncio on a second thread and pystray on a third.
+- A second clone of the repo needs its own venv: the shared `tandem-dev` venv has an editable
+  install pointing at the OneDrive checkout, so tests in another clone would import that copy.
 - GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git
@@ -102,7 +106,8 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
-- Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.
+- Python 3.11+, asyncio engine on pyatv, ruff + pyright + pytest. UI: React 19 + HeroUI 3 +
+  Tailwind 4 (TypeScript, Vite, Vitest) in `web/`, shown in a WebView2 window (ADR-0010).
 - Engine never imports UI code; UI talks to the engine only through the service API.
 - Package code is in `src/tandem/` (ADR-0007). Only `engine/adapters/` imports pyatv; core
   modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
@@ -112,10 +117,17 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `--show-private` is given; Claude never passes that flag.
 - The UI's side of the engine's API is the `Backend` protocol in `src/tandem/ui/backend.py`
   (ADR-0008); `DemoBackend` (invented devices) stands in until the engine adapter for it exists.
-- UI code: `src/tandem/ui/` (ViewModels in Python, QML in `qml/Tandem/`, tokens in `Theme.qml`).
-  Every colour comes from `Theme`; `tests/ui/test_ui_qml.py` checks text contrast (WCAG AA).
-  Check visuals with `python -m tandem.ui --screenshot <png> [--theme light|dark] [--pairing]`
-  (demo devices only, so the images are safe to share).
+- UI logic stays in Python (`tandem.ui.controller`, tested with pytest); React only renders the
+  state it's sent and sends commands back over the loopback WebSocket (`tandem.ui.server`). Keep
+  `web/src/types.ts` in step with `AppController.snapshot()` and `handle()`. User-facing words
+  live in `web/src/strings.ts`; Python sends codes, not sentences.
+- Every colour is in `web/src/theme.ts`; `theme.test.ts` checks WCAG AA contrast on every
+  background. Window backgrounds are listed in both `theme.ts` and `tandem.ui.backend.BACKGROUNDS`
+  (a test keeps them equal).
+- Check visuals by running `python -m tandem.ui --no-window` (demo devices only, so screenshots are
+  safe to share) and opening the printed address in the built-in browser. Never log that address:
+  it carries the launch token. Stop the server by its own PID, never by image name.
+- The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring

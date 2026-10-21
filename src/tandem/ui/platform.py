@@ -21,15 +21,12 @@ def reduce_motion() -> bool:
     return bool(ok) and not enabled.value
 
 
-def add_qt_dll_directory() -> None:
-    """Let Qt's QML plugins find the Qt DLLs next to them.
-
-    Python 3.8+ no longer searches PATH for DLL dependencies, so plugins such as
-    QtQuick.Layouts fail with "The specified module could not be found" unless the PySide6
-    folder is registered. Call before loading any QML.
-    """
-    if sys.platform != "win32":
-        return
-    import PySide6
-
-    os.add_dll_directory(str(Path(PySide6.__file__).resolve().parent))
+def ui_data_dir() -> Path:
+    """The UI's folder for its own small files (same rules as `tandem.engine.paths`)."""
+    override = os.environ.get("TANDEM_HOME")
+    if override:
+        return Path(override) / "ui"
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        return Path(local) / "Tandem" / "ui"
+    return Path.home() / ".tandem" / "ui"

@@ -40,13 +40,14 @@ _Update this section at the end of every working session._
   pairing needed).
 - **Next:** the Phase 1 diagnostics bundle. Classify devices by services and model string
   (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
-- **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
-  main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
-  with invented devices (ADR-0008). Next for the UI: an engine adapter from its `Backend`
-  contract to the engine's service API (`tandem.engine.service.Engine`), then the onboarding
-  checklist and settings screens.
-- **Proposed, awaiting the maintainer:** move the UI to HeroUI (React) in a WebView2 window
-  ([ADR-0009](adr/0009-heroui-web-front-end.md)), with a background picker in Settings.
+- **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
+  WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
+  replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
+  Settings with a theme choice and a window-background picker (neutral tones or gradients),
+  all against the demo backend with invented devices (ADR-0008). Design tokens are checked for
+  WCAG AA on every background. Next for the UI: an engine adapter from its `Backend` contract
+  to the engine's service API (`tandem.engine.service.Engine`), storing `Appearance` in the
+  engine's settings, then the onboarding checklist. Phase 3's remote pad goes in `web/` too.
 
 ## Scope
 
@@ -87,9 +88,13 @@ testing for now.
 ## Architecture
 
 ```
-┌──────────────────────── UI layer (PySide6 + QML) ────────────────────────┐
-│ App shell · Tray menu · Device grid · Pairing · Remote · Audio router    │
-│ ViewModels (pure Python, unit-tested)                                    │
+┌──────── UI layer (React + HeroUI in a WebView2 window, ADR-0010) ────────┐
+│ Device grid · Pairing · Settings · Remote · Audio router  (web/)         │
+└─────────────────────────────────▲────────────────────────────────────────┘
+                                  │ WebSocket on 127.0.0.1 (token, origin check)
+┌─────────────────────────────────┴────────────────────────────────────────┐
+│ UI host (Python): loopback server · controller (UI logic, unit-tested)  │
+│ pywebview window · pystray tray menu                                     │
 └─────────────────────────────────▲────────────────────────────────────────┘
                                   │ async service API + event bus
 ┌─────────────────────────────────┴────────────────────────────────────────┐
@@ -199,5 +204,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Test receiver can't take pyatv's AirPlay 2 stream (NTP vs PTP timing) | Medium | Spike F: Pi tests cover classic AirPlay; the AirPlay 2 path stays on the hardware checklist; Phase 5 checks early whether NTP timing holds multi-speaker sync |
 | 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 7 reopens |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
+| Smart App Control blocks a newly released native npm binary in the front-end toolchain | Medium | Pin the last version that loads (`overrides` in `web/package.json`); end users never run Node |
+| WebView2 runtime missing on an older Windows 10 PC | Low | Ships with Windows 11 and with Edge on Windows 10; the Phase 8 installer adds Microsoft's bootstrapper |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |
 | Trademark complaint | Low | Neutral name, plain compatibility wording |

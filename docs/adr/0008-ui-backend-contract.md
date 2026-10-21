@@ -1,6 +1,7 @@
 # ADR-0008: The UI defines the backend contract it needs
 
-- Status: Accepted
+- Status: Accepted; the QML, `Theme` and PySide6 parts are replaced by
+  [ADR-0010](0010-heroui-web-front-end.md). The `Backend` contract and `DemoBackend` stand.
 - Date: 2026-10-20
 
 ## Context

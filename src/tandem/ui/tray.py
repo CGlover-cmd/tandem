@@ -1,118 +1,141 @@
-"""System tray icon and quick menu."""
+"""System tray icon and quick menu.
+
+`menu_entries` decides what the menu shows (tested); `Tray` draws it with pystray, which runs
+its own thread. Menu clicks are handed back to the asyncio loop thread, where the controller
+lives.
+"""
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
-
-from PySide6.QtCore import QObject, QPointF, QRectF, Qt
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+from dataclasses import dataclass
+from typing import Any
 
 from tandem.ui.backend import LinkState
-from tandem.ui.viewmodels import AppViewModel
+from tandem.ui.controller import AppController
 
 
-def app_icon() -> QIcon:
-    """Two overlapping circles, drawn at runtime so the repo needs no binary icon yet."""
-    icon = QIcon()
-    for size in (16, 20, 24, 32, 48, 64, 256):
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        radius = size * 0.30
-        painter.setBrush(QColor(0, 102, 204))
-        painter.drawEllipse(QPointF(size * 0.36, size * 0.5), radius, radius)
-        painter.setBrush(QColor(90, 200, 250, 220))
-        painter.drawEllipse(QPointF(size * 0.64, size * 0.5), radius, radius)
-        painter.setBrush(QColor(255, 255, 255, 120))
-        lens = radius * 0.55
-        painter.drawEllipse(QRectF(size * 0.5 - lens / 2, size * 0.5 - lens, lens, lens * 2))
-        painter.end()
-        icon.addPixmap(pixmap)
-    return icon
+@dataclass(frozen=True, slots=True)
+class Entry:
+    label: str = ""
+    action: str = ""  # "open", "activate", "pair", "quit"; "" for a separator or a note
+    device_id: str = ""
+    checked: bool = False
+    enabled: bool = True
+
+    @property
+    def separator(self) -> bool:
+        return not self.label
 
 
-class Tray(QObject):
+SEPARATOR = Entry()
+
+
+def menu_entries(controller: AppController) -> list[Entry]:
+    entries = [Entry("Open Tandem", "open"), SEPARATOR]
+    devices = controller.devices()
+    if not devices:
+        entries.append(Entry("Looking for devices…", enabled=False))
+    for device in devices:
+        if device.needs_pairing:
+            entries.append(Entry(f"{device.name} (pair to use)", "pair", device.id))
+        else:
+            entries.append(
+                Entry(
+                    device.name,
+                    "activate",
+                    device.id,
+                    checked=device.state is LinkState.CONNECTED,
+                    enabled=device.state is not LinkState.CONNECTING,
+                )
+            )
+    entries += [SEPARATOR, Entry("Quit Tandem", "quit")]
+    return entries
+
+
+class Tray:  # pragma: no cover - needs a desktop; checked by hand
     def __init__(
         self,
-        vm: AppViewModel,
+        controller: AppController,
+        loop: asyncio.AbstractEventLoop,
         *,
         show_window: Callable[[], None],
         quit_app: Callable[[], None],
-        parent: QObject | None = None,
     ) -> None:
-        super().__init__(parent)
-        self._vm = vm
+        import pystray  # pyright: ignore[reportMissingTypeStubs]
+
+        from tandem.ui.icon import draw_icon
+
+        self._pystray: Any = pystray
+        self._controller = controller
+        self._loop = loop
         self._show_window = show_window
         self._quit_app = quit_app
         self._told_about_tray = False
+        self._entries = menu_entries(controller)
+        self._icon: Any = self._pystray.Icon(
+            "Tandem", draw_icon(64), "Tandem", menu=self._pystray.Menu(self._items)
+        )
+        controller.subscribe(self._on_change)
 
-        self._menu = QMenu()
-        self._icon = QSystemTrayIcon(app_icon(), self)
-        self._icon.setToolTip(self.tr("Tandem"))
-        self._icon.setContextMenu(self._menu)
-        self._icon.activated.connect(self._on_activated)
+    def start(self) -> None:
+        self._icon.run_detached()
 
-        model = vm.device_list
-        model.rowsInserted.connect(self._rebuild)
-        model.rowsRemoved.connect(self._rebuild)
-        model.dataChanged.connect(self._rebuild)
-        model.modelReset.connect(self._rebuild)
-        vm.hiddenToTray.connect(self._on_hidden)
+    def stop(self) -> None:
+        self._icon.stop()
 
-        self._rebuild()
-        self._icon.show()
-
-    @property
-    def menu(self) -> QMenu:
-        return self._menu
-
-    def hide(self) -> None:
-        self._icon.hide()
-
-    def _rebuild(self) -> None:
-        menu = self._menu
-        menu.clear()
-        menu.addAction(self.tr("Open Tandem"), self._show_window)
-        menu.addSeparator()
-        devices = self._vm.device_list.snapshots()
-        if not devices:
-            searching = menu.addAction(self.tr("Looking for devices…"))
-            searching.setEnabled(False)
-        for device in devices:
-            action = QAction(device.name, menu)
-            if device.needs_pairing:
-                action.setText(self.tr("%s (pair to use)") % device.name)
-                action.triggered.connect(lambda _=False, d=device.id: self._pair(d))
-            else:
-                action.setCheckable(True)
-                action.setChecked(device.state is LinkState.CONNECTED)
-                action.setEnabled(device.state is not LinkState.CONNECTING)
-                action.triggered.connect(lambda _=False, d=device.id: self._vm.activate(d))
-            menu.addAction(action)
-        menu.addSeparator()
-        menu.addAction(self.tr("Quit Tandem"), self._quit_app)
-
-    def _pair(self, device_id: str) -> None:
-        self._show_window()
-        self._vm.pairDevice(device_id)
-
-    def _on_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
-        if reason in (
-            QSystemTrayIcon.ActivationReason.Trigger,
-            QSystemTrayIcon.ActivationReason.DoubleClick,
-        ):
-            self._show_window()
-
-    def _on_hidden(self) -> None:
+    def told_hidden(self) -> None:
+        """The window was closed to the tray: say so, once."""
         if self._told_about_tray:
             return
         self._told_about_tray = True
-        self._icon.showMessage(
-            self.tr("Tandem is still running"),
-            self.tr("Open it again from the tray icon. Choose Quit there to close it."),
-            QSystemTrayIcon.MessageIcon.Information,
-            4000,
+        self._icon.notify(
+            "Open it again from the tray icon. Choose Quit there to close it.",
+            "Tandem is still running",
         )
+
+    # Internals
+
+    def _on_change(self) -> None:  # asyncio loop thread
+        entries = menu_entries(self._controller)
+        if entries != self._entries:
+            self._entries = entries
+            self._icon.update_menu()
+
+    def _items(self) -> list[Any]:  # pystray thread
+        menu = self._pystray.Menu
+        item = self._pystray.MenuItem
+        items: list[Any] = []
+        for entry in self._entries:
+            if entry.separator:
+                items.append(menu.SEPARATOR)
+                continue
+            items.append(
+                item(
+                    entry.label,
+                    self._handler(entry),
+                    checked=_constant(entry.checked) if entry.action == "activate" else None,
+                    enabled=entry.enabled and bool(entry.action),
+                    default=entry.action == "open",
+                )
+            )
+        return items
+
+    def _handler(self, entry: Entry) -> Callable[[], None]:
+        def run() -> None:
+            if entry.action == "open":
+                self._show_window()
+            elif entry.action == "quit":
+                self._quit_app()
+            elif entry.action == "pair":
+                self._show_window()
+                self._loop.call_soon_threadsafe(self._controller.pair, entry.device_id)
+            elif entry.action == "activate":
+                self._loop.call_soon_threadsafe(self._controller.activate, entry.device_id)
+
+        return run
+
+
+def _constant(value: bool) -> Callable[[object], bool]:
+    return lambda _item: value
