@@ -32,6 +32,13 @@ _Update this section at the end of every working session._
 - **Next:** Spike F, the Raspberry Pi 3 as an audio test receiver (shairport-sync). It is the
   last Phase 0 spike; then close Phase 0 with the go/no-go table. The test Pi is already set up
   with UxPlay from Spike D.
+- **In parallel, Phase 1:** the engine foundation is built (it doesn't depend on Spikes E or
+  F): package and CI, event bus, device registry, continuous discovery, connection state machine
+  with backoff, settings, redacted logs, DPAPI credential vault (ADR-0007) and a developer tool
+  (`python -m tandem discover`, `watch`). A real 3-second scan found the Apple TV, the soundbar and
+  one of the two HomePod minis (the other may need a longer scan). Next in
+  Phase 1: pairing flows and `pair` / `connect` / `disconnect` commands, then the diagnostics
+  bundle, then the exit check on hardware.
 
 ## Scope
 
@@ -112,6 +119,14 @@ flows, encrypted credential vault, event bus, settings, structured logging, reda
 bundle, developer command-line tool.
 **Exit:** the command-line tool discovers, pairs, connects and disconnects all reference devices
 reliably, with ≥80% test coverage of the engine core.
+- [x] Package skeleton, tooling (ruff, pyright strict, pytest) and Windows CI
+- [x] Event bus, device registry, continuous discovery
+- [x] Connection state machine with reconnect and backoff
+- [x] Settings, redacted structured logging, DPAPI credential vault (ADR-0007)
+- [x] Developer tool: `discover`, `watch`
+- [ ] Pairing flows (PIN entry); `pair`, `connect`, `disconnect` commands
+- [ ] Redacted diagnostics bundle
+- [ ] Exit check on the reference devices
 
 ### Phase 2 · UX design and UI shell
 Apple-inspired design system: generous corner radii, soft depth, translucent surfaces, fluid

@@ -34,6 +34,7 @@ The GitHub repo is PUBLIC. Follow docs/PRIVACY.md without exception:
 - Private data (scans, logs, captures, credentials, device names, addresses, identifiers) goes
   only in git-ignored `local/`. Never quote it in committed files, commit messages, PRs or issues.
 - Fixtures and examples use invented values (192.0.2.x, AA:BB:CC:..., "Living Room Speaker").
+- Device models (e.g. a soundbar's model number) aren't personal data; tools may print them.
 - Never bypass pre-commit hooks (`--no-verify`). If a hook blocks a commit, fix the content.
 - Commit email must be the GitHub noreply address (set per-repo).
 
@@ -69,18 +70,30 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git
   also fails on very long temp-file paths.
+- Bash-tool heredocs here turn `\\` into `\`, which silently breaks regexes and Windows paths.
+  Write source files with the Write tool, not `cat <<EOF`.
+- pyright doesn't find the venv on its own: run
+  `python -m pyright --pythonpath <venv python.exe>` (CI does the same).
+- `local/denylist.txt` holds real room and device names, so even an invented test name can clash
+  with it. If the privacy hook flags a test value, pick another invented one.
 
 ## Local-only state (not in GitHub, by design)
 - `local/discovery-scan.json` and `local/denylist.txt` (private terms for the commit hook).
 - The virtualenv and the GitHub sign-in.
-- To rebuild on a fresh machine: create the venv, then run
-  `python -m pip install pyatv pre-commit detect-secrets==1.5.0` (plus `av dxcam numpy` for
-  the Spike E script), then `python -m pre_commit install`,
+- To rebuild on a fresh machine: create the venv, then run `python -m pip install -e ".[dev]"`
+  from the repo root (plus `av dxcam numpy` for the Spike E script), then
+  `python -m pre_commit install`,
   then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
 - Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.
 - Engine never imports UI code; UI talks to the engine only through the service API.
+- Package code is in `src/tandem/` (ADR-0007). Only `engine/adapters/` imports pyatv; core
+  modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
+  shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
+- Anything the engine logs or shows goes through `Redactor`; register new private values
+  (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
+  `--show-private` is given; Claude never passes that flag.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring
