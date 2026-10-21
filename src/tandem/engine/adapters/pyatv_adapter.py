@@ -1,16 +1,19 @@
-"""pyatv-backed discovery scanner and session connector (ADR-0001)."""
+"""pyatv-backed engine backend: scan, pair, connect and forget (ADR-0001)."""
 
 from __future__ import annotations
 
 import asyncio
+import copy
 from collections.abc import Sequence
 
 import pyatv
-from pyatv.const import DeviceModel, Protocol
-from pyatv.interface import AppleTV, BaseConfig, DeviceListener, Storage
+from pyatv.const import DeviceModel, PairingRequirement, Protocol
+from pyatv.interface import AppleTV, BaseConfig, DeviceListener, PairingHandler
+from pyatv.storage import AbstractStorage
 
-from tandem.engine.discovery import Scanner
 from tandem.engine.models import Device, DeviceKind, Service
+from tandem.engine.pairing import PairingFactory, PairingHandle
+from tandem.engine.service import UnknownDeviceError
 from tandem.engine.session import Connector, Link, LostCallback
 
 _SERVICES = {
@@ -20,6 +23,7 @@ _SERVICES = {
     Protocol.MRP: Service.MRP,
     Protocol.DMAP: Service.DMAP,
 }
+_PROTOCOLS = {service: protocol for protocol, service in _SERVICES.items()}
 
 _APPLE_TV_MODELS = {
     DeviceModel.AppleTVGen1,
@@ -31,6 +35,9 @@ _APPLE_TV_MODELS = {
     DeviceModel.AppleTV4KGen3,
 }
 _HOMEPOD_MODELS = {DeviceModel.HomePod, DeviceModel.HomePodGen2, DeviceModel.HomePodMini}
+
+# Scan time when looking for one device that isn't in the cache.
+_LOOKUP_TIMEOUT = 5
 
 
 def device_kind(model: DeviceModel, services: frozenset[Service]) -> DeviceKind:
@@ -48,8 +55,13 @@ def device_from_config(config: BaseConfig) -> Device | None:
     identifier = config.identifier
     if not identifier:
         return None
-    services = frozenset(
-        _SERVICES[service.protocol] for service in config.services if service.protocol in _SERVICES
+    known = [s for s in config.services if s.protocol in _SERVICES]
+    services = frozenset(_SERVICES[s.protocol] for s in known)
+    paired = frozenset(_SERVICES[s.protocol] for s in known if s.credentials)
+    needs_pairing = frozenset(
+        _SERVICES[s.protocol]
+        for s in known
+        if s.pairing == PairingRequirement.Mandatory and not s.credentials
     )
     info = config.device_info
     return Device(
@@ -59,19 +71,9 @@ def device_from_config(config: BaseConfig) -> Device | None:
         kind=device_kind(info.model, services),
         model=info.model_str,
         services=services,
+        paired=paired,
+        needs_pairing=needs_pairing,
     )
-
-
-def scanner(storage: Storage | None = None) -> Scanner:
-    """A discovery scanner backed by pyatv's mDNS scan."""
-
-    async def scan(timeout: float) -> Sequence[Device]:
-        loop = asyncio.get_running_loop()
-        configs = await pyatv.scan(loop, timeout=max(1, round(timeout)), storage=storage)
-        devices = (device_from_config(config) for config in configs)
-        return [device for device in devices if device is not None]
-
-    return scan
 
 
 class _Listener(DeviceListener):
@@ -98,13 +100,113 @@ class PyatvLink:
             await asyncio.gather(*pending, return_exceptions=True)
 
 
-def connector(config: BaseConfig, storage: Storage | None = None) -> Connector:
-    """A session connector that opens a pyatv connection to `config`."""
+class _PyatvPairing:
+    """Adapts pyatv's PairingHandler to the engine's PairingHandle."""
 
-    async def connect(on_lost: LostCallback) -> Link:
-        atv = await pyatv.connect(config, asyncio.get_running_loop(), storage=storage)
-        listener = _Listener(on_lost)
-        atv.listener = listener
-        return PyatvLink(atv, listener)
+    def __init__(self, handler: PairingHandler) -> None:
+        self._handler = handler
 
-    return connect
+    @property
+    def device_provides_pin(self) -> bool:
+        return self._handler.device_provides_pin
+
+    @property
+    def has_paired(self) -> bool:
+        return self._handler.has_paired
+
+    async def begin(self) -> None:
+        await self._handler.begin()
+
+    def pin(self, pin: str) -> None:
+        self._handler.pin(int(pin))  # pyatv zero-pads back to four digits
+
+    async def finish(self) -> None:
+        await self._handler.finish()
+
+    async def close(self) -> None:
+        await self._handler.close()
+
+
+class PyatvBackend:
+    """Engine backend on pyatv. Credentials live in `storage` (the encrypted vault)."""
+
+    def __init__(self, storage: AbstractStorage) -> None:
+        self._storage = storage
+        self._configs: dict[str, BaseConfig] = {}
+
+    async def load(self) -> None:
+        await self._storage.load()
+
+    async def save(self) -> None:
+        await self._storage.save()
+
+    async def scan(self, timeout: float) -> Sequence[Device]:
+        configs = await pyatv.scan(
+            asyncio.get_running_loop(), timeout=max(1, round(timeout)), storage=self._storage
+        )
+        devices: list[Device] = []
+        for config in configs:
+            device = device_from_config(config)
+            if device is not None:
+                self._configs[device.id] = config
+                devices.append(device)
+        return devices
+
+    async def describe(self, device_id: str) -> Device | None:
+        config = self._configs.get(device_id)
+        if config is None:
+            return None
+        current = copy.deepcopy(config)
+        current.apply(await self._storage.get_settings(current))
+        return device_from_config(current)
+
+    async def _config(self, device_id: str) -> BaseConfig:
+        config = self._configs.get(device_id)
+        if config is not None:
+            return config
+        found = await pyatv.scan(
+            asyncio.get_running_loop(),
+            timeout=_LOOKUP_TIMEOUT,
+            identifier=device_id,
+            storage=self._storage,
+        )
+        if not found:
+            raise UnknownDeviceError(device_id)
+        self._configs[device_id] = found[0]
+        return found[0]
+
+    def pairing(self, device_id: str, service: Service) -> PairingFactory:
+        async def start() -> PairingHandle:
+            config = await self._config(device_id)
+            handler = await pyatv.pair(
+                config, _PROTOCOLS[service], asyncio.get_running_loop(), storage=self._storage
+            )
+            return _PyatvPairing(handler)
+
+        return start
+
+    def connector(self, device_id: str) -> Connector:
+        async def connect(on_lost: LostCallback) -> Link:
+            config = await self._config(device_id)
+            atv = await pyatv.connect(config, asyncio.get_running_loop(), storage=self._storage)
+            listener = _Listener(on_lost)
+            atv.listener = listener
+            return PyatvLink(atv, listener)
+
+        return connect
+
+    async def forget(self, device_id: str) -> bool:
+        removed = False
+        for settings in list(self._storage.settings):
+            protocols = settings.protocols
+            identifiers = {
+                protocols.airplay.identifier,
+                protocols.companion.identifier,
+                protocols.dmap.identifier,
+                protocols.mrp.identifier,
+                protocols.raop.identifier,
+            }
+            if device_id in identifiers:
+                removed = await self._storage.remove_settings(settings) or removed
+        self._configs.pop(device_id, None)  # cached services still carry the old credentials
+        return removed

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -39,6 +39,10 @@ class Device:
     kind: DeviceKind
     model: str
     services: frozenset[Service]
+    paired: frozenset[Service] = field(default=frozenset[Service]())
+    """Services with stored pairing credentials."""
+    needs_pairing: frozenset[Service] = field(default=frozenset[Service]())
+    """Services the device only allows after pairing, not paired yet."""
 
     @property
     def can_play_audio(self) -> bool:

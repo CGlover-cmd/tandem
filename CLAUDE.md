@@ -60,6 +60,14 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
   maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
+- Hardware checks with the developer tool: set `TANDEM_HOME` to a folder under `local/` so test
+  credentials stay out of the real app's `%LOCALAPPDATA%\Tandem`. Pair in the background with
+  `python -m tandem pair apple_tv --pin-file local/<folder>/pin.txt` and write each PIN the
+  maintainer reads off the TV to that file. Target only the reference devices (by kind or model),
+  never `all`: the network has other AirPlay devices that are excluded from testing.
+- Apple TV pairing takes two PINs: remote control (Companion), then AirPlay. pyatv also lists
+  AirPlay audio (RAOP) as needing pairing, but the TV never shows a PIN for it, so `pair` skips
+  it unless asked. A Companion attempt can be rejected once; retrying with a fresh PIN worked.
 - GPU: NVIDIA (NVENC) plus AMD integrated graphics. The built-in 4K 60 Hz display runs on the
   NVIDIA GPU, so desktop duplication captures there (Spike E). AMF is slow on this laptop.
 - Video spike tooling (Spike E): PyAV (bundled FFmpeg, NVENC/AMF/MF/x264) and dxcam. Use

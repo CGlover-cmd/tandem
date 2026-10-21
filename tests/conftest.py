@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -89,3 +90,123 @@ def _reset_tandem_logging() -> Iterator[None]:  # pyright: ignore[reportUnusedFu
             handler.close()
         logger.propagate = True
         logger.setLevel(logging.NOTSET)
+
+
+class FakeLink:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakePairingHandle:
+    """Accepts `accept_pin`; with `provides_pin=False` it pairs without asking for one."""
+
+    def __init__(
+        self,
+        *,
+        provides_pin: bool = True,
+        accept_pin: str = "1234",
+        fail_begin: Exception | None = None,
+    ) -> None:
+        self.provides_pin = provides_pin
+        self.accept_pin = accept_pin
+        self.fail_begin = fail_begin
+        self.entered: str | None = None
+        self.finished = False
+        self.closed = False
+
+    @property
+    def device_provides_pin(self) -> bool:
+        return self.provides_pin
+
+    @property
+    def has_paired(self) -> bool:
+        return self.finished and (not self.provides_pin or self.entered == self.accept_pin)
+
+    async def begin(self) -> None:
+        if self.fail_begin is not None:
+            raise self.fail_begin
+
+    def pin(self, pin: str) -> None:
+        self.entered = pin
+
+    async def finish(self) -> None:
+        self.finished = True
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakeBackend:
+    """In-memory Backend for engine and CLI tests."""
+
+    def __init__(self, devices: Sequence[Device] = ()) -> None:
+        self.devices = list(devices)
+        self.loaded = False
+        self.saves = 0
+        self.credentials: set[tuple[str, Service]] = set()
+        self.handles: list[FakePairingHandle] = []
+        self.handle_options: dict[str, Any] = {}
+        self.connect_failures: dict[str, list[BaseException]] = {}
+        self.links: dict[str, list[FakeLink]] = {}
+        self.lost_callbacks: dict[str, Callable[[BaseException | None], None]] = {}
+        self.describe_enabled = True
+
+    async def load(self) -> None:
+        self.loaded = True
+
+    async def save(self) -> None:
+        self.saves += 1
+
+    async def scan(self, timeout: float) -> Sequence[Device]:
+        return list(self.devices)
+
+    async def describe(self, device_id: str) -> Device | None:
+        if not self.describe_enabled:
+            return None
+        for device in self.devices:
+            if device.id == device_id:
+                paired = frozenset(s for i, s in self.credentials if i == device_id)
+                # Some backends store one pairing for several services; this fake's AirPlay
+                # pairing also covers MRP, to exercise that.
+                if Service.AIRPLAY in paired:
+                    paired |= {Service.MRP} & device.services
+                return dataclasses.replace(
+                    device, paired=paired, needs_pairing=device.needs_pairing - paired
+                )
+        return None
+
+    def pairing(self, device_id: str, service: Service) -> Callable[[], Awaitable[Any]]:
+        async def start() -> FakePairingHandle:
+            handle = FakePairingHandle(**self.handle_options)
+            self.handles.append(handle)
+            original_finish = handle.finish
+
+            async def finish() -> None:
+                await original_finish()
+                if handle.has_paired:
+                    self.credentials.add((device_id, service))
+
+            handle.finish = finish  # type: ignore[method-assign]
+            return handle
+
+        return start
+
+    def connector(self, device_id: str) -> Callable[..., Awaitable[FakeLink]]:
+        async def connect(on_lost: Callable[[BaseException | None], None]) -> FakeLink:
+            failures = self.connect_failures.get(device_id, [])
+            if failures:
+                raise failures.pop(0)
+            link = FakeLink()
+            self.links.setdefault(device_id, []).append(link)
+            self.lost_callbacks[device_id] = on_lost
+            return link
+
+        return connect
+
+    async def forget(self, device_id: str) -> bool:
+        before = len(self.credentials)
+        self.credentials = {c for c in self.credentials if c[0] != device_id}
+        return len(self.credentials) != before

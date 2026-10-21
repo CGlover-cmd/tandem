@@ -11,8 +11,9 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > Screen mirroring was investigated and shelved: it is
 > gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
 > ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
-> The core engine (Phase 1) is under way: discovery, connection handling, settings, redacted
-> logs and an encrypted credential store exist, with a developer command-line tool.
+> The core engine (Phase 1) is under way: discovery, pairing, connection handling, settings,
+> redacted logs and an encrypted credential store exist, with a developer command-line tool
+> that pairs with and connects to Apple TV, HomePod mini and an AirPlay 2 soundbar.
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals
@@ -56,7 +57,15 @@ with placeholders such as `<device-1>`, so the output is safe to paste into an i
 ```
 python -m tandem discover
 python -m tandem watch
+python -m tandem pair apple_tv
+python -m tandem connect all
+python -m tandem forget apple_tv
 ```
+
+`pair`, `connect` and `forget` take a target: `all`, a kind (`apple_tv`, `homepod`, `receiver`),
+part of a model name, or a device's own name. `pair` asks for each PIN the device shows;
+`connect` connects, stays connected for a few seconds and disconnects (`--keep` stays connected
+and reconnects after drops until Ctrl+C).
 
 Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
 

@@ -34,15 +34,17 @@ _Update this section at the end of every working session._
   be checked automatically. pyatv's AirPlay 2 sender uses NTP timing, which shairport-sync's
   AirPlay 2 mode doesn't accept, so the AirPlay 2 path stays a hardware check
   ([findings](spikes/spike-f-pi-receiver.md)).
-- **Phase 1 so far:** the engine foundation is built and merged (see the Phase 1 checklist
-  below; ADR-0007).
-- **Next:** Phase 1 pairing flows and `pair` / `connect` / `disconnect` commands, then the
-  diagnostics bundle, then the exit check on hardware. Classify devices by services and model
-  string (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
+- **Phase 1 so far:** the engine core is built (see the Phase 1 checklist below; ADR-0007). The
+  developer tool discovered, paired, connected to and disconnected from every reference device:
+  the Apple TV (remote control and AirPlay PINs), both HomePod minis and the soundbar (no
+  pairing needed).
+- **Next:** the Phase 1 diagnostics bundle. Classify devices by services and model string
+  (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
   main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
-  with invented devices (ADR-0008). Next for the UI: an engine adapter for its `Backend`
-  contract once the pairing flows land, then the onboarding checklist and settings screens.
+  with invented devices (ADR-0008). Next for the UI: an engine adapter from its `Backend`
+  contract to the engine's service API (`tandem.engine.service.Engine`), then the onboarding
+  checklist and settings screens.
 
 ## Scope
 
@@ -129,9 +131,10 @@ reliably, with ≥80% test coverage of the engine core.
 - [x] Connection state machine with reconnect and backoff
 - [x] Settings, redacted structured logging, DPAPI credential vault (ADR-0007)
 - [x] Developer tool: `discover`, `watch`
-- [ ] Pairing flows (PIN entry); `pair`, `connect`, `disconnect` commands
+- [x] Engine service API; pairing flow (PIN entry) saved to the vault; `pair`, `connect` (then
+  disconnect), `forget` commands
 - [ ] Redacted diagnostics bundle
-- [ ] Exit check on the reference devices
+- [x] Exit check on the reference devices (one pass; a 5-second scan finds them all)
 
 ### Phase 2 · UX design and UI shell
 Apple-inspired design system: generous corner radii, soft depth, translucent surfaces, fluid

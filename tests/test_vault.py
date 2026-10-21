@@ -9,7 +9,8 @@ from pyatv import conf
 from pyatv.const import Protocol
 
 from tandem.engine import dpapi
-from tandem.engine.vault import CredentialVault, VaultError
+from tandem.engine.adapters.credential_vault import CredentialVault
+from tandem.engine.vault import VaultError
 
 FAKE_CREDENTIALS = "invented-pairing-blob-0001"
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="DPAPI is Windows-only")
