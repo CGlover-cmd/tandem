@@ -52,9 +52,10 @@ _Update this section at the end of every working session._
   Design tokens are checked for WCAG AA on every background. The window now runs on the real
   engine (`tandem.bridge`): it lists the devices on the network, connects and disconnects them,
   and pairs an Apple TV with both of its PINs (remote control, then AirPlay); the appearance is
-  saved in the engine's settings. `--demo` still shows invented devices. Next for the UI: the
-  maintainer pairs the Apple TV from the window (first hardware check), then the onboarding
-  checklist. Phase 3's remote pad goes in `web/` too.
+  saved in the engine's settings. `--demo` still shows invented devices. Hardware check: the
+  maintainer paired the Apple TV from the window (both PINs) and it connected. The wrong-PIN
+  retry is still unchecked on hardware. Next for the UI: the Phase 3 remote pad and
+  now-playing card in `web/` (the engine side is done), then the onboarding checklist.
 
 ## Scope
 
