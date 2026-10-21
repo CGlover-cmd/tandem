@@ -3,7 +3,8 @@
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 
-> **Status: pre-alpha, Phase 0 (research spikes).** Nothing to install yet. Pairing and remote
+> **Status: pre-alpha. Phase 0 research is done ([go/no-go summary](docs/spikes/phase-0-summary.md)).**
+> Nothing to install yet. Pairing and remote
 > control of Apple TV, streaming audio to HomePod mini and an AirPlay 2 soundbar, and capturing
 > the PC's own audio are proven in spikes, as is fast hardware video encoding on NVIDIA GPUs.
 > An open-source test receiver on a Raspberry Pi lets audio be checked automatically.
@@ -44,7 +45,7 @@ Tandem needs Python 3.11+ on Windows. Keep the virtualenv outside any synced fol
 install the package with its development tools:
 
 ```
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,ui]"
 python -m pytest
 python -m ruff check src tests
 python -m pyright --pythonpath <path to your venv's python.exe>
@@ -67,6 +68,17 @@ part of a model name, or a device's own name. `pair` asks for each PIN the devic
 and reconnects after drops until Ctrl+C).
 
 Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
+
+### Preview the interface
+
+The interface is in early development. After the install above, run it with invented demo devices
+(no network needed):
+
+```
+python -m tandem.ui
+```
+
+Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 
 ## Legal
 

@@ -13,7 +13,8 @@ AirPlay core is solid.
 
 _Update this section at the end of every working session._
 
-- **Current phase:** 0, environment check and risk spikes.
+- **Current phase:** 1, core engine. Phase 0 is complete: see the
+  [go/no-go table](spikes/phase-0-summary.md).
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
@@ -33,13 +34,17 @@ _Update this section at the end of every working session._
   be checked automatically. pyatv's AirPlay 2 sender uses NTP timing, which shairport-sync's
   AirPlay 2 mode doesn't accept, so the AirPlay 2 path stays a hardware check
   ([findings](spikes/spike-f-pi-receiver.md)).
-- **Next:** close Phase 0: write the go/no-go table per feature, confirm the ADRs, and update
-  the risk register. All six spikes are done. The test Pi has UxPlay and shairport-sync, both
-  on demand.
-- **In parallel, Phase 1:** the engine core is built (see the Phase 1 checklist below;
-  ADR-0007). The developer tool discovered, paired, connected to and disconnected from every
-  reference device: the Apple TV (remote control and AirPlay PINs), both HomePod minis and the
-  soundbar (no pairing needed). Next in Phase 1: the redacted diagnostics bundle.
+- **Phase 1 so far:** the engine core is built (see the Phase 1 checklist below; ADR-0007). The
+  developer tool discovered, paired, connected to and disconnected from every reference device:
+  the Apple TV (remote control and AirPlay PINs), both HomePod minis and the soundbar (no
+  pairing needed).
+- **Next:** the Phase 1 diagnostics bundle. Classify devices by services and model string
+  (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
+- **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
+  main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
+  with invented devices (ADR-0008). Next for the UI: an engine adapter from its `Backend`
+  contract to the engine's service API (`tandem.engine.service.Engine`), then the onboarding
+  checklist and settings screens.
 
 ## Scope
 
@@ -113,6 +118,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Spike E: NVENC H.264 screen encode latency ([go for 1080p; 4K60 needs a GPU-only path](spikes/spike-e-encode.md))
 - [x] Spike F: Raspberry Pi 3 as test receiver (shairport-sync) ([go in classic AirPlay mode; AirPlay 2 path stays a hardware check](spikes/spike-f-pi-receiver.md))
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
+  **Met** ([Phase 0 summary](spikes/phase-0-summary.md)).
 
 ### Phase 1 · Core engine
 Device registry, continuous discovery, connection state machine with reconnect and backoff, pairing
