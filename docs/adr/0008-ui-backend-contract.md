@@ -28,4 +28,5 @@ not wait for it or import engine modules directly.
 - When the engine adapter lands, any mismatch shows up in one place: the adapter. It landed as
   `tandem.bridge.EngineBackend`; the contract gained `Appearance` (ADR-0010) and pairing flows
   with more than one PIN (`PairingFlow.steps`), because an Apple TV pairs remote control and
-  AirPlay separately.
+  AirPlay separately. Phase 3 added `ControlsSnapshot` and `ControlsChanged`, and the remote,
+  media, volume and power commands (mirroring the engine's control API, ADR-0009).

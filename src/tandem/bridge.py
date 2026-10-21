@@ -7,10 +7,13 @@ never import each other. `DemoBackend` implements the same contract with invente
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
+from collections.abc import Awaitable
 from contextlib import suppress
 from dataclasses import dataclass
 
+from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
@@ -36,6 +39,23 @@ NO_PAIRING_NEEDED = "This device doesn't need pairing."
 PIN_EXPIRED = "The PIN expired. Try again."
 COULD_NOT_PAIR = "Tandem couldn't pair with this device. Make sure it's on and try again."
 WRONG_PIN = "That PIN didn't match."
+NOT_CONNECTED = "This device isn't connected."
+CANT_DO_THAT = "This device can't do that right now."
+NO_RESPONSE = "The device didn't respond. Try again."
+
+_MEDIA = {
+    ui.MediaCommand.NEXT: ec.MediaCommand.NEXT,
+    ui.MediaCommand.PREVIOUS: ec.MediaCommand.PREVIOUS,
+    ui.MediaCommand.SKIP_FORWARD: ec.MediaCommand.SKIP_FORWARD,
+    ui.MediaCommand.SKIP_BACKWARD: ec.MediaCommand.SKIP_BACKWARD,
+}
+_MEDIA_NEEDS = {
+    ui.MediaCommand.NEXT: ec.Capability.NEXT,
+    ui.MediaCommand.PREVIOUS: ec.Capability.PREVIOUS,
+    ui.MediaCommand.SKIP_FORWARD: ec.Capability.SKIP_FORWARD,
+    ui.MediaCommand.SKIP_BACKWARD: ec.Capability.SKIP_BACKWARD,
+}
+_PLAY_PAUSE = {ec.Capability.PLAY_PAUSE, ec.Capability.PLAY, ec.Capability.PAUSE}
 
 _LINK = {
     ConnectionState.DISCONNECTED: ui.LinkState.DISCONNECTED,
@@ -67,11 +87,13 @@ class EngineBackend:
         self._pin_timeout = pin_timeout
         self._listeners: list[ui.Listener] = []
         self._links: dict[str, _Link] = {}
+        self._status: dict[str, ec.ControlStatus] = {}
         bus = engine.bus
         self._unsubscribe = [
             bus.subscribe(DeviceEvent, self._on_device),
             bus.subscribe(ConnectionStateChanged, self._on_connection),
             bus.subscribe(SettingsChanged, self._on_settings),
+            bus.subscribe(ec.ControlEvent, self._on_control),
         ]
 
     # Observing
@@ -94,6 +116,10 @@ class EngineBackend:
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
         return ui.Appearance(ui.Theme(settings.theme.value), background)
+
+    def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
+        status = self._status.get(device_id)
+        return None if status is None else _controls(status)
 
     # Lifecycle
 
@@ -136,6 +162,30 @@ class EngineBackend:
         await flow.start()
         return flow
 
+    async def press(self, device_id: str, key: ui.RemoteKey, action: ui.KeyAction) -> None:
+        controls = self._engine.controls(device_id)
+        await _control(controls.press(ec.RemoteKey(key.value), ec.KeyAction(action.value)))
+
+    async def media(self, device_id: str, command: ui.MediaCommand) -> None:
+        controls = self._engine.controls(device_id)
+        if command is not ui.MediaCommand.PLAY_PAUSE:
+            await _control(controls.media(_MEDIA[command]))
+            return
+        # Some apps offer only play or only pause; pick what fits.
+        status = controls.status()
+        if ec.Capability.PLAY_PAUSE in status.capabilities:
+            await _control(controls.media(ec.MediaCommand.PLAY_PAUSE))
+        elif status.now_playing.state is ec.PlayState.PLAYING:
+            await _control(controls.media(ec.MediaCommand.PAUSE))
+        else:
+            await _control(controls.media(ec.MediaCommand.PLAY))
+
+    async def set_volume(self, device_id: str, level: float) -> None:
+        await _control(self._engine.controls(device_id).set_volume(level))
+
+    async def set_power(self, device_id: str, on: bool) -> None:
+        await _control(self._engine.controls(device_id).set_power(on))
+
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
         self._settings.update(
@@ -156,6 +206,33 @@ class EngineBackend:
 
     def _on_settings(self, event: SettingsChanged) -> None:
         self._publish(ui.AppearanceChanged(self.appearance()))
+
+    def _on_control(self, event: ec.ControlEvent) -> None:
+        device_id = event.device_id
+        if isinstance(event, ec.ControlsUnavailable):
+            if self._status.pop(device_id, None) is not None:
+                self._publish(ui.ControlsChanged(device_id, None))
+            return
+        if isinstance(event, ec.ControlsAvailable):
+            status = event.status
+        else:
+            current = self._status.get(device_id)
+            if current is None:
+                return  # an update before the controls were announced
+            if isinstance(event, ec.NowPlayingChanged):
+                status = dataclasses.replace(current, now_playing=event.now_playing)
+            elif isinstance(event, ec.CapabilitiesChanged):
+                status = dataclasses.replace(
+                    current, capabilities=event.capabilities, volume_control=event.volume_control
+                )
+            elif isinstance(event, ec.PowerChanged):
+                status = dataclasses.replace(current, power=event.power)
+            elif isinstance(event, ec.VolumeChanged):
+                status = dataclasses.replace(current, volume=event.volume)
+            else:
+                return
+        self._status[device_id] = status
+        self._publish(ui.ControlsChanged(device_id, _controls(status)))
 
     # Internals
 
@@ -270,6 +347,48 @@ class _EnginePairing:
             self._index += 1  # paired without a PIN
         self._task, self._pin = None, None
         return False
+
+
+async def _control(command: Awaitable[None]) -> None:
+    """Run a control command, turning engine errors into words the window can show."""
+    try:
+        await command
+    except ec.NotConnectedError:
+        raise ui.ControlError(NOT_CONNECTED) from None
+    except (ec.UnsupportedError, ValueError):
+        raise ui.ControlError(CANT_DO_THAT) from None
+    except (ec.ControlError, OSError, TimeoutError) as exc:
+        _LOGGER.info("A control command failed (%s)", type(exc).__name__)
+        raise ui.ControlError(NO_RESPONSE) from None
+
+
+def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
+    caps = status.capabilities
+    media = {command for command, needs in _MEDIA_NEEDS.items() if needs in caps}
+    if caps & _PLAY_PAUSE:
+        media.add(ui.MediaCommand.PLAY_PAUSE)
+    playing = status.now_playing
+    now_playing = None
+    if ec.Capability.NOW_PLAYING in caps:
+        now_playing = ui.NowPlayingSnapshot(
+            state=playing.state.value,
+            title=playing.title,
+            artist=playing.artist,
+            album=playing.album,
+            series=playing.series,
+            app=playing.app_name,
+            position=playing.position,
+            total_time=playing.total_time,
+        )
+    return ui.ControlsSnapshot(
+        remote=ec.Capability.REMOTE in caps,
+        media=frozenset(media),
+        volume=ui.Volume(status.volume_control.value),
+        volume_level=status.volume if status.volume_control is ec.VolumeControl.LEVEL else None,
+        power=status.power.value,
+        can_power=ec.Capability.POWER in caps,
+        now_playing=now_playing,
+    )
 
 
 def _message(reason: str) -> str:

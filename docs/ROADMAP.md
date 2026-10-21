@@ -42,9 +42,12 @@ _Update this section at the end of every working session._
   Apple TV: remote keys move the selection, play and pause work, now-playing follows, and
   the play controls appear once a video plays. Volume reports none on the reference setup
   (the TV's volume is set by IR from the Siri Remote).
-- **Next:** the Phase 3 UI on the HeroUI front end (remote pad, now-playing card, app
-  launcher), once the UI's engine adapter exists. The test Pi has UxPlay and
-  shairport-sync, both on demand.
+- **Phase 3 UI:** a Remote sheet on connected devices: a round touch pad (tap or hold; also
+  arrow keys, Enter and Backspace), Back, Home and play/pause, a now-playing card with
+  progress and the media buttons the device offers, power, and volume as a slider, steps or
+  a note to use the TV remote. Built and checked with demo devices.
+- **Next:** the maintainer tries the Remote sheet on the Apple TV; then the app launcher and
+  text entry in the window. The test Pi has UxPlay and shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
   replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
@@ -54,8 +57,7 @@ _Update this section at the end of every working session._
   and pairs an Apple TV with both of its PINs (remote control, then AirPlay); the appearance is
   saved in the engine's settings. `--demo` still shows invented devices. Hardware check: the
   maintainer paired the Apple TV from the window (both PINs) and it connected. The wrong-PIN
-  retry is still unchecked on hardware. Next for the UI: the Phase 3 remote pad and
-  now-playing card in `web/` (the engine side is done), then the onboarding checklist.
+  retry is still unchecked on hardware. Next for the UI: the onboarding checklist.
 
 ## Scope
 
@@ -168,7 +170,9 @@ Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power an
   `launch`, `type`
 - [x] Live check on the Apple TV: keys move the selection, play and pause work, now-playing
   follows; volume reports none (the TV's volume is set by IR from the Siri Remote)
-- [ ] UI: remote pad, now-playing card and app launcher on the new front end
+- [x] UI: remote pad, now-playing card, power and volume on the new front end
+- [ ] UI check on the Apple TV
+- [ ] UI: app launcher and text entry
 
 ### Phase 4 · Audio to one device
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.

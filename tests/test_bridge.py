@@ -9,8 +9,21 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FakeBackend, ManualSleep, make_device
+from conftest import ALL_CAPABILITIES, FakeBackend, ManualSleep, make_device
 from tandem import bridge
+from tandem.engine.control import (
+    Capability,
+    ControlError,
+    ControlsUnavailable,
+    KeyAction,
+    MediaCommand,
+    NowPlaying,
+    PlayState,
+    PowerChanged,
+    PowerState,
+    RemoteKey,
+    VolumeControl,
+)
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, DeviceKind, Service
 from tandem.engine.registry import DeviceLost
@@ -256,3 +269,113 @@ async def test_appearance_is_saved_in_engine_settings(harness: Harness, tmp_path
 async def test_unknown_saved_background_falls_back(harness: Harness) -> None:
     harness.settings.update(background="plaid")
     assert harness.backend.appearance().background == "mist"
+
+
+# Remote, media, volume and power
+
+
+async def _connected(harness: Harness, **options: object) -> ui.ControlsSnapshot:
+    harness.fake.controller_options = dict(options)
+    await harness.backend.connect(SPEAKER.id)
+    await _settle()
+    controls = harness.backend.controls(SPEAKER.id)
+    assert controls is not None
+    return controls
+
+
+async def test_controls_arrive_when_connected_and_go_when_disconnected(harness: Harness) -> None:
+    assert harness.backend.controls(SPEAKER.id) is None
+    controls = await _connected(
+        harness, now_playing=NowPlaying(PlayState.PLAYING, title="Morning Light", app_name="Music")
+    )
+
+    assert controls.remote
+    assert ui.MediaCommand.PLAY_PAUSE in controls.media
+    assert controls.volume is ui.Volume.LEVEL
+    assert controls.volume_level == 40.0
+    assert controls.can_power
+    assert controls.now_playing is not None
+    assert controls.now_playing.title == "Morning Light"
+    assert controls.now_playing.app == "Music"
+
+    await harness.backend.disconnect(SPEAKER.id)
+    assert harness.backend.controls(SPEAKER.id) is None
+    assert ui.ControlsChanged(SPEAKER.id, None) in harness.events
+
+
+async def test_pushed_updates_change_the_controls(harness: Harness) -> None:
+    await _connected(harness)
+    controller = harness.fake.controllers[SPEAKER.id]
+
+    controller.push(NowPlaying(PlayState.PAUSED, title="Evening"))
+    controller.push(PowerState.OFF)
+    controller.push(55.0)
+    controller.caps = frozenset({Capability.PLAY})
+    controller.vol_control = VolumeControl.STEPS
+    controller.push(None)
+
+    controls = harness.backend.controls(SPEAKER.id)
+    assert controls is not None
+    assert controls.power == "off"
+    assert controls.volume is ui.Volume.STEPS
+    assert controls.volume_level is None
+    assert controls.media == frozenset({ui.MediaCommand.PLAY_PAUSE})
+    assert controls.now_playing is None  # NOW_PLAYING is no longer offered
+    assert not controls.remote
+
+
+async def test_commands_reach_the_device(harness: Harness) -> None:
+    await _connected(harness)
+    controller = harness.fake.controllers[SPEAKER.id]
+
+    await harness.backend.press(SPEAKER.id, ui.RemoteKey.SELECT, ui.KeyAction.HOLD)
+    await harness.backend.press(SPEAKER.id, ui.RemoteKey.VOLUME_UP, ui.KeyAction.TAP)
+    await harness.backend.media(SPEAKER.id, ui.MediaCommand.NEXT)
+    await harness.backend.media(SPEAKER.id, ui.MediaCommand.PLAY_PAUSE)
+    await harness.backend.set_volume(SPEAKER.id, 30)
+    await harness.backend.set_power(SPEAKER.id, False)
+
+    assert controller.calls == [
+        ("press", RemoteKey.SELECT, KeyAction.HOLD),
+        ("volume_step", True),
+        ("media", MediaCommand.NEXT),
+        ("media", MediaCommand.PLAY_PAUSE),
+        ("set_volume", 30),
+        ("set_power", False),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [(PlayState.PLAYING, MediaCommand.PAUSE), (PlayState.PAUSED, MediaCommand.PLAY)],
+)
+async def test_play_pause_falls_back_to_play_or_pause(
+    harness: Harness, state: PlayState, expected: MediaCommand
+) -> None:
+    caps = frozenset({Capability.PLAY, Capability.PAUSE, Capability.NOW_PLAYING})
+    await _connected(harness, capabilities=caps, now_playing=NowPlaying(state))
+
+    await harness.backend.media(SPEAKER.id, ui.MediaCommand.PLAY_PAUSE)
+
+    assert harness.fake.controllers[SPEAKER.id].calls == [("media", expected)]
+
+
+async def test_control_errors_are_worded_for_the_window(harness: Harness) -> None:
+    with pytest.raises(ui.ControlError, match="isn't connected"):
+        await harness.backend.press(SPEAKER.id, ui.RemoteKey.UP, ui.KeyAction.TAP)
+
+    await _connected(harness, capabilities=frozenset({Capability.NOW_PLAYING}))
+    with pytest.raises(ui.ControlError, match="can't do that"):
+        await harness.backend.press(SPEAKER.id, ui.RemoteKey.UP, ui.KeyAction.TAP)
+
+    harness.fake.controllers[SPEAKER.id].caps = ALL_CAPABILITIES
+    harness.fake.controllers[SPEAKER.id].fail = ControlError("timed out talking to 192.0.2.10")
+    with pytest.raises(ui.ControlError) as failed:
+        await harness.backend.media(SPEAKER.id, ui.MediaCommand.NEXT)
+    assert str(failed.value) == bridge.NO_RESPONSE
+
+
+async def test_updates_for_unknown_devices_are_ignored(harness: Harness) -> None:
+    harness.engine.bus.publish(PowerChanged("missing", PowerState.ON))
+    harness.engine.bus.publish(ControlsUnavailable("missing"))
+    assert not any(isinstance(e, ui.ControlsChanged) for e in harness.events)

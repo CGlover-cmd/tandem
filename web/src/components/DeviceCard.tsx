@@ -2,7 +2,7 @@ import { Button, Card, Spinner } from "@heroui/react";
 import { useEffect, useState } from "react";
 
 import { actionFor, statusFor, type Tone } from "../devices";
-import { DeviceIcon } from "../icons";
+import { DeviceIcon, RemoteIcon } from "../icons";
 import { strings } from "../strings";
 import type { Device } from "../types";
 
@@ -31,11 +31,20 @@ function useCountdown(device: Device): number {
   return left;
 }
 
-export function DeviceCard({ device, onActivate }: { device: Device; onActivate: () => void }) {
+interface Props {
+  device: Device;
+  onActivate: () => void;
+  onOpenControls: () => void;
+}
+
+export function DeviceCard({ device, onActivate, onOpenControls }: Props) {
   const secondsLeft = useCountdown(device);
   const action = actionFor(device);
   const status = statusFor(device, secondsLeft);
   const connected = device.state === "connected" && !device.needsPairing;
+  const controls = connected ? device.controls : null;
+  const playing = controls?.nowPlaying;
+  const showPlaying = playing && playing.title && playing.state !== "idle";
 
   return (
     <Card
@@ -60,8 +69,14 @@ export function DeviceCard({ device, onActivate }: { device: Device; onActivate:
           <span className="status-dot" style={{ background: TONE_COLOUR[status.tone] }} />
           {status.text}
         </p>
+        {showPlaying && (
+          <p className="truncate text-[12px] text-[var(--muted)]" title={playing.title ?? undefined}>
+            <span aria-hidden="true">{playing.state === "playing" ? "▶ " : "❚❚ "}</span>
+            {playing.title}
+          </p>
+        )}
       </Card.Content>
-      <Card.Footer>
+      <Card.Footer className="flex flex-row items-center gap-2">
         <Button
           size="sm"
           variant={action.primary ? "primary" : "secondary"}
@@ -71,6 +86,17 @@ export function DeviceCard({ device, onActivate }: { device: Device; onActivate:
         >
           {action.label}
         </Button>
+        {controls && (
+          <Button
+            size="sm"
+            variant="tertiary"
+            onPress={onOpenControls}
+            aria-label={`${strings.remote.open}: ${device.name}`}
+          >
+            <RemoteIcon size={16} />
+            {strings.remote.open}
+          </Button>
+        )}
       </Card.Footer>
     </Card>
   );

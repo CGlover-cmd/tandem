@@ -98,7 +98,8 @@ python -m tandem.ui --demo
 ```
 
 Choose **Pair** on an Apple TV and type in the PIN it shows. An Apple TV asks twice: once for
-remote control and once for AirPlay.
+remote control and once for AirPlay. Once a device is connected, **Remote** opens its controls:
+a touch pad (or the arrow keys, Enter and Backspace), Back, Home, what's playing, and volume.
 
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear

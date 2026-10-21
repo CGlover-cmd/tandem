@@ -6,7 +6,9 @@ offers) lives here and runs under pytest without a window.
 
 Messages for the user are sent as codes (`{"code": "wrongPin"}`); the front end holds the
 words, so translations live in one place. Text that comes from the backend (a
-`PairingError`) is safe to show and is passed through as `text`.
+`BackendError`) is safe to show and is passed through as `text`.
+
+Now-playing titles are personal: they go to the window only, never to a log.
 """
 
 from __future__ import annotations
@@ -15,20 +17,27 @@ import asyncio
 import logging
 import re
 from collections.abc import Callable, Coroutine
-from typing import Any
+from enum import Enum
+from typing import Any, TypeVar
 
 from tandem.ui.backend import (
     Appearance,
     AppearanceChanged,
     Backend,
+    BackendError,
     BackendEvent,
+    ControlsChanged,
+    ControlsSnapshot,
     DeviceRemoved,
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
+    KeyAction,
     LinkState,
+    MediaCommand,
     PairingError,
     PairingFlow,
+    RemoteKey,
     Theme,
     WrongPinError,
 )
@@ -208,6 +217,7 @@ class AppController:
         self.appearance = backend.appearance()
         self.runner = TaskRunner(self._on_task_error)
         self._devices: dict[str, DeviceSnapshot] = {}
+        self._controls: dict[str, ControlsSnapshot] = {}
         self._listeners: list[Listener] = []
         self.pairing = PairingController(
             backend, self.runner, on_change=self._changed, on_paired=self.connect
@@ -236,7 +246,7 @@ class AppController:
     def snapshot(self) -> dict[str, Any]:
         """The whole UI state, ready for JSON."""
         return {
-            "devices": [_device_json(d) for d in self.devices()],
+            "devices": [_device_json(d, self._controls.get(d.id)) for d in self.devices()],
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
             "message": self.message,
@@ -254,6 +264,9 @@ class AppController:
         self._unsubscribe = self._backend.subscribe(self._on_event)
         for device in self._backend.devices():
             self._devices[device.id] = device
+            controls = self._backend.controls(device.id)
+            if controls is not None:
+                self._controls[device.id] = controls
         self._changed()
         await self._backend.start()
 
@@ -296,6 +309,18 @@ class AppController:
             self.message = None
             self._changed()
 
+    def press(self, device_id: str, key: RemoteKey, action: KeyAction = KeyAction.TAP) -> None:
+        self.runner.run(self._backend.press(device_id, key, action))
+
+    def media(self, device_id: str, command: MediaCommand) -> None:
+        self.runner.run(self._backend.media(device_id, command))
+
+    def set_volume(self, device_id: str, level: float) -> None:
+        self.runner.run(self._backend.set_volume(device_id, level))
+
+    def set_power(self, device_id: str, on: bool) -> None:
+        self.runner.run(self._backend.set_power(device_id, on))
+
     def set_appearance(self, theme: str, background: str) -> None:
         try:
             appearance = Appearance(Theme(theme), background)
@@ -325,6 +350,23 @@ class AppController:
             self.pairing.close()
         elif kind == "dismissMessage":
             self.dismiss_message()
+        elif kind == "press" and has_id:
+            key, action = (
+                _enum(RemoteKey, command.get("key")),
+                _enum(KeyAction, command.get("action", "tap")),
+            )
+            if key is not None and action is not None:
+                self.press(device_id, key, action)
+        elif kind == "media" and has_id:
+            media = _enum(MediaCommand, command.get("command"))
+            if media is not None:
+                self.media(device_id, media)
+        elif kind == "setVolume" and has_id:
+            level = command.get("level")
+            if isinstance(level, int | float) and not isinstance(level, bool) and 0 <= level <= 100:
+                self.set_volume(device_id, float(level))
+        elif kind == "setPower" and has_id and isinstance(command.get("on"), bool):
+            self.set_power(device_id, command["on"])
         elif kind == "setAppearance":
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
@@ -341,16 +383,22 @@ class AppController:
                 self._devices[device.id] = device
             case DeviceRemoved(device_id=device_id):
                 self._devices.pop(device_id, None)
+                self._controls.pop(device_id, None)
                 if self.pairing.device_id == device_id:
                     self.pairing.close()
             case DiscoveryChanged(active=active):
                 self.discovering = active
+            case ControlsChanged(device_id=device_id, controls=controls):
+                if controls is None:
+                    self._controls.pop(device_id, None)
+                else:
+                    self._controls[device_id] = controls
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
         self._changed()
 
     def _on_task_error(self, error: BaseException) -> None:
-        if isinstance(error, PairingError) and str(error):
+        if isinstance(error, BackendError) and str(error):
             self.message = {"code": "backend", "text": str(error)}
         else:
             # Type name only: exception messages can contain addresses (docs/PRIVACY.md).
@@ -363,7 +411,7 @@ class AppController:
             listener()
 
 
-def _device_json(device: DeviceSnapshot) -> dict[str, Any]:
+def _device_json(device: DeviceSnapshot, controls: ControlsSnapshot | None) -> dict[str, Any]:
     return {
         "id": device.id,
         "name": device.name,
@@ -371,4 +419,39 @@ def _device_json(device: DeviceSnapshot) -> dict[str, Any]:
         "state": device.state.value,
         "needsPairing": device.needs_pairing,
         "retryIn": device.retry_in,
+        "controls": None if controls is None else _controls_json(controls),
     }
+
+
+def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
+    playing = controls.now_playing
+    return {
+        "remote": controls.remote,
+        "media": sorted(command.value for command in controls.media),
+        "volume": controls.volume.value,
+        "volumeLevel": controls.volume_level,
+        "power": controls.power,
+        "canPower": controls.can_power,
+        "nowPlaying": None
+        if playing is None
+        else {
+            "state": playing.state,
+            "title": playing.title,
+            "artist": playing.artist,
+            "album": playing.album,
+            "series": playing.series,
+            "app": playing.app,
+            "position": playing.position,
+            "totalTime": playing.total_time,
+        },
+    }
+
+
+E = TypeVar("E", bound=Enum)
+
+
+def _enum(kind: type[E], value: object) -> E | None:
+    try:
+        return kind(value)
+    except ValueError:
+        return None
