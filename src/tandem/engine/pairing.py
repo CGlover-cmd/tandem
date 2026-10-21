@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Protocol
 
 from tandem.engine.events import Event, EventBus
-from tandem.engine.models import Service
+from tandem.engine.models import Device, Service
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +46,19 @@ class PairingError(Exception):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+PAIRING_ORDER = (Service.COMPANION, Service.AIRPLAY, Service.RAOP, Service.MRP, Service.DMAP)
+
+
+def services_to_pair(device: Device) -> list[Service]:
+    """The services to pair on `device`, in order (each may show its own PIN)."""
+    wanted = set(device.needs_pairing)
+    if Service.AIRPLAY in device.services:
+        # On a device with full AirPlay, pyatv also lists AirPlay audio (RAOP) as needing
+        # pairing, but the Apple TV never shows a PIN for it. Pair AirPlay only.
+        wanted.discard(Service.RAOP)
+    return [s for s in PAIRING_ORDER if s in wanted]
 
 
 INVALID_PIN = "InvalidPin"  # not four digits

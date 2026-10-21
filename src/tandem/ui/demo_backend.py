@@ -2,7 +2,8 @@
 
 Behaviour worth seeing in the UI:
 - devices appear one at a time, as discovery would find them;
-- the TV needs PIN pairing first (any 4 digits work except 0000, which is "wrong");
+- the TV needs PIN pairing first, with two PINs like a real Apple TV (remote control, then
+  AirPlay); any 4 digits work except 0000, which is "wrong";
 - the soundbar's first connection attempt fails, so the retry state shows.
 
 The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
@@ -22,17 +23,25 @@ from tandem.ui.backend import (
     Appearance,
     AppearanceChanged,
     BackendEvent,
+    ControlError,
+    ControlsChanged,
+    ControlsSnapshot,
     DeviceKind,
     DeviceRemoved,
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
+    KeyAction,
     LinkState,
     Listener,
+    MediaCommand,
+    NowPlayingSnapshot,
     PairingError,
     PairingFlow,
+    RemoteKey,
     Theme,
     Unsubscribe,
+    Volume,
     WrongPinError,
 )
 
@@ -41,6 +50,7 @@ _LOGGER = logging.getLogger(__name__)
 Sleep = Callable[[float], Awaitable[None]]
 
 WRONG_PIN = "0000"
+TV_PIN_STEPS = 2
 
 # Invented devices only (docs/PRIVACY.md).
 DEMO_DEVICES = (
@@ -50,6 +60,44 @@ DEMO_DEVICES = (
     DeviceSnapshot("demo-soundbar", "Den Soundbar", DeviceKind.RECEIVER),
 )
 FLAKY_DEVICE = "demo-soundbar"
+
+NOT_CONNECTED = "This device isn't connected."
+CANT_DO_THAT = "This device can't do that right now."
+
+# What each kind of demo device can do once connected (invented media, docs/PRIVACY.md).
+_ALL_MEDIA = frozenset(MediaCommand)
+DEMO_CONTROLS = {
+    DeviceKind.APPLE_TV: ControlsSnapshot(
+        remote=True,
+        media=_ALL_MEDIA,
+        volume=Volume.STEPS,
+        power="on",
+        can_power=True,
+        now_playing=NowPlayingSnapshot(
+            "playing",
+            "A Walk in the Woods",
+            series="Nature Hour",
+            app="TV",
+            position=754.0,
+            total_time=2640.0,
+        ),
+    ),
+    DeviceKind.HOMEPOD: ControlsSnapshot(
+        media=frozenset({MediaCommand.PLAY_PAUSE, MediaCommand.NEXT, MediaCommand.PREVIOUS}),
+        volume=Volume.LEVEL,
+        volume_level=40.0,
+        now_playing=NowPlayingSnapshot(
+            "paused",
+            "Morning Light",
+            artist="The Example Band",
+            album="Daybreak",
+            app="Music",
+            position=61.0,
+            total_time=214.0,
+        ),
+    ),
+    DeviceKind.RECEIVER: ControlsSnapshot(volume=Volume.LEVEL, volume_level=25.0),
+}
 
 
 class DemoBackend:
@@ -70,6 +118,8 @@ class DemoBackend:
         self._listeners: list[Listener] = []
         self._connecting: dict[str, asyncio.Task[None]] = {}
         self._flaky = {FLAKY_DEVICE}
+        self._controls: dict[str, ControlsSnapshot] = {}
+        self.presses: list[tuple[str, RemoteKey, KeyAction]] = []
 
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)
@@ -122,7 +172,9 @@ class DemoBackend:
         if not device.needs_pairing:
             raise PairingError("This device doesn't need pairing.")
         await self._sleep(self._delay)
-        return _DemoPairing(lambda pin: self._finish_pairing(device_id, pin))
+        return _DemoPairing(
+            TV_PIN_STEPS, lambda pin, last: self._finish_pairing(device_id, pin, last)
+        )
 
     def appearance(self) -> Appearance:
         return self._appearance
@@ -146,11 +198,12 @@ class DemoBackend:
             await self._sleep(self._delay)
         self._update(device_id, state=LinkState.CONNECTED)
 
-    async def _finish_pairing(self, device_id: str, pin: str) -> None:
+    async def _finish_pairing(self, device_id: str, pin: str, last: bool) -> None:
         await self._sleep(self._delay)
         if pin == WRONG_PIN:
             raise WrongPinError("That PIN didn't match.")
-        self._update(device_id, needs_pairing=False)
+        if last:
+            self._update(device_id, needs_pairing=False)
 
     def _get(self, device_id: str) -> DeviceSnapshot:
         try:
@@ -169,6 +222,7 @@ class DemoBackend:
         device = self._devices.get(device_id)
         if device is None:
             return
+        was_connected = device.state is LinkState.CONNECTED
         device = replace(
             device,
             state=device.state if state is None else state,
@@ -176,10 +230,71 @@ class DemoBackend:
             needs_pairing=device.needs_pairing if needs_pairing is None else needs_pairing,
         )
         self._set(device)
+        connected = device.state is LinkState.CONNECTED
+        if connected and not was_connected:
+            self._set_controls(device_id, DEMO_CONTROLS.get(device.kind))
+        elif was_connected and not connected:
+            self._set_controls(device_id, None)
+
+    def _set_controls(self, device_id: str, controls: ControlsSnapshot | None) -> None:
+        if controls is None:
+            self._controls.pop(device_id, None)
+        else:
+            self._controls[device_id] = controls
+        self._publish(ControlsChanged(device_id, controls))
+
+    def _live(self, device_id: str) -> ControlsSnapshot:
+        controls = self._controls.get(device_id)
+        if controls is None:
+            raise ControlError(NOT_CONNECTED)
+        return controls
+
+    def _toggle_playback(self, device_id: str, controls: ControlsSnapshot) -> None:
+        playing = controls.now_playing
+        if playing is None:
+            raise ControlError(CANT_DO_THAT)
+        state = "paused" if playing.state == "playing" else "playing"
+        self._set_controls(device_id, replace(controls, now_playing=replace(playing, state=state)))
 
     def _set(self, device: DeviceSnapshot) -> None:
         self._devices[device.id] = device
         self._publish(DeviceUpdated(device))
+
+    # Controls
+
+    def controls(self, device_id: str) -> ControlsSnapshot | None:
+        return self._controls.get(device_id)
+
+    async def press(self, device_id: str, key: RemoteKey, action: KeyAction) -> None:
+        controls = self._live(device_id)
+        if key is RemoteKey.PLAY_PAUSE:
+            self._toggle_playback(device_id, controls)
+        elif key in (RemoteKey.VOLUME_UP, RemoteKey.VOLUME_DOWN):
+            if controls.volume is Volume.NONE:
+                raise ControlError(CANT_DO_THAT)
+        elif not controls.remote:
+            raise ControlError(CANT_DO_THAT)
+        self.presses.append((device_id, key, action))
+
+    async def media(self, device_id: str, command: MediaCommand) -> None:
+        controls = self._live(device_id)
+        if command not in controls.media:
+            raise ControlError(CANT_DO_THAT)
+        if command is MediaCommand.PLAY_PAUSE:
+            self._toggle_playback(device_id, controls)
+
+    async def set_volume(self, device_id: str, level: float) -> None:
+        controls = self._live(device_id)
+        if controls.volume is not Volume.LEVEL:
+            raise ControlError(CANT_DO_THAT)
+        level = min(100.0, max(0.0, level))
+        self._set_controls(device_id, replace(controls, volume_level=level))
+
+    async def set_power(self, device_id: str, on: bool) -> None:
+        controls = self._live(device_id)
+        if not controls.can_power:
+            raise ControlError(CANT_DO_THAT)
+        self._set_controls(device_id, replace(controls, power="on" if on else "off"))
 
     def remove(self, device_id: str) -> None:
         """Forget a device, as if it left the network (used by tests)."""
@@ -212,11 +327,20 @@ def _save_appearance(path: Path, appearance: Appearance) -> None:
 
 
 class _DemoPairing:
-    def __init__(self, finish: Callable[[str], Awaitable[None]]) -> None:
+    def __init__(self, steps: int, finish: Callable[[str, bool], Awaitable[None]]) -> None:
+        self._steps = steps
+        self._done = 0
         self._finish = finish
 
-    async def submit_pin(self, pin: str) -> None:
-        await self._finish(pin)
+    @property
+    def steps(self) -> int:
+        return self._steps
+
+    async def submit_pin(self, pin: str) -> bool:
+        last = self._done + 1 == self._steps
+        await self._finish(pin, last)
+        self._done += 1
+        return not last
 
     async def cancel(self) -> None:
         return None

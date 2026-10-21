@@ -12,13 +12,14 @@ interface Props {
 
 export function PairingSheet({ pairing, send }: Props) {
   const [pin, setPin] = useState("");
-  const { state, deviceName, error } = pairing;
+  const { state, deviceName, error, step, steps } = pairing;
   const open = state !== "closed";
 
   // Start each attempt with an empty PIN, and clear a wrong one so the user can retype.
   useEffect(() => {
     if (state === "starting" || (state === "enterPin" && error?.code === "wrongPin")) setPin("");
   }, [state, error]);
+  useEffect(() => setPin(""), [step]);
 
   const submit = (value: string) => {
     if (value.length === 4) send({ type: "submitPin", pin: value });
@@ -66,7 +67,14 @@ export function PairingSheet({ pairing, send }: Props) {
 
             {(state === "enterPin" || state === "checking") && (
               <>
-                <p className="text-[var(--muted)]">{strings.pairing.enterPin}</p>
+                {steps > 1 && (
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--tandem-accent-text)]">
+                    {strings.pairing.stepOf(step, steps)}
+                  </p>
+                )}
+                <p className="text-[var(--muted)]">
+                  {step > 1 ? strings.pairing.nextPin : strings.pairing.enterPin}
+                </p>
                 <div className="flex flex-col items-center gap-2">
                   <Label className="sr-only">{strings.pairing.pinLabel}</Label>
                   <InputOTP

@@ -87,13 +87,95 @@ class AppearanceChanged:
     appearance: Appearance
 
 
-BackendEvent = DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged
+# --- Remote and media controls (Phase 3) -------------------------------------------------
+
+
+class RemoteKey(Enum):
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+    SELECT = "select"
+    MENU = "menu"  # "back" on the Siri Remote
+    HOME = "home"
+    PLAY_PAUSE = "play_pause"
+    VOLUME_UP = "volume_up"
+    VOLUME_DOWN = "volume_down"
+
+
+class KeyAction(Enum):
+    TAP = "tap"
+    DOUBLE_TAP = "double_tap"
+    HOLD = "hold"
+
+
+class MediaCommand(Enum):
+    PLAY_PAUSE = "play_pause"
+    NEXT = "next"
+    PREVIOUS = "previous"
+    SKIP_FORWARD = "skip_forward"
+    SKIP_BACKWARD = "skip_backward"
+
+
+class Volume(Enum):
+    LEVEL = "level"  # a slider, 0 to 100
+    STEPS = "steps"  # up and down buttons only
+    NONE = "none"  # use the TV's own remote
+
+
+@dataclass(frozen=True, slots=True)
+class NowPlayingSnapshot:
+    """What's playing. Shown on screen only: titles are personal, so never log them."""
+
+    state: str = "idle"  # idle, loading, paused, playing, stopped, seeking, unknown
+    title: str | None = None
+    artist: str | None = None
+    album: str | None = None
+    series: str | None = None
+    app: str | None = None
+    position: float | None = None
+    total_time: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ControlsSnapshot:
+    """What a connected device's controls can do right now."""
+
+    remote: bool = False
+    """Arrow keys, select, back and home."""
+    media: frozenset[MediaCommand] = frozenset[MediaCommand]()
+    volume: Volume = Volume.NONE
+    volume_level: float | None = None
+    power: str = "unknown"  # on, off, unknown
+    can_power: bool = False
+    now_playing: NowPlayingSnapshot | None = None
+    """None when the device doesn't report what's playing."""
+
+
+@dataclass(frozen=True, slots=True)
+class ControlsChanged:
+    device_id: str
+    controls: ControlsSnapshot | None
+    """None once the device disconnects."""
+
+
+BackendEvent = (
+    DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged | ControlsChanged
+)
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
 
 
-class PairingError(Exception):
-    """Pairing did not succeed. `str(error)` is safe to show the user; it holds no private data."""
+class BackendError(Exception):
+    """A command didn't work. `str(error)` is safe to show the user; it holds no private data."""
+
+
+class PairingError(BackendError):
+    """Pairing did not succeed."""
+
+
+class ControlError(BackendError):
+    """A remote, media, volume or power command didn't work."""
 
 
 class WrongPinError(PairingError):
@@ -101,10 +183,23 @@ class WrongPinError(PairingError):
 
 
 class PairingFlow(Protocol):
-    """One pairing attempt. The device shows a PIN; the user types it into Tandem."""
+    """One pairing attempt. The device shows a PIN; the user types it into Tandem.
 
-    async def submit_pin(self, pin: str) -> None:
-        """Finish pairing. Raises `WrongPinError` (retry allowed) or `PairingError`."""
+    Some devices ask for more than one: an Apple TV pairs remote control and AirPlay
+    separately, and shows a new PIN for each.
+    """
+
+    @property
+    def steps(self) -> int:
+        """How many PINs the user will enter in all (at least 1)."""
+        ...
+
+    async def submit_pin(self, pin: str) -> bool:
+        """Check the PIN the device is showing now.
+
+        Returns True if the device now shows the next PIN, False when pairing is complete.
+        Raises `WrongPinError` (the device shows a fresh PIN to retry) or `PairingError`.
+        """
         ...
 
     async def cancel(self) -> None: ...
@@ -132,6 +227,22 @@ class Backend(Protocol):
         ...
 
     def appearance(self) -> Appearance: ...
+
+    def controls(self, device_id: str) -> ControlsSnapshot | None:
+        """The device's controls while it is connected and ready, else None."""
+        ...
+
+    async def press(self, device_id: str, key: RemoteKey, action: KeyAction) -> None:
+        """Press a remote key. Raises `ControlError`."""
+        ...
+
+    async def media(self, device_id: str, command: MediaCommand) -> None: ...
+
+    async def set_volume(self, device_id: str, level: float) -> None:
+        """Set the volume, 0 to 100, on a device whose `volume` is LEVEL."""
+        ...
+
+    async def set_power(self, device_id: str, on: bool) -> None: ...
 
     async def set_appearance(self, appearance: Appearance) -> None:
         """Save the user's choice and publish `AppearanceChanged`."""

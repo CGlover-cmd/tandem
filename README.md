@@ -87,14 +87,19 @@ Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem
 
 The interface is in early development. It's a [HeroUI](https://heroui.com) (React) front end that
 Tandem shows in its own window, using the WebView2 engine built into Windows. Build it once with
-[Node.js](https://nodejs.org) 20 or later, then run it with invented demo devices (no network
-needed):
+[Node.js](https://nodejs.org) 20 or later, then run it. It shows the AirPlay devices on your
+network; add `--demo` to see invented devices instead (no network needed):
 
 ```
 npm --prefix web install
 npm --prefix web run build
 python -m tandem.ui
+python -m tandem.ui --demo
 ```
+
+Choose **Pair** on an Apple TV and type in the PIN it shows. An Apple TV asks twice: once for
+remote control and once for AirPlay. Once a device is connected, **Remote** opens its controls:
+a touch pad (or the arrow keys, Enter and Backspace), Back, Home, what's playing, and volume.
 
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear
@@ -104,7 +109,7 @@ To work on the interface with hot reload, run the app without its window, start 
 server, and open the dev-server address the app prints:
 
 ```
-python -m tandem.ui --no-window --port 8765 --dev-origin http://localhost:5173
+python -m tandem.ui --demo --no-window --port 8765 --dev-origin http://localhost:5173
 npm --prefix web run dev
 ```
 
