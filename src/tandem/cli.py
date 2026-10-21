@@ -15,11 +15,13 @@ import logging
 import sys
 import time
 from collections.abc import Awaitable, Callable, Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import TextIO
 
 from tandem import __version__
 from tandem.engine import paths
+from tandem.engine.audio import AudioStreamChanged, StreamState
 from tandem.engine.control import (
     ControlError,
     ControlsAvailable,
@@ -201,6 +203,15 @@ def _add_control_parsers(
     launch.add_argument("app_id")
     type_text = control("type", "replace the text in the focused text field")
     type_text.add_argument("text")
+
+    stream = commands.add_parser("stream", help="stream this PC's audio to a device")
+    add_target(stream)
+    add_scan_timeout(stream, 5.0)
+    stream.add_argument(
+        "--seconds", type=float, default=0.0, help="stop after N seconds (default: until Ctrl+C)"
+    )
+    stream.add_argument("--volume", type=float, help="device volume to start at, 0 to 100")
+    stream.add_argument("--stats-every", type=float, default=10.0, help="seconds between stats")
 
 
 def _matches(devices: Sequence[Device], target: str) -> list[Device]:
@@ -560,7 +571,58 @@ async def _type(engine: Engine, args: argparse.Namespace, printer: _Printer) -> 
     return await _with_controls(engine, args, printer, run)
 
 
+async def _stream(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    selected = _select(await engine.scan(), args, printer, single=True)
+    if not selected:
+        return 1
+    device = selected[0]
+    label = printer.label(device)
+    failed = asyncio.Event()
+
+    def on_stream(event: AudioStreamChanged) -> None:
+        if event.device_id != device.id:
+            return
+        reason = f" ({event.reason})" if event.reason else ""
+        printer.line(f"  {label}: {event.state.value}{reason}")
+        if event.state is StreamState.FAILED:
+            failed.set()
+
+    engine.bus.subscribe(AudioStreamChanged, on_stream)
+    try:
+        await engine.connect(device.id, timeout=30, max_attempts=3)
+        await engine.start_audio(device.id, volume=args.volume)
+    except (ConnectionFailedError, TimeoutError):
+        printer.line(f"Could not connect to {label}")
+        return 1
+    except ValueError as exc:
+        printer.line(str(exc))
+        return 1
+    printer.line("Streaming. Press Ctrl+C to stop." if not args.seconds else "Streaming.")
+    started = time.perf_counter()
+    try:
+        while not failed.is_set():
+            elapsed = time.perf_counter() - started
+            if args.seconds and elapsed >= args.seconds:
+                break
+            wait = args.stats_every
+            if args.seconds:
+                wait = min(wait, args.seconds - elapsed)
+            with suppress(TimeoutError):
+                await asyncio.wait_for(failed.wait(), max(wait, 0.01))
+            stats = engine.audio_stats(device.id)
+            if stats is not None:
+                printer.line(
+                    f"  sent {stats.sent_seconds:.1f} s, dropped {stats.dropped_seconds:.2f} s,"
+                    f" filled {stats.silence_seconds:.2f} s, buffered {stats.buffered_ms:.0f} ms,"
+                    f" underruns {stats.underruns}"
+                )
+    finally:
+        await engine.stop_audio(device.id)
+    return 1 if failed.is_set() else 0
+
+
 _COMMANDS = {
+    "stream": _stream,
     "controls": _controls,
     "remote": _remote,
     "media": _media,

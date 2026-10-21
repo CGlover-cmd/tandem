@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from tandem.engine.audio import PcmBuffer
 from tandem.engine.control import (
     App,
     Artwork,
@@ -168,6 +169,10 @@ class FakeBackend:
         self.lost_callbacks: dict[str, Callable[[BaseException | None], None]] = {}
         self.describe_enabled = True
         self.controllers: dict[str, FakeController] = {}
+        self.sinks: dict[str, list[FakeSink]] = {}
+        self.sink_failures: dict[str, list[BaseException]] = {}
+        self.captures: list[FakeCapture] = []
+        self.audio_enabled = True
         self.controller_options: dict[str, Any] = {}
 
     async def load(self) -> None:
@@ -234,6 +239,19 @@ class FakeBackend:
         controller = FakeController(**self.controller_options)
         self.controllers[link.device_id] = controller
         return controller
+
+    def audio_sink(self, link: Any) -> FakeSink | None:
+        if not self.audio_enabled or not isinstance(link, FakeLink):
+            return None
+        failures = self.sink_failures.get(link.device_id, [])
+        sink = FakeSink(failures.pop(0) if failures else None)
+        self.sinks.setdefault(link.device_id, []).append(sink)
+        return sink
+
+    def capture(self) -> FakeCapture:
+        capture = FakeCapture()
+        self.captures.append(capture)
+        return capture
 
 
 ALL_CAPABILITIES = frozenset(Capability)
@@ -326,3 +344,47 @@ class FakeController:
     def push(self, update: ControlUpdate) -> None:
         assert self.on_update is not None
         self.on_update(update)
+
+
+class FakeCapture:
+    def __init__(self) -> None:
+        self.on_pcm: Callable[[bytes], None] | None = None
+        self.stopped = False
+
+    def start(self, on_pcm: Callable[[bytes], None]) -> None:
+        self.on_pcm = on_pcm
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def feed(self, data: bytes) -> None:
+        assert self.on_pcm is not None
+        self.on_pcm(data)
+
+
+class FakeSink:
+    """Reads packets as a sender would (without real-time pacing) until told to fail."""
+
+    def __init__(self, fail: BaseException | None = None) -> None:
+        self.fail = fail
+        self.volumes: list[float] = []
+        self.received = bytearray()
+        self.playing = asyncio.Event()
+        self.buffer: PcmBuffer | None = None
+        self.titles: list[tuple[str, str]] = []
+
+    async def set_volume(self, level: float) -> None:
+        self.volumes.append(level)
+
+    async def play(self, buffer: PcmBuffer, *, title: str, artist: str) -> None:
+        self.buffer = buffer
+        self.titles.append((title, artist))
+        self.playing.set()
+        if self.fail is not None:
+            raise self.fail
+        while True:
+            data = await buffer.read(352)
+            if not data:
+                return
+            self.received += data
+            await asyncio.sleep(0)

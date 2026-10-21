@@ -171,6 +171,17 @@ Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power an
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.
 Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod mini.
 **Exit:** one hour with no dropouts, <5% CPU, survives Wi-Fi blips. **🚩 v0.1 alpha.**
+- [x] Pipeline: shared WASAPI loopback capture, a jitter buffer per output, live PCM into
+  pyatv's sender (ADR-0011)
+- [x] Engine API: `start_audio`, `stop_audio`, `audio_stats`, `AudioStreamChanged` events;
+  resumes after a dropped connection
+- [x] Developer tool: `stream`
+- [x] Pi (shairport-sync, classic): stream timing matches real time
+- [x] Pi: a 30 s tone played on the PC arrives clean: exact length, 440 Hz, no gaps or
+  glitches, 74 dB signal-to-noise (loopback resampling sets the floor)
+- [ ] Soundbar, then a HomePod mini, by ear
+- [ ] One hour, CPU, and a Wi-Fi blip
+- [ ] Windows volume and mute (capture follows them; ADR-0005)
 
 ### Phase 5 · Multi-output audio router (hardest)
 Pick any combination of outputs: AirPlay devices **and** the PC's own speakers. Local output is

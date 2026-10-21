@@ -79,7 +79,10 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   encoder (no hw_frames_ctx), so a zero-copy capture-to-NVENC path needs native code.
 - Audio capture: miniaudio (a pyatv dependency) does WASAPI loopback; its Python wrapper lacks a
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
-  On this laptop loopback follows the Windows volume and mute (Spike C).
+  On this laptop loopback follows the Windows volume and mute (Spike C). Loopback delivers
+  nothing at all while nothing plays (Phase 4), so the audio pipeline fills silence itself.
+- The test Pi answers at its mDNS name (`<host>.local`); the maintainer's spike scripts read it
+  from `TANDEM_PI_HOST`. The Phase 4 Pi check needs numpy in the venv.
 - Front end (ADR-0010): Node 24 and npm are installed. Smart App Control can block a native npm
   binary until it has reputation ("An Application Control policy has blocked this file"):
   rolldown 1.2.15 was blocked, so `web/package.json` pins `rolldown` 1.2.14 via `overrides`.
