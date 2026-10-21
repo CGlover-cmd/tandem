@@ -179,6 +179,13 @@ class App:
 
 
 @dataclass(frozen=True, slots=True)
+class KeyboardFocus:
+    """Pushed by a controller when a text field on the device gains or loses focus."""
+
+    focused: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ControlStatus:
     """Everything the UI needs to draw a device's controls."""
 
@@ -188,6 +195,8 @@ class ControlStatus:
     """0 to 100 when `volume_control` is LEVEL, else None."""
     power: PowerState = PowerState.UNKNOWN
     now_playing: NowPlaying = NowPlaying()
+    keyboard: bool = False
+    """True while the device shows an on-screen keyboard waiting for text (a search box)."""
 
 
 # --- Events ---------------------------------------------------------------------------
@@ -217,6 +226,13 @@ class PowerChanged(ControlEvent):
 @dataclass(frozen=True, slots=True)
 class VolumeChanged(ControlEvent):
     volume: float
+
+
+@dataclass(frozen=True, slots=True)
+class KeyboardChanged(ControlEvent):
+    """The device started or stopped asking for text (see `ControlStatus.keyboard`)."""
+
+    focused: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,9 +269,9 @@ class UnsupportedError(ControlError):
 
 # --- What a backend provides -----------------------------------------------------------
 
-ControlUpdate = NowPlaying | PowerState | float | None
-"""Pushed by a controller: new now-playing, power state, volume level, or None when only
-capabilities may have changed."""
+ControlUpdate = NowPlaying | PowerState | KeyboardFocus | float | None
+"""Pushed by a controller: new now-playing, power state, keyboard focus, volume level, or
+None when only capabilities may have changed."""
 
 
 class Controller(Protocol):
@@ -265,6 +281,7 @@ class Controller(Protocol):
     def volume_control(self) -> VolumeControl: ...
     def volume(self) -> float | None: ...
     def power(self) -> PowerState: ...
+    def keyboard_focused(self) -> bool: ...
 
     async def press(self, key: RemoteKey, action: KeyAction) -> None: ...
     async def media(self, command: MediaCommand) -> None: ...
@@ -326,6 +343,7 @@ class DeviceControls:
             volume=controller.volume(),
             power=controller.power(),
             now_playing=self._last_now_playing(),
+            keyboard=controller.keyboard_focused(),
         )
 
     async def press(self, key: RemoteKey, action: KeyAction = KeyAction.TAP) -> None:

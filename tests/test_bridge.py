@@ -12,10 +12,12 @@ import pytest
 from conftest import ALL_CAPABILITIES, FakeBackend, ManualSleep, make_device
 from tandem import bridge
 from tandem.engine.control import (
+    App,
     Capability,
     ControlError,
     ControlsUnavailable,
     KeyAction,
+    KeyboardFocus,
     MediaCommand,
     NowPlaying,
     PlayState,
@@ -379,3 +381,50 @@ async def test_updates_for_unknown_devices_are_ignored(harness: Harness) -> None
     harness.engine.bus.publish(PowerChanged("missing", PowerState.ON))
     harness.engine.bus.publish(ControlsUnavailable("missing"))
     assert not any(isinstance(e, ui.ControlsChanged) for e in harness.events)
+
+
+async def test_apps_and_text_reach_the_device(harness: Harness) -> None:
+    controls = await _connected(harness)
+    assert controls.apps
+    assert controls.text_entry
+    assert not controls.keyboard
+    controller = harness.fake.controllers[SPEAKER.id]
+    controller.apps_list = [App("com.example.music", "Example Music")]
+
+    assert await harness.backend.apps(SPEAKER.id) == [
+        ui.AppInfo("com.example.music", "Example Music")
+    ]
+    await harness.backend.launch_app(SPEAKER.id, "com.example.music")
+    await harness.backend.set_text(SPEAKER.id, "y" * (ui.MAX_TEXT + 1))
+    assert controller.calls == [
+        ("apps",),
+        ("launch", "com.example.music"),
+        ("set_text", "y" * ui.MAX_TEXT),
+    ]
+
+
+async def test_keyboard_focus_follows_the_device(harness: Harness) -> None:
+    await _connected(harness)
+    controller = harness.fake.controllers[SPEAKER.id]
+
+    controller.push(KeyboardFocus(True))
+    controls = harness.backend.controls(SPEAKER.id)
+    assert controls is not None
+    assert controls.keyboard
+
+    controller.caps = frozenset({Capability.REMOTE})  # no text entry: no keyboard either
+    controller.push(None)
+    controls = harness.backend.controls(SPEAKER.id)
+    assert controls is not None
+    assert not controls.keyboard
+    assert not controls.apps
+
+
+async def test_apps_errors_are_worded_for_the_window(harness: Harness) -> None:
+    with pytest.raises(ui.ControlError, match="isn't connected"):
+        await harness.backend.apps(SPEAKER.id)
+    await _connected(harness, capabilities=frozenset({Capability.REMOTE}))
+    with pytest.raises(ui.ControlError, match="can't do that"):
+        await harness.backend.apps(SPEAKER.id)
+    with pytest.raises(ui.ControlError, match="can't do that"):
+        await harness.backend.set_text(SPEAKER.id, "hi")

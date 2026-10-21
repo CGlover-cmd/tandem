@@ -204,3 +204,24 @@ export function VolumeIcon({ level = 2, ...props }: IconProps & { level?: 0 | 1 
     </Svg>
   );
 }
+
+export function AppsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
+    </Svg>
+  );
+}
+
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+      <path d="M6 9.5h.01M9.3 9.5h.01M12.6 9.5h.01M15.9 9.5h.01M18 9.5h.01M6 12.5h.01M18 12.5h.01" strokeWidth={2.2} />
+      <path d="M8.5 15h7M9 12.5h6" />
+    </Svg>
+  );
+}

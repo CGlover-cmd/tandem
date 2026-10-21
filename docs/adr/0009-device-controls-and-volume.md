@@ -23,8 +23,11 @@ steps once while asleep, and nothing while awake. Its Volume Control setting is 
   available.
 - **Push, never poll:** on connect the engine attaches a controller and publishes
   `ControlsAvailable` with the starting state. After that it publishes `NowPlayingChanged`,
-  `PowerChanged`, `VolumeChanged` and `CapabilitiesChanged` (rechecked after every push),
-  then `ControlsUnavailable` on disconnect.
+  `PowerChanged`, `VolumeChanged`, `KeyboardChanged` and `CapabilitiesChanged` (rechecked
+  after every push), then `ControlsUnavailable` on disconnect.
+- **Keyboard focus is pushed too:** `ControlStatus.keyboard` is true while the device shows an
+  on-screen keyboard (pyatv's text focus state), so a UI can open its text field when the TV
+  asks for text. Typed text is personal, like titles: never logged.
 - **Volume is one of three kinds** (`VolumeControl`): `LEVEL` (exact 0 to 100, with the current
   level), `STEPS` (up and down only, no level), or `NONE`. `volume_up`/`volume_down` work for
   LEVEL and STEPS; `set_volume` only for LEVEL. With NONE the UI hides volume controls and explains

@@ -17,6 +17,8 @@ from tandem.engine.control import (
     ControlsUnavailable,
     ControlUpdate,
     DeviceControls,
+    KeyboardChanged,
+    KeyboardFocus,
     NowPlaying,
     NowPlayingChanged,
     PowerChanged,
@@ -39,6 +41,7 @@ class _Attached:
         self.now_playing = NowPlaying()
         self.capabilities: frozenset[Capability] = controller.capabilities()
         self.volume_control: VolumeControl = controller.volume_control()
+        self.keyboard = controller.keyboard_focused()
 
 
 class ControlHub:
@@ -109,6 +112,7 @@ class ControlHub:
                     volume=controller.volume(),
                     power=controller.power(),
                     now_playing=attached.now_playing,
+                    keyboard=attached.keyboard,
                 ),
             )
         )
@@ -127,6 +131,10 @@ class ControlHub:
             self._bus.publish(NowPlayingChanged(device_id, update))
         elif isinstance(update, PowerState):
             self._bus.publish(PowerChanged(device_id, update))
+        elif isinstance(update, KeyboardFocus):
+            if update.focused != attached.keyboard:
+                attached.keyboard = update.focused
+                self._bus.publish(KeyboardChanged(device_id, update.focused))
         elif isinstance(update, float | int):
             self._bus.publish(VolumeChanged(device_id, float(update)))
         # Capabilities can change with any push (an Apple TV offers more while playing).

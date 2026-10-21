@@ -54,6 +54,9 @@ describe("remote", () => {
     power: "on",
     canPower: true,
     nowPlaying: null,
+    apps: false,
+    textEntry: false,
+    keyboard: false,
   };
 
   it("lays out only the media buttons the device offers", () => {

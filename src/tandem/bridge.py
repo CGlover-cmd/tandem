@@ -12,6 +12,7 @@ import logging
 from collections.abc import Awaitable
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import TypeVar
 
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
@@ -25,6 +26,8 @@ from tandem.engine.settings import Theme as EngineTheme
 from tandem.ui import backend as ui
 
 _LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 # Gives up after this many failed attempts in a row; the card then offers "Try again".
 MAX_ATTEMPTS = 6
@@ -186,6 +189,16 @@ class EngineBackend:
     async def set_power(self, device_id: str, on: bool) -> None:
         await _control(self._engine.controls(device_id).set_power(on))
 
+    async def apps(self, device_id: str) -> list[ui.AppInfo]:
+        found = await _control(self._engine.controls(device_id).apps())
+        return [ui.AppInfo(app.id, app.name) for app in found]
+
+    async def launch_app(self, device_id: str, app_id: str) -> None:
+        await _control(self._engine.controls(device_id).launch(app_id))
+
+    async def set_text(self, device_id: str, text: str) -> None:
+        await _control(self._engine.controls(device_id).set_text(text[: ui.MAX_TEXT]))
+
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
         self._settings.update(
@@ -229,6 +242,8 @@ class EngineBackend:
                 status = dataclasses.replace(current, power=event.power)
             elif isinstance(event, ec.VolumeChanged):
                 status = dataclasses.replace(current, volume=event.volume)
+            elif isinstance(event, ec.KeyboardChanged):
+                status = dataclasses.replace(current, keyboard=event.focused)
             else:
                 return
         self._status[device_id] = status
@@ -349,10 +364,10 @@ class _EnginePairing:
         return False
 
 
-async def _control(command: Awaitable[None]) -> None:
+async def _control(command: Awaitable[T]) -> T:
     """Run a control command, turning engine errors into words the window can show."""
     try:
-        await command
+        return await command
     except ec.NotConnectedError:
         raise ui.ControlError(NOT_CONNECTED) from None
     except (ec.UnsupportedError, ValueError):
@@ -388,6 +403,9 @@ def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
         power=status.power.value,
         can_power=ec.Capability.POWER in caps,
         now_playing=now_playing,
+        apps=ec.Capability.APPS in caps,
+        text_entry=ec.Capability.TEXT_ENTRY in caps,
+        keyboard=status.keyboard and ec.Capability.TEXT_ENTRY in caps,
     )
 
 

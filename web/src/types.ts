@@ -41,6 +41,25 @@ export interface Controls {
   power: "on" | "off" | "unknown";
   canPower: boolean;
   nowPlaying: NowPlaying | null;
+  /** The device can list its apps and open one. */
+  apps: boolean;
+  /** The device takes typed text into its focused text field. */
+  textEntry: boolean;
+  /** The device is showing an on-screen keyboard and waiting for text right now. */
+  keyboard: boolean;
+}
+
+/** An app the device can open. Names are shown on screen only; never log them. */
+export interface AppInfo {
+  id: string;
+  name: string;
+}
+
+/** The launcher's list for one device, once asked for with `loadApps`. */
+export interface AppList {
+  state: "loading" | "ready" | "failed";
+  items: AppInfo[];
+  error: Problem | null;
 }
 
 export interface Device {
@@ -52,6 +71,8 @@ export interface Device {
   retryIn: number | null;
   /** Set while the device is connected and its controls are ready. */
   controls: Controls | null;
+  /** The device's apps, after the launcher asked for them; cleared on disconnect. */
+  apps: AppList | null;
 }
 
 /** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
@@ -93,4 +114,7 @@ export type Command =
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }
-  | { type: "setPower"; id: string; on: boolean };
+  | { type: "setPower"; id: string; on: boolean }
+  | { type: "loadApps"; id: string }
+  | { type: "launchApp"; id: string; appId: string }
+  | { type: "setText"; id: string; text: string };

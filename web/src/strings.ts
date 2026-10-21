@@ -88,6 +88,30 @@ export const strings = {
     done: "Done",
   },
 
+  launcher: {
+    open: "Apps",
+    title: "Apps",
+    back: "Back to the remote",
+    search: "Search apps",
+    loading: "Getting the list of apps…",
+    empty: "No apps to show.",
+    noMatch: (query: string) => `No apps match “${query}”.`,
+    failed: "Couldn't get the list of apps.",
+    retry: "Try again",
+    refresh: "Refresh",
+    openApp: (name: string) => `Open ${name}`,
+  },
+
+  typing: {
+    open: "Keyboard",
+    close: "Hide keyboard",
+    label: "Text for your TV",
+    asking: "Your TV is asking for text.",
+    hint: "What you type appears in the text field on your TV.",
+    placeholder: "Type here",
+    clear: "Clear",
+  },
+
   settingsSheet: {
     title: "Settings",
     appearance: "Appearance",
