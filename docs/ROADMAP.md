@@ -13,8 +13,8 @@ AirPlay core is solid.
 
 _Update this section at the end of every working session._
 
-- **Current phase:** 1, core engine. Phase 0 is complete: see the
-  [go/no-go table](spikes/phase-0-summary.md).
+- **Current phase:** 3, Apple TV control (engine side). Phase 0 is complete (see the
+  [go/no-go table](spikes/phase-0-summary.md)) and so is Phase 1.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
@@ -34,12 +34,12 @@ _Update this section at the end of every working session._
   be checked automatically. pyatv's AirPlay 2 sender uses NTP timing, which shairport-sync's
   AirPlay 2 mode doesn't accept, so the AirPlay 2 path stays a hardware check
   ([findings](spikes/spike-f-pi-receiver.md)).
-- **Phase 1 so far:** the engine core is built (see the Phase 1 checklist below; ADR-0007). The
-  developer tool discovered, paired, connected to and disconnected from every reference device:
-  the Apple TV (remote control and AirPlay PINs), both HomePod minis and the soundbar (no
-  pairing needed).
-- **Next:** the Phase 1 diagnostics bundle. Classify devices by services and model string
-  (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
+- **Phase 1 done:** the engine core is built (ADR-0007). The developer tool discovered, paired,
+  connected to and disconnected from every reference device: the Apple TV (remote control and
+  AirPlay PINs), both HomePod minis and the soundbar (no pairing needed).
+  `python -m tandem diagnose` writes a redacted diagnostics bundle.
+- **Next:** Phase 3 in the engine: remote keys, media controls, now-playing, power and volume,
+  behind a clean API for the UI. The test Pi has UxPlay and shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
   main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
   with invented devices (ADR-0008). Next for the UI: an engine adapter from its `Backend`
@@ -133,7 +133,7 @@ reliably, with ≥80% test coverage of the engine core.
 - [x] Developer tool: `discover`, `watch`
 - [x] Engine service API; pairing flow (PIN entry) saved to the vault; `pair`, `connect` (then
   disconnect), `forget` commands
-- [ ] Redacted diagnostics bundle
+- [x] Redacted diagnostics bundle (`diagnose`)
 - [x] Exit check on the reference devices (one pass; a 5-second scan finds them all)
 
 ### Phase 2 · UX design and UI shell

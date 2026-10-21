@@ -32,7 +32,9 @@ without real devices, and nothing it logs may reveal device names or addresses (
   `logs/`); the `TANDEM_HOME` variable overrides it.
 - **Logging:** JSON-lines files, rotated by size. Every line, file or console, passes through
   a redactor that swaps known device names and ids, IP and MAC addresses, UUIDs, emails and
-  user-folder paths for stable placeholders such as `<device-1>`.
+  user-folder paths for stable placeholders such as `<device-1>`. The diagnostics bundle
+  (`engine/diagnostics.py`) redacts its summary and the logs again on the way in and never
+  includes the credential vault.
 
 ## Consequences
 - DPAPI needs no key management and no extra package, but credentials don't move to another PC
