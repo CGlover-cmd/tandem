@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tandem"
+version = "0.0.1"
+description = "Send audio and video from Windows to Apple TV, HomePod and AirPlay 2 receivers."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Framework :: AsyncIO",
+]
+dependencies = [
+    # pyatv minor releases can change behaviour; move the pin deliberately (ADR-0001).
+    "pyatv>=0.18,<0.19",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+    "pre-commit>=3.8",
+    "detect-secrets==1.5.0",
+]
+# The interface (ADR-0002, ADR-0008). Essentials leaves out large Qt modules the UI doesn't use.
+ui = [
+    "PySide6-Essentials>=6.7",
+    "qasync>=0.27",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tandem"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+# Spike scripts are throwaway Phase 0 code and are not held to the package's lint rules.
+extend-exclude = ["spikes"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT"]
+# Engine APIs take an explicit timeout argument by design.
+ignore = ["ASYNC109"]
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+# pyatv and pydantic are typed but not strict-clean; don't fail on their partial types.
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["tandem"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

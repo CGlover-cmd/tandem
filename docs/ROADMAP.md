@@ -13,7 +13,8 @@ AirPlay core is solid.
 
 _Update this section at the end of every working session._
 
-- **Current phase:** 0, environment check and risk spikes.
+- **Current phase:** 1, core engine. Phase 0 is complete: see the
+  [go/no-go table](spikes/phase-0-summary.md).
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
@@ -28,14 +29,20 @@ _Update this section at the end of every working session._
   accepted ([findings](spikes/spike-d-mirroring.md)). Spike E passed for 1080p: capture, NVENC
   encode and decode back take about 60 ms on the PC, and 1080p30 runs at full rate from Python.
   4K60 would need frames to stay on the GPU (a native helper), which only matters if mirroring
-  reopens ([findings](spikes/spike-e-encode.md)).
-- **Next:** Spike F, the Raspberry Pi 3 as an audio test receiver (shairport-sync). It is the
-  last Phase 0 spike; then close Phase 0 with the go/no-go table. The test Pi is already set up
-  with UxPlay from Spike D.
+  reopens ([findings](spikes/spike-e-encode.md)). Spike F passed in classic AirPlay mode:
+  shairport-sync on the Pi receives pyatv's stream bit-exact (2 minutes, no gaps), so audio can
+  be checked automatically. pyatv's AirPlay 2 sender uses NTP timing, which shairport-sync's
+  AirPlay 2 mode doesn't accept, so the AirPlay 2 path stays a hardware check
+  ([findings](spikes/spike-f-pi-receiver.md)).
+- **Phase 1 so far:** the engine foundation is built and merged (see the Phase 1 checklist
+  below; ADR-0007).
+- **Next:** Phase 1 pairing flows and `pair` / `connect` / `disconnect` commands, then the
+  diagnostics bundle, then the exit check on hardware. Classify devices by services and model
+  string (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
   main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
-  with invented devices (ADR-0008). Next for the UI: wire it to the engine adapter once Phase 1
-  lands, then the onboarding checklist and settings screens.
+  with invented devices (ADR-0008). Next for the UI: an engine adapter for its `Backend`
+  contract once the pairing flows land, then the onboarding checklist and settings screens.
 
 ## Scope
 
@@ -107,8 +114,9 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005) ([go, with a limit](spikes/spike-c-loopback.md))
 - [x] Spike D: mirroring feasibility ([no-go: FairPlay-gated, Phase 7 shelved](spikes/spike-d-mirroring.md); ADR-0006)
 - [x] Spike E: NVENC H.264 screen encode latency ([go for 1080p; 4K60 needs a GPU-only path](spikes/spike-e-encode.md))
-- [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
+- [x] Spike F: Raspberry Pi 3 as test receiver (shairport-sync) ([go in classic AirPlay mode; AirPlay 2 path stays a hardware check](spikes/spike-f-pi-receiver.md))
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
+  **Met** ([Phase 0 summary](spikes/phase-0-summary.md)).
 
 ### Phase 1 · Core engine
 Device registry, continuous discovery, connection state machine with reconnect and backoff, pairing
@@ -116,6 +124,14 @@ flows, encrypted credential vault, event bus, settings, structured logging, reda
 bundle, developer command-line tool.
 **Exit:** the command-line tool discovers, pairs, connects and disconnects all reference devices
 reliably, with ≥80% test coverage of the engine core.
+- [x] Package skeleton, tooling (ruff, pyright strict, pytest) and Windows CI
+- [x] Event bus, device registry, continuous discovery
+- [x] Connection state machine with reconnect and backoff
+- [x] Settings, redacted structured logging, DPAPI credential vault (ADR-0007)
+- [x] Developer tool: `discover`, `watch`
+- [ ] Pairing flows (PIN entry); `pair`, `connect`, `disconnect` commands
+- [ ] Redacted diagnostics bundle
+- [ ] Exit check on the reference devices
 
 ### Phase 2 · UX design and UI shell
 Apple-inspired design system: generous corner radii, soft depth, translucent surfaces, fluid
@@ -160,7 +176,8 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).
-- **Integration tests** run against an open-source receiver: shairport-sync for audio. (UxPlay
+- **Integration tests** run against an open-source receiver: shairport-sync for audio, in classic
+  AirPlay mode (Spike F); the AirPlay 2 path is checked on the real speakers. (UxPlay
   was the mirroring test target; mirroring is shelved, see ADR-0006.)
 - **Hardware checklist** run by the tester after every phase.
 - **Performance targets:** discovery <3 s, cold start <2 s, near-zero CPU at idle, <200 MB RAM while streaming audio.
@@ -174,6 +191,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
 | Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
+| Test receiver can't take pyatv's AirPlay 2 stream (NTP vs PTP timing) | Medium | Spike F: Pi tests cover classic AirPlay; the AirPlay 2 path stays on the hardware checklist; Phase 5 checks early whether NTP timing holds multi-speaker sync |
 | 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 7 reopens |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |

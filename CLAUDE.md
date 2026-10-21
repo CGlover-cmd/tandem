@@ -34,6 +34,7 @@ The GitHub repo is PUBLIC. Follow docs/PRIVACY.md without exception:
 - Private data (scans, logs, captures, credentials, device names, addresses, identifiers) goes
   only in git-ignored `local/`. Never quote it in committed files, commit messages, PRs or issues.
 - Fixtures and examples use invented values (192.0.2.x, AA:BB:CC:..., "Living Room Speaker").
+- Device models (e.g. a soundbar's model number) aren't personal data; tools may print them.
 - Never bypass pre-commit hooks (`--no-verify`). If a hook blocks a commit, fix the content.
 - Commit email must be the GitHub noreply address (set per-repo).
 
@@ -50,8 +51,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3. UxPlay 1.71 is installed (Spike D) and runs on demand;
-  shairport-sync for Spike F not installed yet. SSH key-only login as the `tandem` user
+- Test receivers: Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
+  nqptp 1.2.9 built from source in `~/src` (Spike F; Debian's package lacks AirPlay 2), all on
+  demand, not at boot; only one at a time (both use port 7000). Use shairport-sync in
+  `--service-type=classic`: pyatv's AirPlay 2 sender uses NTP timing, which its AirPlay 2 mode
+  rejects. Spike F scripts reach the Pi via the `TANDEM_PI_HOST` env var. SSH key-only login as the `tandem` user
   (private key at `%USERPROFILE%\.ssh\tandem_pi`, outside the project; passwordless sudo set).
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
@@ -74,20 +78,32 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git
   also fails on very long temp-file paths.
+- Bash-tool heredocs here turn `\\` into `\`, which silently breaks regexes and Windows paths.
+  Write source files with the Write tool, not `cat <<EOF`.
+- pyright doesn't find the venv on its own: run
+  `python -m pyright --pythonpath <venv python.exe>` (CI does the same).
+- `local/denylist.txt` holds real room and device names, so even an invented test name can clash
+  with it. If the privacy hook flags a test value, pick another invented one.
 
 ## Local-only state (not in GitHub, by design)
 - `local/discovery-scan.json` and `local/denylist.txt` (private terms for the commit hook).
 - The virtualenv and the GitHub sign-in.
-- To rebuild on a fresh machine: create the venv, then run
-  `python -m pip install pyatv pre-commit detect-secrets==1.5.0` (plus `av dxcam numpy` for
-  the Spike E script, and `PySide6-Essentials qasync` for the UI), then `python -m pre_commit install`,
+- To rebuild on a fresh machine: create the venv, then run `python -m pip install -e ".[dev,ui]"`
+  from the repo root (plus `av dxcam numpy` for the Spike E script), then
+  `python -m pre_commit install`,
   then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
 - Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.
 - Engine never imports UI code; UI talks to the engine only through the service API.
-  The UI's side of that API is the `Backend` protocol in `src/tandem/ui/backend.py` (ADR-0008);
-  `DemoBackend` (invented devices) stands in for the engine until its adapter exists.
+- Package code is in `src/tandem/` (ADR-0007). Only `engine/adapters/` imports pyatv; core
+  modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
+  shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
+- Anything the engine logs or shows goes through `Redactor`; register new private values
+  (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
+  `--show-private` is given; Claude never passes that flag.
+- The UI's side of the engine's API is the `Backend` protocol in `src/tandem/ui/backend.py`
+  (ADR-0008); `DemoBackend` (invented devices) stands in until the engine adapter for it exists.
 - UI code: `src/tandem/ui/` (ViewModels in Python, QML in `qml/Tandem/`, tokens in `Theme.qml`).
   Every colour comes from `Theme`; `tests/ui/test_ui_qml.py` checks text contrast (WCAG AA).
   Check visuals with `python -m tandem.ui --screenshot <png> [--theme light|dark] [--pairing]`
