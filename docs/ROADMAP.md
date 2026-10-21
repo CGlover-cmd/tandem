@@ -28,17 +28,16 @@ _Update this section at the end of every working session._
   accepted ([findings](spikes/spike-d-mirroring.md)). Spike E passed for 1080p: capture, NVENC
   encode and decode back take about 60 ms on the PC, and 1080p30 runs at full rate from Python.
   4K60 would need frames to stay on the GPU (a native helper), which only matters if mirroring
-  reopens ([findings](spikes/spike-e-encode.md)).
-- **Next:** Spike F, the Raspberry Pi 3 as an audio test receiver (shairport-sync). It is the
-  last Phase 0 spike; then close Phase 0 with the go/no-go table. The test Pi is already set up
-  with UxPlay from Spike D.
-- **In parallel, Phase 1:** the engine foundation is built (it doesn't depend on Spikes E or
-  F): package and CI, event bus, device registry, continuous discovery, connection state machine
-  with backoff, settings, redacted logs, DPAPI credential vault (ADR-0007) and a developer tool
-  (`python -m tandem discover`, `watch`). A real 3-second scan found the Apple TV, the soundbar and
-  one of the two HomePod minis (the other may need a longer scan). Next in
-  Phase 1: pairing flows and `pair` / `connect` / `disconnect` commands, then the diagnostics
-  bundle, then the exit check on hardware.
+  reopens ([findings](spikes/spike-e-encode.md)). Spike F passed in classic AirPlay mode:
+  shairport-sync on the Pi receives pyatv's stream bit-exact (2 minutes, no gaps), so audio can
+  be checked automatically. pyatv's AirPlay 2 sender uses NTP timing, which shairport-sync's
+  AirPlay 2 mode doesn't accept, so the AirPlay 2 path stays a hardware check
+  ([findings](spikes/spike-f-pi-receiver.md)).
+- **Next:** close Phase 0: write the go/no-go table per feature, confirm the ADRs, and update
+  the risk register. All six spikes are done. The test Pi has UxPlay and shairport-sync, both
+  on demand.
+- **In parallel, Phase 1:** the engine foundation is built (see the Phase 1 checklist below;
+  ADR-0007). Next in Phase 1: pairing flows and `pair` / `connect` / `disconnect` commands.
 
 ## Scope
 
@@ -110,7 +109,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005) ([go, with a limit](spikes/spike-c-loopback.md))
 - [x] Spike D: mirroring feasibility ([no-go: FairPlay-gated, Phase 7 shelved](spikes/spike-d-mirroring.md); ADR-0006)
 - [x] Spike E: NVENC H.264 screen encode latency ([go for 1080p; 4K60 needs a GPU-only path](spikes/spike-e-encode.md))
-- [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
+- [x] Spike F: Raspberry Pi 3 as test receiver (shairport-sync) ([go in classic AirPlay mode; AirPlay 2 path stays a hardware check](spikes/spike-f-pi-receiver.md))
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
 
 ### Phase 1 · Core engine
@@ -171,7 +170,8 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).
-- **Integration tests** run against an open-source receiver: shairport-sync for audio. (UxPlay
+- **Integration tests** run against an open-source receiver: shairport-sync for audio, in classic
+  AirPlay mode (Spike F); the AirPlay 2 path is checked on the real speakers. (UxPlay
   was the mirroring test target; mirroring is shelved, see ADR-0006.)
 - **Hardware checklist** run by the tester after every phase.
 - **Performance targets:** discovery <3 s, cold start <2 s, near-zero CPU at idle, <200 MB RAM while streaming audio.
@@ -185,6 +185,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
 | Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
+| Test receiver can't take pyatv's AirPlay 2 stream (NTP vs PTP timing) | Medium | Spike F: Pi tests cover classic AirPlay; the AirPlay 2 path stays on the hardware checklist; Phase 5 checks early whether NTP timing holds multi-speaker sync |
 | 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 7 reopens |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |

@@ -6,6 +6,7 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > **Status: pre-alpha, Phase 0 (research spikes).** Nothing to install yet. Pairing and remote
 > control of Apple TV, streaming audio to HomePod mini and an AirPlay 2 soundbar, and capturing
 > the PC's own audio are proven in spikes, as is fast hardware video encoding on NVIDIA GPUs.
+> An open-source test receiver on a Raspberry Pi lets audio be checked automatically.
 > Screen mirroring was investigated and shelved: it is
 > gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
 > ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
