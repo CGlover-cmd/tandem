@@ -1,0 +1,8 @@
+module Tandem
+singleton Theme 1.0 Theme.qml
+Main 1.0 Main.qml
+DeviceCard 1.0 DeviceCard.qml
+PairingSheet 1.0 PairingSheet.qml
+PillButton 1.0 PillButton.qml
+Spinner 1.0 Spinner.qml
+Toast 1.0 Toast.qml

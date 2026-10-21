@@ -39,6 +39,10 @@ _Update this section at the end of every working session._
 - **Next:** Phase 1 pairing flows and `pair` / `connect` / `disconnect` commands, then the
   diagnostics bundle, then the exit check on hardware. Classify devices by services and model
   string (Spikes B, F). The test Pi has UxPlay and shairport-sync, both on demand.
+- **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
+  main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
+  with invented devices (ADR-0008). Next for the UI: an engine adapter for its `Backend`
+  contract once the pairing flows land, then the onboarding checklist and settings screens.
 
 ## Scope
 

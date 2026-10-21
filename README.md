@@ -44,7 +44,7 @@ Tandem needs Python 3.11+ on Windows. Keep the virtualenv outside any synced fol
 install the package with its development tools:
 
 ```
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,ui]"
 python -m pytest
 python -m ruff check src tests
 python -m pyright --pythonpath <path to your venv's python.exe>
@@ -59,6 +59,17 @@ python -m tandem watch
 ```
 
 Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
+
+### Preview the interface
+
+The interface is in early development. After the install above, run it with invented demo devices
+(no network needed):
+
+```
+python -m tandem.ui
+```
+
+Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 
 ## Legal
 

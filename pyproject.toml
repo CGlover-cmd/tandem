@@ -29,6 +29,11 @@ dev = [
     "pre-commit>=3.8",
     "detect-secrets==1.5.0",
 ]
+# The interface (ADR-0002, ADR-0008). Essentials leaves out large Qt modules the UI doesn't use.
+ui = [
+    "PySide6-Essentials>=6.7",
+    "qasync>=0.27",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tandem"]
