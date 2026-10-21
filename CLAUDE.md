@@ -65,6 +65,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Audio capture: miniaudio (a pyatv dependency) does WASAPI loopback; its Python wrapper lacks a
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
   On this laptop loopback follows the Windows volume and mute (Spike C).
+- PySide6 / QML: Python 3.8+ ignores PATH for DLL dependencies, so QML plugins (Layouts,
+  Controls, Effects) fail with "The specified module could not be found" unless the PySide6
+  folder is registered; `tandem.ui.platform.add_qt_dll_directory()` does this (app start and
+  `tests/ui/conftest.py`). QML property names must not start with `on` + capital (read as a signal
+  handler). The offscreen platform ignores colour-scheme overrides; set `Theme.dark` instead.
 - GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git
@@ -75,12 +80,18 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - The virtualenv and the GitHub sign-in.
 - To rebuild on a fresh machine: create the venv, then run
   `python -m pip install pyatv pre-commit detect-secrets==1.5.0` (plus `av dxcam numpy` for
-  the Spike E script), then `python -m pre_commit install`,
+  the Spike E script, and `PySide6-Essentials qasync` for the UI), then `python -m pre_commit install`,
   then a discovery scan into `local/`, then `python tools/build_denylist.py`.
 
 ## Conventions
 - Python 3.11+, asyncio engine on pyatv, PySide6 + QML UI, ruff + pyright + pytest.
 - Engine never imports UI code; UI talks to the engine only through the service API.
+  The UI's side of that API is the `Backend` protocol in `src/tandem/ui/backend.py` (ADR-0008);
+  `DemoBackend` (invented devices) stands in for the engine until its adapter exists.
+- UI code: `src/tandem/ui/` (ViewModels in Python, QML in `qml/Tandem/`, tokens in `Theme.qml`).
+  Every colour comes from `Theme`; `tests/ui/test_ui_qml.py` checks text contrast (WCAG AA).
+  Check visuals with `python -m tandem.ui --screenshot <png> [--theme light|dark] [--pairing]`
+  (demo devices only, so the images are safe to share).
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring

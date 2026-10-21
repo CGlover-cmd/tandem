@@ -32,6 +32,10 @@ _Update this section at the end of every working session._
 - **Next:** Spike F, the Raspberry Pi 3 as an audio test receiver (shairport-sync). It is the
   last Phase 0 spike; then close Phase 0 with the go/no-go table. The test Pi is already set up
   with UxPlay from Spike D.
+- **In parallel, Phase 2 UI shell (started):** design tokens (light and dark, WCAG AA checked),
+  main window with device grid, PIN pairing sheet and tray menu, running against a demo backend
+  with invented devices (ADR-0008). Next for the UI: wire it to the engine adapter once Phase 1
+  lands, then the onboarding checklist and settings screens.
 
 ## Scope
 

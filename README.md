@@ -34,6 +34,19 @@ python tools/build_denylist.py
 
 Architecture decisions are recorded in [docs/adr](docs/adr/).
 
+### Preview the interface
+
+The interface is in early development and runs with invented demo devices (no network needed).
+From a clone, in a Python 3.11 virtual environment:
+
+```
+python -m pip install PySide6-Essentials qasync
+set PYTHONPATH=src
+python -m tandem.ui
+```
+
+Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
+
 ## Legal
 
 Licensed under GPL-3.0-or-later. This is an independent project, not affiliated with or endorsed
