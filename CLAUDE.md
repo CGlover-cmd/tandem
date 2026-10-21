@@ -50,8 +50,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3. UxPlay 1.71 is installed (Spike D) and runs on demand;
-  shairport-sync for Spike F not installed yet. SSH key-only login as the `tandem` user
+- Test receivers: Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
+  nqptp 1.2.9 built from source in `~/src` (Spike F; Debian's package lacks AirPlay 2), all on
+  demand, not at boot; only one at a time (both use port 7000). Use shairport-sync in
+  `--service-type=classic`: pyatv's AirPlay 2 sender uses NTP timing, which its AirPlay 2 mode
+  rejects. Spike F scripts reach the Pi via the `TANDEM_PI_HOST` env var. SSH key-only login as the `tandem` user
   (private key at `%USERPROFILE%\.ssh\tandem_pi`, outside the project; passwordless sudo set).
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
