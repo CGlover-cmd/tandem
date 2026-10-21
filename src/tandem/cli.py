@@ -27,6 +27,7 @@ from tandem.engine.redact import Redactor
 from tandem.engine.registry import DeviceAdded, DeviceEvent, DeviceLost
 from tandem.engine.service import Backend, Engine
 from tandem.engine.session import ConnectionFailedError, ConnectionState, ConnectionStateChanged
+from tandem.engine.settings import SettingsStore
 
 BackendFactory = Callable[[], Backend]
 
@@ -142,6 +143,14 @@ def _parser() -> argparse.ArgumentParser:
     forget = commands.add_parser("forget", help="delete a device's stored pairing credentials")
     add_target(forget)
     add_scan_timeout(forget, 5.0)
+
+    diagnose = commands.add_parser(
+        "diagnose", help="write a redacted diagnostics bundle to attach to a bug report"
+    )
+    add_scan_timeout(diagnose, 5.0)
+    diagnose.add_argument(
+        "--out", type=Path, help="folder for the bundle (default: the app's diagnostics folder)"
+    )
     return parser
 
 
@@ -321,7 +330,18 @@ async def _forget(engine: Engine, args: argparse.Namespace, printer: _Printer) -
     return 0
 
 
+async def _diagnose(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
+    await engine.scan()  # registers current device names, so old logs get them redacted too
+    settings = SettingsStore(paths.settings_file()).load().to_json()
+    out_dir: Path = args.out or paths.data_dir() / "diagnostics"
+    bundle = engine.diagnostics(out_dir, log_dir=paths.log_dir(), settings=settings)
+    printer.line(f"Wrote {printer.text(str(bundle))}")
+    printer.line("Check its contents before sharing it.")
+    return 0
+
+
 _COMMANDS = {
+    "diagnose": _diagnose,
     "discover": _discover,
     "watch": _watch,
     "pair": _pair,
