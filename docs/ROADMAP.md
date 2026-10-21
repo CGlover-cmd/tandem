@@ -1,8 +1,10 @@
 # Tandem roadmap
 
-An open-source Windows app that sends audio, video and your screen to AirPlay devices
+An open-source Windows app that sends audio and video to AirPlay devices
 (Apple TV, HomePod, AirPlay 2 speakers and TVs), with a polished Apple-inspired interface.
-Smart-home control (HomeKit / Matter) follows once the AirPlay core is solid.
+(Screen mirroring was investigated and shelved: it is FairPlay-gated with no legitimate
+open-source path — see ADR-0006.) Smart-home control (HomeKit / Matter) follows once the
+AirPlay core is solid.
 
 > Name: **Tandem**. Names and branding must not use Apple trademarks (AirPlay, Apple, HomePod,
 > HomeKit). We describe compatibility in plain words, e.g. "works with Apple TV and HomePod".
@@ -19,9 +21,14 @@ _Update this section at the end of every working session._
   pairing ([findings](spikes/spike-b-audio.md)). Spike C passed: WASAPI loopback captures the
   PC's audio with no gaps at low CPU, but follows the Windows volume and mute; ADR-0005 accepted
   (loopback by default, optional user-installed virtual audio device)
-  ([findings](spikes/spike-c-loopback.md)).
-- **Next:** Spike D, mirroring feasibility (pairing and FairPlay setup handshake), against UxPlay
-  first, which needs the Raspberry Pi test receiver set up.
+  ([findings](spikes/spike-c-loopback.md)). Spike D ran: screen mirroring is a **no-go** for
+  now. Receivers accept it, but there is no open-source way to send it (pyatv has no mirroring
+  sender) and the video is keyed by FairPlay; we will not reverse-engineer or bypass FairPlay in
+  a public project. Phase 7 is shelved; everything else is FairPlay-free and on track. ADR-0006
+  accepted ([findings](spikes/spike-d-mirroring.md)).
+- **Next:** Spike E, NVENC H.264 encode latency (independent of the mirroring no-go; reusable if
+  a legitimate mirroring path ever opens), and Spike F, the Raspberry Pi 3 as an audio test
+  receiver (shairport-sync). The test Pi is already set up with UxPlay from Spike D.
 
 ## Scope
 
@@ -30,7 +37,7 @@ _Update this section at the end of every working session._
 - Sending to AirPlay receivers: discovery, pairing, Apple TV remote control
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
-- Screen mirroring: whole screen first, then single windows (experimental, feasibility-gated)
+- Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
 - Smart-home control of plugs, lamps and TV power (Phase 9)
 - Apple-inspired, accessible UI with a system tray menu; English first, translation-ready
 
@@ -91,7 +98,7 @@ Model: **Opus 5.5 at high effort** for all work (quality over token cost). Phase
 - [x] Spike A: pair with Apple TV over Companion; remote commands; now-playing ([go](spikes/spike-a-apple-tv.md))
 - [x] Spike B: play a test tone on the soundbar, then each HomePod mini ([go](spikes/spike-b-audio.md))
 - [x] Spike C: WASAPI loopback capture; virtual audio device options (ADR-0005) ([go, with a limit](spikes/spike-c-loopback.md))
-- [ ] Spike D: mirroring feasibility: pairing and FairPlay setup handshake, against UxPlay first, then Apple TV
+- [x] Spike D: mirroring feasibility ([no-go: FairPlay-gated, Phase 7 shelved](spikes/spike-d-mirroring.md); ADR-0006)
 - [ ] Spike E: NVENC H.264 screen encode latency
 - [ ] Spike F: Raspberry Pi 3 as test receiver (shairport-sync for AirPlay 2 audio)
 - **Exit:** go/no-go table per feature; ADRs accepted; risk register updated.
@@ -127,12 +134,15 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 ### Phase 6 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
 
-### Phase 7 · Screen mirroring (hardest · only if Spike D says go)
-Whole screen first, then a single window. Resolution and frame-rate presets, encoder selection,
-audio and video in sync. Targets 1080p30 at <250 ms, stretching to 4K/60. Extending the desktop
-onto the TV is a stretch goal (needs a signed virtual-display driver).
+### Phase 7 · Screen mirroring — SHELVED (blocked by FairPlay; ADR-0006)
+Spike D found no legitimate open-source path to send AirPlay screen mirroring: the video is
+keyed by FairPlay, and we will not reverse-engineer or bypass it in a public project. Parked
+unless a legitimate path appears. If reopened: whole screen first, then a single window;
+resolution and frame-rate presets; encoder selection; audio and video in sync; targets 1080p30
+at <250 ms, stretching to 4K/60. (Sending video files and links to the Apple TV, Phase 6, is
+unaffected and needs no FairPlay.)
 
-### Phase 8 · Hardening and v1.0 (can start before Phase 7 finishes)
+### Phase 8 · Hardening and v1.0
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
 
@@ -143,7 +153,8 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).
-- **Integration tests** run against open-source receivers: shairport-sync for audio, UxPlay for mirroring.
+- **Integration tests** run against an open-source receiver: shairport-sync for audio. (UxPlay
+  was the mirroring test target; mirroring is shelved, see ADR-0006.)
 - **Hardware checklist** run by the tester after every phase.
 - **Performance targets:** discovery <3 s, cold start <2 s, near-zero CPU at idle, <200 MB RAM while streaming audio.
 
@@ -151,7 +162,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| FairPlay encryption blocks mirroring | High | Known after Phase 0; rest of the app doesn't depend on it |
+| FairPlay encryption blocks mirroring | High | Confirmed in Spike D; Phase 7 shelved (ADR-0006). Rest of the app doesn't depend on it |
 | tvOS / HomePod updates break protocols | Medium | Track pyatv upstream; version-gated code paths |
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |

@@ -1,11 +1,13 @@
 # Tandem
 
-Tandem is a free, open-source Windows app for sending audio, video and your screen to Apple TV, HomePod
+Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 
 > **Status: pre-alpha, Phase 0 (research spikes).** Nothing to install yet. Pairing and remote
 > control of Apple TV, streaming audio to HomePod mini and an AirPlay 2 soundbar, and capturing
-> the PC's own audio are proven in spikes.
+> the PC's own audio are proven in spikes. Screen mirroring was investigated and shelved: it is
+> gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
+> ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals
@@ -14,8 +16,10 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 - Apple TV remote control from your PC
 - Stream system audio to any mix of AirPlay speakers and your PC's own speakers, in sync
 - Send videos and links to Apple TV
-- Screen mirroring (experimental, subject to feasibility)
 - A clean, Apple-inspired interface that's accessible and works from the system tray
+
+Screen mirroring is **not** planned: it is gated by Apple's FairPlay content protection, with no
+legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
 
 ## Contributing
 

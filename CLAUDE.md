@@ -18,7 +18,11 @@ Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 - Apple-inspired look: rounded corners, translucency, smooth animation.
 - Audio outputs: any mix of AirPlay devices and the PC's own speakers. A virtual audio driver
   install is acceptable if needed (ADR-0005).
-- Mirroring: whole screen first, then single windows.
+- Mirroring: shelved. Spike D found it is FairPlay-gated with no legitimate open-source sender;
+  we will not reverse-engineer or bypass FairPlay in a public project (ADR-0006).
+- The shipped app needs no extra devices. It talks straight from Windows to the AirPlay
+  receivers. The Raspberry Pi (UxPlay / shairport-sync) is a test tool only, never a dependency
+  users install.
 - Support Windows 10 22H2+ as well as Windows 11. No Chromecast.
 - Build order follows dependencies and risk, not feature preference.
 - No timelines or duration estimates in the docs.
@@ -46,7 +50,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3 (shairport-sync, UxPlay). Not set up yet.
+- Test receivers: Raspberry Pi 3. UxPlay 1.71 is installed (Spike D) and runs on demand;
+  shairport-sync for Spike F not installed yet. SSH key-only login as the `tandem` user
+  (private key at `%USERPROFILE%\.ssh\tandem_pi`, outside the project; passwordless sudo set).
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
   maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
