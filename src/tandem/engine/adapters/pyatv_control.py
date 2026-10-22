@@ -1,4 +1,4 @@
-"""pyatv-backed `Controller`: remote keys, media, now-playing, power and volume."""
+"""pyatv-backed `Controller`: remote keys, media, now-playing, power, volume, apps and text."""
 
 from __future__ import annotations
 
@@ -6,10 +6,17 @@ from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
 from pyatv import exceptions
-from pyatv.const import DeviceState, FeatureName, FeatureState, InputAction
+from pyatv.const import DeviceState, FeatureName, FeatureState, InputAction, KeyboardFocusState
 from pyatv.const import MediaType as PyatvMediaType
 from pyatv.const import PowerState as PyatvPowerState
-from pyatv.interface import AppleTV, AudioListener, Playing, PowerListener, PushListener
+from pyatv.interface import (
+    AppleTV,
+    AudioListener,
+    KeyboardListener,
+    Playing,
+    PowerListener,
+    PushListener,
+)
 
 from tandem.engine.control import (
     App,
@@ -18,8 +25,10 @@ from tandem.engine.control import (
     ControlError,
     ControlUpdate,
     KeyAction,
+    KeyboardFocus,
     MediaCommand,
     MediaType,
+    NoTextFieldError,
     NowPlaying,
     PlayState,
     PowerState,
@@ -109,7 +118,7 @@ async def _guard(call: Awaitable[T], what: str) -> T:
         raise ControlError(f"{what} failed ({type(exc).__name__})") from exc
 
 
-class _Listeners(PushListener, PowerListener, AudioListener):
+class _Listeners(PushListener, PowerListener, AudioListener, KeyboardListener):
     def __init__(self, controller: PyatvController, on_update: Callable[[ControlUpdate], None]):
         self._controller = controller
         self._on_update = on_update
@@ -131,6 +140,11 @@ class _Listeners(PushListener, PowerListener, AudioListener):
 
     def volume_device_update(self, output_device: Any, old_level: float, new_level: float) -> None:
         return None
+
+    def focusstate_update(
+        self, old_state: KeyboardFocusState, new_state: KeyboardFocusState
+    ) -> None:
+        self._on_update(KeyboardFocus(new_state == KeyboardFocusState.Focused))
 
 
 class PyatvController:
@@ -173,6 +187,14 @@ class PyatvController:
         if not self._available(FeatureName.PowerState):
             return PowerState.UNKNOWN
         return _POWER.get(self._atv.power.power_state, PowerState.UNKNOWN)
+
+    def keyboard_focused(self) -> bool:
+        if not self._available(FeatureName.TextFocusState):
+            return False
+        try:
+            return self._atv.keyboard.text_focus_state == KeyboardFocusState.Focused
+        except Exception:  # blocked once the connection has closed
+            return False
 
     def convert(self, playing: Playing) -> NowPlaying:
         app_name = app_id = None
@@ -253,6 +275,10 @@ class PyatvController:
         await _guard(self._atv.apps.launch_app(app_id), "launch app")
 
     async def set_text(self, text: str) -> None:
+        # With no text field selected, the Apple TV ignores typed text and pyatv reports
+        # nothing, so check first and say so.
+        if not self.keyboard_focused():
+            raise NoTextFieldError()
         await _guard(self._atv.keyboard.text_set(text), "text entry")
 
     # --- push updates --------------------------------------------------------------
@@ -262,6 +288,8 @@ class PyatvController:
         self._listeners = listeners  # pyatv holds listeners weakly
         self._atv.power.listener = listeners
         self._atv.audio.listener = listeners
+        if self._available(FeatureName.TextFocusState):
+            self._atv.keyboard.listener = listeners
         if self._available(FeatureName.PushUpdates):
             self._atv.push_updater.listener = listeners
             self._atv.push_updater.start()

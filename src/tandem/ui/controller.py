@@ -18,11 +18,13 @@ import logging
 import re
 from collections.abc import Callable, Coroutine
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from tandem.ui.backend import (
+    MAX_TEXT,
     Appearance,
     AppearanceChanged,
+    AppInfo,
     Backend,
     BackendError,
     BackendEvent,
@@ -48,6 +50,16 @@ _PIN = re.compile(r"\d{4}")
 
 Problem = dict[str, str]
 Listener = Callable[[], None]
+
+
+class IconSource(Protocol):
+    """Icons for the app launcher (`tandem.ui.app_icons.AppIconStore`)."""
+
+    async def icons(self, app_ids: list[str]) -> dict[str, str]:
+        """App ids in, icon URLs on Tandem's own server out, for the apps that have one."""
+        ...
+
+    async def close(self) -> None: ...
 
 
 class TaskRunner:
@@ -199,6 +211,28 @@ class PairingController:
             self._on_change()
 
 
+class AppList:
+    """A device's apps, as the launcher shows them: loading, ready or failed."""
+
+    def __init__(
+        self, items: list[AppInfo] | None = None, icons: dict[str, str] | None = None
+    ) -> None:
+        self.state = "loading"
+        self.items: list[AppInfo] = items or []
+        self.icons: dict[str, str] = icons or {}
+        self.error: Problem | None = None
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "state": self.state,
+            "items": [
+                {"id": app.id, "name": app.name, "icon": self.icons.get(app.id)}
+                for app in self.items
+            ],
+            "error": self.error,
+        }
+
+
 class AppController:
     """Everything the window and the tray menu show, and the commands they send."""
 
@@ -208,8 +242,10 @@ class AppController:
         *,
         demo_mode: bool = False,
         reduce_motion: bool = False,
+        icons: IconSource | None = None,
     ) -> None:
         self._backend = backend
+        self._icons = icons
         self.demo_mode = demo_mode
         self.reduce_motion = reduce_motion
         self.discovering = False
@@ -218,6 +254,9 @@ class AppController:
         self.runner = TaskRunner(self._on_task_error)
         self._devices: dict[str, DeviceSnapshot] = {}
         self._controls: dict[str, ControlsSnapshot] = {}
+        self._apps: dict[str, AppList] = {}
+        self._text_pending: dict[str, str] = {}
+        self._text_sending: set[str] = set()
         self._listeners: list[Listener] = []
         self.pairing = PairingController(
             backend, self.runner, on_change=self._changed, on_paired=self.connect
@@ -246,13 +285,17 @@ class AppController:
     def snapshot(self) -> dict[str, Any]:
         """The whole UI state, ready for JSON."""
         return {
-            "devices": [_device_json(d, self._controls.get(d.id)) for d in self.devices()],
+            "devices": [
+                _device_json(d, self._controls.get(d.id), self._apps.get(d.id))
+                for d in self.devices()
+            ],
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
             "message": self.message,
             "appearance": {
                 "theme": self.appearance.theme.value,
                 "background": self.appearance.background,
+                "appIcons": self.appearance.app_icons,
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
@@ -276,6 +319,8 @@ class AppController:
             self._unsubscribe = None
         self.pairing.close()
         await self.runner.drain()
+        if self._icons is not None:
+            await self._icons.close()
         await self._backend.stop()
 
     # Commands
@@ -321,9 +366,33 @@ class AppController:
     def set_power(self, device_id: str, on: bool) -> None:
         self.runner.run(self._backend.set_power(device_id, on))
 
-    def set_appearance(self, theme: str, background: str) -> None:
+    def load_apps(self, device_id: str) -> None:
+        """Fetch the device's apps for the launcher (again, if they were loaded before)."""
+        current = self._apps.get(device_id)
+        if current is not None and current.state == "loading":
+            return
+        apps = AppList(
+            current.items if current is not None else None,
+            current.icons if current is not None else None,
+        )
+        self._apps[device_id] = apps
+        self._changed()
+        self.runner.run(self._load_apps(device_id, apps))
+
+    def launch_app(self, device_id: str, app_id: str) -> None:
+        self.runner.run(self._backend.launch_app(device_id, app_id))
+
+    def set_text(self, device_id: str, text: str) -> None:
+        """Replace the text in the device's text field. Typing sends often, so only the newest
+        text waits while one is on its way, and texts arrive in order."""
+        self._text_pending[device_id] = text[:MAX_TEXT]
+        if device_id not in self._text_sending:
+            self._text_sending.add(device_id)
+            self.runner.run(self._send_text(device_id))
+
+    def set_appearance(self, theme: str, background: str, app_icons: bool = True) -> None:
         try:
-            appearance = Appearance(Theme(theme), background)
+            appearance = Appearance(Theme(theme), background, app_icons)
         except ValueError:
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
@@ -367,11 +436,22 @@ class AppController:
                 self.set_volume(device_id, float(level))
         elif kind == "setPower" and has_id and isinstance(command.get("on"), bool):
             self.set_power(device_id, command["on"])
+        elif kind == "loadApps" and has_id:
+            self.load_apps(device_id)
+        elif kind == "launchApp" and has_id and isinstance(command.get("appId"), str):
+            self.launch_app(device_id, command["appId"])
+        elif kind == "setText" and has_id and isinstance(command.get("text"), str):
+            self.set_text(device_id, command["text"])
         elif kind == "setAppearance":
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
-            if isinstance(theme, str) and isinstance(background, str):
-                self.set_appearance(theme, background)
+            app_icons = command.get("appIcons", self.appearance.app_icons)
+            if (
+                isinstance(theme, str)
+                and isinstance(background, str)
+                and isinstance(app_icons, bool)
+            ):
+                self.set_appearance(theme, background, app_icons)
         else:
             _LOGGER.debug("Ignoring an unknown command")
 
@@ -384,6 +464,7 @@ class AppController:
             case DeviceRemoved(device_id=device_id):
                 self._devices.pop(device_id, None)
                 self._controls.pop(device_id, None)
+                self._apps.pop(device_id, None)
                 if self.pairing.device_id == device_id:
                     self.pairing.close()
             case DiscoveryChanged(active=active):
@@ -391,11 +472,63 @@ class AppController:
             case ControlsChanged(device_id=device_id, controls=controls):
                 if controls is None:
                     self._controls.pop(device_id, None)
+                    self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
+                self._refresh_icons()
         self._changed()
+
+    async def _load_apps(self, device_id: str, apps: AppList) -> None:
+        try:
+            found = await self._backend.apps(device_id)
+        except Exception as error:
+            if self._apps.get(device_id) is not apps:
+                return  # disconnected or reloaded meanwhile
+            apps.state = "failed"
+            if isinstance(error, BackendError) and str(error):
+                apps.error = {"code": "backend", "text": str(error)}
+            else:
+                _LOGGER.error("Loading apps failed: %s", type(error).__name__)
+                apps.error = {"code": "taskFailed"}
+            self._changed()
+            return
+        if self._apps.get(device_id) is not apps:
+            return
+        apps.items = sorted(found, key=lambda app: (app.name.casefold(), app.id))
+        apps.state = "ready"
+        self._changed()
+        if self._icons is not None and self.appearance.app_icons:
+            self.runner.run(self._load_icons(device_id, apps))
+
+    async def _load_icons(self, device_id: str, apps: AppList) -> None:
+        assert self._icons is not None
+        try:
+            icons = await self._icons.icons([app.id for app in apps.items])
+        except Exception as error:  # icons are a nicety: keep the letters
+            _LOGGER.info("Loading app icons failed: %s", type(error).__name__)
+            return
+        if self._apps.get(device_id) is apps and self.appearance.app_icons:
+            apps.icons = icons
+            self._changed()
+
+    def _refresh_icons(self) -> None:
+        """Follow the app icons setting for lists already on screen."""
+        for device_id, apps in list(self._apps.items()):
+            if not self.appearance.app_icons:
+                apps.icons = {}
+            elif self._icons is not None and apps.state == "ready":
+                self.runner.run(self._load_icons(device_id, apps))
+
+    async def _send_text(self, device_id: str) -> None:
+        try:
+            while device_id in self._text_pending:
+                text = self._text_pending.pop(device_id)
+                await self._backend.set_text(device_id, text)
+        finally:
+            self._text_pending.pop(device_id, None)  # after a failure, drop what's queued
+            self._text_sending.discard(device_id)
 
     def _on_task_error(self, error: BaseException) -> None:
         if isinstance(error, BackendError) and str(error):
@@ -411,7 +544,9 @@ class AppController:
             listener()
 
 
-def _device_json(device: DeviceSnapshot, controls: ControlsSnapshot | None) -> dict[str, Any]:
+def _device_json(
+    device: DeviceSnapshot, controls: ControlsSnapshot | None, apps: AppList | None
+) -> dict[str, Any]:
     return {
         "id": device.id,
         "name": device.name,
@@ -420,6 +555,7 @@ def _device_json(device: DeviceSnapshot, controls: ControlsSnapshot | None) -> d
         "needsPairing": device.needs_pairing,
         "retryIn": device.retry_in,
         "controls": None if controls is None else _controls_json(controls),
+        "apps": None if apps is None else apps.snapshot(),
     }
 
 
@@ -432,6 +568,9 @@ def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
         "volumeLevel": controls.volume_level,
         "power": controls.power,
         "canPower": controls.can_power,
+        "apps": controls.apps,
+        "textEntry": controls.text_entry,
+        "keyboard": controls.keyboard,
         "nowPlaying": None
         if playing is None
         else {

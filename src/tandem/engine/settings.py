@@ -40,6 +40,8 @@ class Settings:
     discovery_interval_s: float = 10.0
     background: str = "mist"
     """The window background picked in Settings; the UI owns the list of names (ADR-0010)."""
+    app_icons: bool = True
+    """Look up app icons on the App Store for the Apple TV app launcher (ADR-0012)."""
 
     def __post_init__(self) -> None:
         if not 2.0 <= self.discovery_interval_s <= 300.0:

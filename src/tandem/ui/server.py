@@ -22,6 +22,7 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
+from tandem.ui.app_icons import URL_PREFIX, is_icon_file
 from tandem.ui.controller import AppController
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,9 +58,11 @@ class UiServer:
         port: int = 0,
         token: str | None = None,
         extra_origins: Iterable[str] = (),
+        icon_dir: Path | None = None,
     ) -> None:
         self._controller = controller
         self._static_dir = static_dir
+        self._icon_dir = icon_dir
         self._host = host
         self._port = port
         self.token = token or secrets.token_urlsafe(24)
@@ -90,6 +93,7 @@ class UiServer:
         assets = self._static_dir / "assets"
         if assets.is_dir():
             app.router.add_static("/assets", assets)
+        app.router.add_get(URL_PREFIX + "{name}", self._icon)
         return app
 
     async def start(self) -> None:
@@ -129,6 +133,17 @@ class UiServer:
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("Content-Security-Policy", _CSP)
         return response
+
+    async def _icon(self, request: web.Request) -> web.StreamResponse:
+        """A cached app icon (tandem.ui.app_icons). Names are hashes, so nothing else can be
+        reached through this route."""
+        name = request.match_info["name"]
+        if self._icon_dir is None or not is_icon_file(name):
+            raise web.HTTPNotFound()
+        path = self._icon_dir / name
+        if not path.is_file():
+            raise web.HTTPNotFound()
+        return web.FileResponse(path, headers={"Content-Type": "image/jpeg"})
 
     async def _index(self, _request: web.Request) -> web.StreamResponse:
         index = self._static_dir / "index.html"

@@ -204,3 +204,60 @@ export function VolumeIcon({ level = 2, ...props }: IconProps & { level?: 0 | 1 
     </Svg>
   );
 }
+
+export function AppsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="2" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="2" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2" />
+    </Svg>
+  );
+}
+
+export function KeyboardIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+      <path d="M6 9.5h.01M9.3 9.5h.01M12.6 9.5h.01M15.9 9.5h.01M18 9.5h.01M6 12.5h.01M18 12.5h.01" strokeWidth={2.2} />
+      <path d="M8.5 15h7M9 12.5h6" />
+    </Svg>
+  );
+}
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="m15 15 5 5" />
+    </Svg>
+  );
+}
+
+export function StoreIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5.5 8.5h13l-1 11h-11Z" />
+      <path d="M9 10.5V7a3 3 0 0 1 6 0v3.5" />
+    </Svg>
+  );
+}
+
+export function GamepadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7.5 7.5h9a4.5 4.5 0 0 1 4.4 5.5l-.6 3a2.6 2.6 0 0 1-4.6 1.1L14.3 15H9.7l-1.4 2.1a2.6 2.6 0 0 1-4.6-1.1l-.6-3a4.5 4.5 0 0 1 4.4-5.5Z" />
+      <path d="M8 10v3M6.5 11.5h3M15.5 11h.01M17.5 12.5h.01" />
+    </Svg>
+  );
+}
+
+export function ComputerIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="4.5" width="17" height="11" rx="2" />
+      <path d="M9 19.5h6M12 15.5v4" />
+    </Svg>
+  );
+}

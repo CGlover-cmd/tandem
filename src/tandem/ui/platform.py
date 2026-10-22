@@ -21,6 +21,18 @@ def reduce_motion() -> bool:
     return bool(ok) and not enabled.value
 
 
+def store_country() -> str:
+    """Two-letter region for App Store lookups, from the Windows display locale (e.g.
+    "en-GB" gives "gb"). Falls back to "us"."""
+    if sys.platform == "win32":
+        buffer = ctypes.create_unicode_buffer(85)
+        if ctypes.windll.kernel32.GetUserDefaultLocaleName(buffer, 85):
+            region = buffer.value.split("-")[-1]
+            if len(region) == 2 and region.isalpha():
+                return region.lower()
+    return "us"
+
+
 def ui_data_dir() -> Path:
     """The UI's folder for its own small files (same rules as `tandem.engine.paths`)."""
     override = os.environ.get("TANDEM_HOME")

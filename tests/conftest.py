@@ -251,6 +251,7 @@ class FakeController:
         power: PowerState = PowerState.ON,
         now_playing: NowPlaying | None = None,
         fail: ControlError | None = None,
+        keyboard: bool = False,
     ) -> None:
         self.caps = capabilities
         self.vol_control = volume_control
@@ -262,9 +263,13 @@ class FakeController:
         self.on_update: Callable[[ControlUpdate], None] | None = None
         self.stopped = False
         self.apps_list = [App("com.example.video", "Example Video")]
+        self.keyboard = keyboard
 
     def capabilities(self) -> frozenset[Capability]:
         return self.caps
+
+    def keyboard_focused(self) -> bool:
+        return self.keyboard
 
     def volume_control(self) -> VolumeControl:
         return self.vol_control

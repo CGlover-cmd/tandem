@@ -61,6 +61,8 @@ BACKGROUNDS = NEUTRAL_BACKGROUNDS + GRADIENT_BACKGROUNDS
 class Appearance:
     theme: Theme = Theme.SYSTEM
     background: str = "mist"
+    app_icons: bool = True
+    """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:
@@ -150,6 +152,24 @@ class ControlsSnapshot:
     can_power: bool = False
     now_playing: NowPlayingSnapshot | None = None
     """None when the device doesn't report what's playing."""
+    apps: bool = False
+    """The device can list its apps and open one."""
+    text_entry: bool = False
+    """The device accepts typed text into its focused text field."""
+    keyboard: bool = False
+    """The device is showing an on-screen keyboard and waiting for text right now."""
+
+
+@dataclass(frozen=True, slots=True)
+class AppInfo:
+    """An app on the device that can be opened. Shown on screen only; never logged."""
+
+    id: str
+    name: str
+
+
+MAX_TEXT = 500
+"""The longest text the window sends to a device's text field."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,6 +263,17 @@ class Backend(Protocol):
         ...
 
     async def set_power(self, device_id: str, on: bool) -> None: ...
+
+    async def apps(self, device_id: str) -> list[AppInfo]:
+        """The apps the device can open, on a device whose `apps` is True."""
+        ...
+
+    async def launch_app(self, device_id: str, app_id: str) -> None: ...
+
+    async def set_text(self, device_id: str, text: str) -> None:
+        """Replace the text in the device's focused text field. The text is personal (it may
+        be a search or a password): never log it."""
+        ...
 
     async def set_appearance(self, appearance: Appearance) -> None:
         """Save the user's choice and publish `AppearanceChanged`."""

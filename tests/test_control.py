@@ -13,6 +13,8 @@ from tandem.engine.control import (
     ControlsAvailable,
     ControlsUnavailable,
     KeyAction,
+    KeyboardChanged,
+    KeyboardFocus,
     MediaCommand,
     MediaType,
     NotConnectedError,
@@ -190,6 +192,32 @@ async def test_pushes_become_events(backend: FakeBackend, manual_sleep: ManualSl
         CapabilitiesChanged(TV.id, frozenset({Capability.REMOTE}), VolumeControl.LEVEL),
     ]
     assert engine.controls(TV.id).status().now_playing == paused
+    await engine.close()
+
+
+async def test_keyboard_focus_becomes_events(
+    backend: FakeBackend, manual_sleep: ManualSleep
+) -> None:
+    engine, events = await _connected(backend, manual_sleep)
+    controller = backend.controllers[TV.id]
+    assert not engine.controls(TV.id).status().keyboard
+    controller.push(KeyboardFocus(True))
+    controller.push(KeyboardFocus(True))  # no change: no second event
+    controller.keyboard = True
+    assert engine.controls(TV.id).status().keyboard
+    controller.push(KeyboardFocus(False))
+    pushed = [e for e in events if not isinstance(e, ControlsAvailable)]
+    assert pushed == [KeyboardChanged(TV.id, True), KeyboardChanged(TV.id, False)]
+    await engine.close()
+
+
+async def test_keyboard_already_showing_is_announced(
+    backend: FakeBackend, manual_sleep: ManualSleep
+) -> None:
+    backend.controller_options = {"now_playing": PLAYING, "keyboard": True}
+    engine, events = await _connected(backend, manual_sleep)
+    available = [e for e in events if isinstance(e, ControlsAvailable)]
+    assert available[0].status.keyboard
     await engine.close()
 
 

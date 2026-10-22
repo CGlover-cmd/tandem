@@ -12,6 +12,7 @@ const speaker: Device = {
   state: "disconnected",
   needsPairing: false,
   retryIn: null,
+  apps: null,
   controls: null,
 };
 

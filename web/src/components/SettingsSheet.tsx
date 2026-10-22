@@ -1,4 +1,4 @@
-import { Button, Modal, Separator, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import { Button, Modal, Separator, Switch, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { Label, Radio, RadioGroup } from "react-aria-components";
 
 import { CheckIcon } from "../icons";
@@ -108,6 +108,22 @@ export function SettingsSheet({ isOpen, onClose, appearance, mode, send }: Props
                 ))}
               </div>
             </RadioGroup>
+
+            <Separator />
+
+            <Switch
+              isSelected={appearance.appIcons}
+              onChange={(appIcons) => send({ type: "setAppearance", appIcons })}
+              className="items-start gap-3"
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content className="flex flex-col gap-1">
+                <span className="section-title">{strings.settingsSheet.appIcons}</span>
+                <span className="text-[12px] text-[var(--muted)]">{strings.settingsSheet.appIconsDetail}</span>
+              </Switch.Content>
+            </Switch>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="primary" onPress={onClose}>

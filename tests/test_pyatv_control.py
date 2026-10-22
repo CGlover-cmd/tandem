@@ -9,6 +9,7 @@ from pyatv.const import (
     FeatureName,
     FeatureState,
     InputAction,
+    KeyboardFocusState,
 )
 from pyatv.const import MediaType as PyatvMediaType
 from pyatv.const import PowerState as PyatvPowerState
@@ -21,8 +22,10 @@ from tandem.engine.control import (
     ControlError,
     ControlUpdate,
     KeyAction,
+    KeyboardFocus,
     MediaCommand,
     MediaType,
+    NoTextFieldError,
     PlayState,
     PowerState,
     RemoteKey,
@@ -122,6 +125,10 @@ class _Apps:
 
 
 class _Keyboard:
+    def __init__(self) -> None:
+        self.text_focus_state = KeyboardFocusState.Unfocused
+        self.listener: Any = None
+
     async def text_set(self, text: str) -> None:
         raise exceptions.ProtocolError("device said no")
 
@@ -240,7 +247,7 @@ async def test_now_playing_conversion() -> None:
 
 
 async def test_artwork_apps_and_errors() -> None:
-    controller, _ = _controller()
+    controller, atv = _controller()
     art = await controller.artwork(64, 64)
     assert art is not None
     assert (art.mimetype, art.width) == ("image/png", 64)
@@ -251,6 +258,9 @@ async def test_artwork_apps_and_errors() -> None:
     ]
     with pytest.raises(UnsupportedError):
         await controller.launch("com.example.video")
+    with pytest.raises(NoTextFieldError):  # no text field selected: say so, don't drop it
+        await controller.set_text("x")
+    atv.keyboard.text_focus_state = KeyboardFocusState.Focused
     with pytest.raises(ControlError, match="ProtocolError"):
         await controller.set_text("x")
 
@@ -272,6 +282,29 @@ def test_push_updates_are_converted() -> None:
     controller.stop()
     assert not atv.push_updater.active
     controller.stop()  # twice is harmless
+
+
+def test_keyboard_focus() -> None:
+    controller, atv = _controller()
+    assert not controller.keyboard_focused()
+    atv.keyboard.text_focus_state = KeyboardFocusState.Focused
+    assert controller.keyboard_focused()
+    updates: list[ControlUpdate] = []
+    controller.start(updates.append)
+    listener = atv.keyboard.listener
+    listener.focusstate_update(KeyboardFocusState.Focused, KeyboardFocusState.Unfocused)
+    listener.focusstate_update(KeyboardFocusState.Unfocused, KeyboardFocusState.Focused)
+    assert updates == [KeyboardFocus(False), KeyboardFocus(True)]
+    controller.stop()
+
+
+def test_keyboard_focus_without_the_feature() -> None:
+    controller, atv = _controller(set())
+    atv.keyboard.text_focus_state = KeyboardFocusState.Focused
+    assert not controller.keyboard_focused()
+    controller.start(lambda _update: None)
+    assert atv.keyboard.listener is None
+    controller.stop()
 
 
 def test_no_push_updates_without_the_feature() -> None:

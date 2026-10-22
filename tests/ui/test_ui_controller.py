@@ -7,6 +7,9 @@ from typing import Any
 import pytest
 
 from tandem.ui.backend import (
+    MAX_TEXT,
+    AppInfo,
+    ControlError,
     DeviceKind,
     DeviceSnapshot,
     KeyAction,
@@ -68,8 +71,13 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "needsPairing": True,
         "retryIn": None,
         "controls": None,
+        "apps": None,
     }
-    assert snapshot["appearance"] == {"theme": "system", "background": "mist"}
+    assert snapshot["appearance"] == {
+        "theme": "system",
+        "background": "mist",
+        "appIcons": True,
+    }
     assert snapshot["pairing"]["state"] == "closed"
     assert snapshot["demo"] is True
 
@@ -310,7 +318,11 @@ async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
     controller.set_appearance("dark", "sky")
     await controller.runner.drain()
 
-    assert controller.snapshot()["appearance"] == {"theme": "dark", "background": "sky"}
+    assert controller.snapshot()["appearance"] == {
+        "theme": "dark",
+        "background": "sky",
+        "appIcons": True,
+    }
 
 
 async def test_unknown_appearance_is_ignored(
@@ -322,7 +334,11 @@ async def test_unknown_appearance_is_ignored(
     controller.set_appearance("dark", "plaid")
     await controller.runner.drain()
 
-    assert controller.snapshot()["appearance"] == {"theme": "system", "background": "mist"}
+    assert controller.snapshot()["appearance"] == {
+        "theme": "system",
+        "background": "mist",
+        "appIcons": True,
+    }
     assert "unknown appearance" in caplog.text
 
 
@@ -470,6 +486,10 @@ async def test_volume_slider_sets_the_level(backend: DemoBackend) -> None:
         {"type": "setVolume", "id": "demo-tv", "level": 101},
         {"type": "setVolume", "id": "demo-tv", "level": True},
         {"type": "setPower", "id": "demo-tv", "on": "yes"},
+        {"type": "launchApp", "id": "demo-tv"},
+        {"type": "launchApp", "id": "demo-tv", "appId": 7},
+        {"type": "setText", "id": "demo-tv", "text": None},
+        {"type": "loadApps"},
     ],
 )
 async def test_malformed_control_commands_are_ignored(
@@ -479,6 +499,9 @@ async def test_malformed_control_commands_are_ignored(
     controller.handle(command)
     await controller.runner.drain()
     assert backend.presses == []
+    assert backend.launched == []
+    assert backend.texts == []
+    assert controller.snapshot()["devices"][1]["apps"] is None
     assert controller.message is None
 
 
@@ -494,3 +517,227 @@ async def test_control_errors_show_their_words(backend: DemoBackend) -> None:
     controller.press("demo-speaker-1", RemoteKey.UP)  # a HomePod has no remote pad
     await controller.runner.drain()
     assert controller.message == {"code": "backend", "text": "This device can't do that right now."}
+
+
+# App launcher and text entry
+
+
+def _tv(controller: AppController) -> dict[str, Any]:
+    return next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
+
+
+async def test_launcher_lists_apps_sorted_and_opens_one(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)
+    controls = _tv(controller)["controls"]
+    assert (controls["apps"], controls["textEntry"], controls["keyboard"]) == (True, True, False)
+
+    controller.handle({"type": "loadApps", "id": "demo-tv"})
+    assert _tv(controller)["apps"] == {"state": "loading", "items": [], "error": None}
+    await controller.runner.drain()
+    apps = _tv(controller)["apps"]
+    assert apps["state"] == "ready"
+    names = [app["name"] for app in apps["items"]]
+    assert names == sorted(names, key=str.casefold)
+    assert {"id": "com.apple.TVSearch", "name": "Search", "icon": None} in apps["items"]
+
+    controller.handle({"type": "launchApp", "id": "demo-tv", "appId": "com.apple.TVSearch"})
+    await controller.runner.drain()
+    assert backend.launched == [("demo-tv", "com.apple.TVSearch")]
+    assert _tv(controller)["controls"]["keyboard"] is True  # Search asks for text
+
+    controller.handle({"type": "press", "id": "demo-tv", "key": "menu"})
+    await controller.runner.drain()
+    assert _tv(controller)["controls"]["keyboard"] is False
+
+
+async def test_reloading_keeps_the_list_and_ignores_repeats(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    calls: list[int] = []
+    controller.subscribe(lambda: calls.append(1))
+
+    controller.load_apps("demo-tv")
+    controller.load_apps("demo-tv")  # already loading: no second fetch
+    apps = _tv(controller)["apps"]
+    assert apps["state"] == "loading"
+    assert len(apps["items"]) == 10  # the old list stays while it reloads
+    await controller.runner.drain()
+    assert _tv(controller)["apps"]["state"] == "ready"
+    assert len(calls) == 2  # loading, then ready
+
+
+async def test_apps_on_a_device_without_them_fail_with_words(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    controller.connect("demo-speaker-1")
+    await controller.runner.drain()
+
+    controller.load_apps("demo-speaker-1")
+    await controller.runner.drain()
+    speaker = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-speaker-1")
+    assert speaker["apps"] == {
+        "state": "failed",
+        "items": [],
+        "error": {"code": "backend", "text": "This device can't do that right now."},
+    }
+    assert controller.message is None  # shown in the launcher, not as a banner
+
+
+async def test_apps_are_dropped_when_the_device_disconnects(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)
+    controller.load_apps("demo-tv")
+    controller.disconnect("demo-tv")  # before the list arrives
+    await controller.runner.drain()
+    assert _tv(controller)["apps"] is None
+
+    controller.connect("demo-tv")
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    backend.remove("demo-tv")
+    assert controller._apps == {}  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_apps_unexpected_error_logs_only_its_type(
+    backend: DemoBackend, caplog: pytest.LogCaptureFixture
+) -> None:
+    class Broken(DemoBackend):
+        async def apps(self, device_id: str) -> list[AppInfo]:
+            raise RuntimeError("secret 192.0.2.7")
+
+    broken = Broken(sleep=backend._sleep)  # pyright: ignore[reportPrivateUsage]
+    controller = await _started(broken)
+    caplog.set_level(logging.ERROR)
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    assert _tv(controller)["apps"]["error"] == {"code": "taskFailed"}
+    assert "RuntimeError" in caplog.text
+    assert "192.0.2.7" not in caplog.text
+
+
+async def test_late_apps_result_after_reload_is_ignored(backend: DemoBackend) -> None:
+    release = asyncio.Event()
+
+    class Slow(DemoBackend):
+        async def apps(self, device_id: str) -> list[AppInfo]:
+            await release.wait()
+            raise ControlError("This device can't do that right now.")
+
+    slow = Slow(sleep=backend._sleep)  # pyright: ignore[reportPrivateUsage]
+    controller = await _started(slow)
+    controller.load_apps("demo-tv")
+    await asyncio.sleep(0)
+    controller._apps.pop("demo-tv")  # pyright: ignore[reportPrivateUsage]
+    release.set()
+    await controller.runner.drain()
+    assert _tv(controller)["apps"] is None
+
+
+class _SlowText(DemoBackend):
+    """Holds each text until the test lets it through."""
+
+    def __init__(self) -> None:
+        super().__init__(sleep=_no_wait)
+        self.gate = asyncio.Event()
+
+    async def set_text(self, device_id: str, text: str) -> None:
+        await self.gate.wait()
+        await super().set_text(device_id, text)
+
+
+async def test_typing_sends_the_newest_text_in_order() -> None:
+    backend = _SlowText()
+    controller = await _started(backend)
+    await _paired_tv(controller)
+
+    for text in ("n", "na", "nat", "natu"):
+        controller.handle({"type": "setText", "id": "demo-tv", "text": text})
+        await asyncio.sleep(0)
+    backend.gate.set()
+    await controller.runner.drain()
+    assert backend.texts == [("demo-tv", "n"), ("demo-tv", "natu")]
+
+
+async def test_text_is_capped(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)
+    controller.set_text("demo-tv", "x" * (MAX_TEXT + 50))
+    await controller.runner.drain()
+    assert backend.texts == [("demo-tv", "x" * MAX_TEXT)]
+
+
+async def test_text_failure_shows_words_and_typing_recovers(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    controller.set_text("demo-tv", "hello")  # not connected yet
+    await controller.runner.drain()
+    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+
+    await _paired_tv(controller)
+    controller.set_text("demo-tv", "hello")
+    await controller.runner.drain()
+    assert backend.texts == [("demo-tv", "hello")]
+
+
+class _Icons:
+    def __init__(self, fail: bool = False) -> None:
+        self.asked: list[list[str]] = []
+        self.fail = fail
+        self.closed = False
+
+    async def icons(self, app_ids: list[str]) -> dict[str, str]:
+        self.asked.append(app_ids)
+        if self.fail:
+            raise OSError("offline")
+        return {"com.example.tv": "/app-icons/0123456789abcdef0123456789abcdef.jpg"}
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+async def test_launcher_shows_icons_when_allowed(backend: DemoBackend) -> None:
+    icons = _Icons()
+    controller = AppController(backend, icons=icons)
+    await controller.start()
+    await _paired_tv(controller)
+
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    items = {a["id"]: a for a in _tv(controller)["apps"]["items"]}
+    assert items["com.example.tv"]["icon"].startswith("/app-icons/")
+    assert items["com.example.music"]["icon"] is None
+    assert len(icons.asked[0]) == 10
+
+    controller.handle({"type": "setAppearance", "appIcons": False})  # switched off in Settings
+    await controller.runner.drain()
+    assert controller.snapshot()["appearance"]["appIcons"] is False
+    items = {a["id"]: a for a in _tv(controller)["apps"]["items"]}
+    assert items["com.example.tv"]["icon"] is None
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    assert len(icons.asked) == 1  # no lookups while switched off
+
+    controller.handle({"type": "setAppearance", "appIcons": True})
+    await controller.runner.drain()
+    assert len(icons.asked) == 2
+    await controller.stop()
+    assert icons.closed
+
+
+async def test_icon_failures_keep_the_letters(backend: DemoBackend) -> None:
+    controller = AppController(backend, icons=_Icons(fail=True))
+    await controller.start()
+    await _paired_tv(controller)
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    assert _tv(controller)["apps"]["state"] == "ready"
+    assert all(a["icon"] is None for a in _tv(controller)["apps"]["items"])
+    assert controller.message is None
+
+
+async def test_malformed_app_icons_choice_is_ignored(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    controller.handle({"type": "setAppearance", "appIcons": "yes"})
+    await controller.runner.drain()
+    assert controller.appearance.app_icons is True

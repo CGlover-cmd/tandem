@@ -2,10 +2,14 @@ import { Button, Modal, ProgressBar, Slider } from "@heroui/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { estimatePosition, formatTime, keyFor, mediaButtons, pressAction, subtitle } from "../controls";
+import { AppsPanel } from "./AppsPanel";
+import { TextEntry } from "./TextEntry";
 import {
+  AppsIcon,
   BackIcon,
   ChevronIcon,
   DeviceIcon,
+  KeyboardIcon,
   NextIcon,
   PauseIcon,
   PlayIcon,
@@ -217,11 +221,27 @@ function VolumeControl({ deviceId, controls, send }: { deviceId: string; control
 export function RemoteSheet({ device, onClose, send }: Props) {
   const controls = device?.controls ?? null;
   const open = device !== null;
+  const [view, setView] = useState<"remote" | "apps">("remote");
+  const [typing, setTyping] = useState(false);
+
+  // Each time the sheet opens, or moves to another device, start on the remote.
+  useEffect(() => {
+    setView("remote");
+    setTyping(false);
+  }, [device?.id]);
+
+  // Show the keyboard field when the TV asks for text, and hide it when the TV stops asking.
+  const asking = controls?.keyboard ?? false;
+  const canType = controls?.textEntry ?? false;
+  useEffect(() => {
+    setTyping(asking);
+    if (asking) setView("remote");
+  }, [asking]);
 
   // Keyboard: arrows, Enter and Backspace work the remote, unless a control has focus that
   // uses those keys itself (the volume slider, or a focused button for Enter).
   const deviceId = device?.id;
-  const hasRemote = controls?.remote ?? false;
+  const hasRemote = (controls?.remote ?? false) && view === "remote";
   useEffect(() => {
     if (!deviceId || !hasRemote) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -273,8 +293,41 @@ export function RemoteSheet({ device, onClose, send }: Props) {
               <Modal.Body className="flex flex-col gap-5">
                 {controls === null ? (
                   <p className="text-center text-[var(--muted)]">{strings.status.connecting}</p>
+                ) : view === "apps" && controls.apps ? (
+                  <AppsPanel deviceId={device.id} apps={device.apps} send={send} onDone={() => setView("remote")} />
                 ) : (
                   <>
+                    {(controls.apps || controls.textEntry) && (
+                      <div className="flex items-center justify-center gap-2">
+                        {controls.apps && (
+                          <Button variant="secondary" size="sm" onPress={() => setView("apps")}>
+                            <AppsIcon size={16} />
+                            {strings.launcher.open}
+                          </Button>
+                        )}
+                        {controls.textEntry && (
+                          <Button
+                            variant={typing ? "primary" : "secondary"}
+                            size="sm"
+                            aria-pressed={typing}
+                            aria-label={typing ? strings.typing.close : strings.typing.open}
+                            onPress={() => setTyping(!typing)}
+                          >
+                            <KeyboardIcon size={16} />
+                            {strings.typing.open}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {typing && canType && (
+                      <TextEntry
+                        key={asking ? "asking" : "manual"}
+                        deviceId={device.id}
+                        asking={asking}
+                        send={send}
+                        onClose={() => setTyping(false)}
+                      />
+                    )}
                     {controls.nowPlaying && (
                       <NowPlayingCard deviceId={device.id} playing={controls.nowPlaying} controls={controls} send={send} />
                     )}

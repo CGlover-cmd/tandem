@@ -17,10 +17,11 @@ import threading
 from collections.abc import Sequence
 from typing import Any
 
+from tandem.ui.app_icons import AiohttpHttp, AppIconStore
 from tandem.ui.backend import Backend
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
-from tandem.ui.platform import reduce_motion, ui_data_dir
+from tandem.ui.platform import reduce_motion, store_country, ui_data_dir
 from tandem.ui.server import UiServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,14 +57,23 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
     backend: Backend
-    if args.demo:
+    icons: AppIconStore | None = None
+    if args.demo:  # invented apps: nothing to look up
         backend = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
     else:  # pragma: no cover - needs the network
         from tandem.bridge import create_engine_backend
 
         backend = create_engine_backend()
-    controller = AppController(backend, demo_mode=args.demo, reduce_motion=reduce_motion())
-    server = UiServer(controller, port=args.port, extra_origins=args.dev_origin)
+        icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
+    controller = AppController(
+        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons
+    )
+    server = UiServer(
+        controller,
+        port=args.port,
+        extra_origins=args.dev_origin,
+        icon_dir=icons.folder if icons is not None else None,
+    )
     return controller, server
 
 

@@ -4,7 +4,8 @@ Behaviour worth seeing in the UI:
 - devices appear one at a time, as discovery would find them;
 - the TV needs PIN pairing first, with two PINs like a real Apple TV (remote control, then
   AirPlay); any 4 digits work except 0000, which is "wrong";
-- the soundbar's first connection attempt fails, so the retry state shows.
+- the soundbar's first connection attempt fails, so the retry state shows;
+- the TV lists apps, and opening Search brings up its on-screen keyboard (Back closes it).
 
 The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
 given, so a background picked in Settings survives a restart.
@@ -20,8 +21,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from tandem.ui.backend import (
+    MAX_TEXT,
     Appearance,
     AppearanceChanged,
+    AppInfo,
     BackendEvent,
     ControlError,
     ControlsChanged,
@@ -73,6 +76,8 @@ DEMO_CONTROLS = {
         volume=Volume.STEPS,
         power="on",
         can_power=True,
+        apps=True,
+        text_entry=True,
         now_playing=NowPlayingSnapshot(
             "playing",
             "A Walk in the Woods",
@@ -100,6 +105,22 @@ DEMO_CONTROLS = {
 }
 
 
+# Invented app list for the demo TV (docs/PRIVACY.md); out of order, as a device sends it.
+DEMO_APPS = (
+    AppInfo("com.example.tv", "TV"),
+    AppInfo("com.example.music", "Music"),
+    AppInfo("com.example.photos", "Photos"),
+    AppInfo("com.apple.TVSearch", "Search"),  # built into tvOS: the window draws these icons
+    AppInfo("com.apple.TVSettings", "Settings"),
+    AppInfo("com.example.podcasts", "Podcasts"),
+    AppInfo("com.example.nature", "Nature Hour"),
+    AppInfo("com.example.arcade", "Arcade Classics"),
+    AppInfo("com.example.fitness", "Fitness"),
+    AppInfo("com.example.weather", "Weather Now"),
+)
+SEARCH_APP = "com.apple.TVSearch"
+
+
 class DemoBackend:
     def __init__(
         self,
@@ -120,6 +141,8 @@ class DemoBackend:
         self._flaky = {FLAKY_DEVICE}
         self._controls: dict[str, ControlsSnapshot] = {}
         self.presses: list[tuple[str, RemoteKey, KeyAction]] = []
+        self.launched: list[tuple[str, str]] = []
+        self.texts: list[tuple[str, str]] = []
 
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)
@@ -274,6 +297,8 @@ class DemoBackend:
                 raise ControlError(CANT_DO_THAT)
         elif not controls.remote:
             raise ControlError(CANT_DO_THAT)
+        elif key in (RemoteKey.MENU, RemoteKey.HOME) and controls.keyboard:
+            self._set_controls(device_id, replace(controls, keyboard=False))
         self.presses.append((device_id, key, action))
 
     async def media(self, device_id: str, command: MediaCommand) -> None:
@@ -296,6 +321,30 @@ class DemoBackend:
             raise ControlError(CANT_DO_THAT)
         self._set_controls(device_id, replace(controls, power="on" if on else "off"))
 
+    async def apps(self, device_id: str) -> list[AppInfo]:
+        if not self._live(device_id).apps:
+            raise ControlError(CANT_DO_THAT)
+        await self._sleep(self._delay / 2)
+        return list(DEMO_APPS)
+
+    async def launch_app(self, device_id: str, app_id: str) -> None:
+        controls = self._live(device_id)
+        app = next((a for a in DEMO_APPS if a.id == app_id), None)
+        if not controls.apps or app is None:
+            raise ControlError(CANT_DO_THAT)
+        self.launched.append((device_id, app_id))
+        playing = controls.now_playing
+        if playing is not None:
+            playing = replace(playing, app=app.name)
+        self._set_controls(
+            device_id, replace(controls, now_playing=playing, keyboard=app_id == SEARCH_APP)
+        )
+
+    async def set_text(self, device_id: str, text: str) -> None:
+        if not self._live(device_id).text_entry:
+            raise ControlError(CANT_DO_THAT)
+        self.texts.append((device_id, text[:MAX_TEXT]))
+
     def remove(self, device_id: str) -> None:
         """Forget a device, as if it left the network (used by tests)."""
         if self._devices.pop(device_id, None) is not None:
@@ -311,14 +360,20 @@ def _load_appearance(path: Path | None) -> Appearance:
         return Appearance()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return Appearance(Theme(data["theme"]), str(data["background"]))
+        return Appearance(
+            Theme(data["theme"]), str(data["background"]), bool(data.get("appIcons", True))
+        )
     except (OSError, ValueError, KeyError, TypeError):
         _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
         return Appearance()
 
 
 def _save_appearance(path: Path, appearance: Appearance) -> None:
-    data = {"theme": appearance.theme.value, "background": appearance.background}
+    data = {
+        "theme": appearance.theme.value,
+        "background": appearance.background,
+        "appIcons": appearance.app_icons,
+    }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data), encoding="utf-8")

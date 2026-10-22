@@ -46,8 +46,20 @@ _Update this section at the end of every working session._
   arrow keys, Enter and Backspace), Back, Home and play/pause, a now-playing card with
   progress and the media buttons the device offers, power, and volume as a slider, steps or
   a note to use the TV remote. Built and checked with demo devices.
-- **Next:** the maintainer tries the Remote sheet on the Apple TV; then the app launcher and
-  text entry in the window. The test Pi has UxPlay and shairport-sync, both on demand.
+- **Phase 3 UI, apps and typing:** the Remote sheet has **Apps** (the TV's apps as tiles, with
+  a search box; picking one opens it) and **Keyboard** (types into the TV's text field, sending
+  the newest text a moment after each keystroke). The engine now pushes keyboard focus, so the
+  keyboard opens by itself when the TV asks for text. Built and checked with demo devices.
+- **Hardware check, Apps and Keyboard:** the keyboard field opened on the Apple TV, but the
+  maintainer saw no typed text on the TV. Re-tested from the PC: text typed through the app's
+  own path reached the TV's search box, so the miss wasn't reproduced. Typing with no text
+  field selected was silently dropped by pyatv; Tandem now says so instead. Apps now show real
+  icons from the App Store lookup, with drawn icons for built-in apps and a Settings switch
+  ([ADR-0012](adr/0012-app-icons-from-the-app-store.md)).
+- **Hardware check, Keyboard retry:** typing into the Apple TV's search box from the window
+  works in real time.
+- **Next:** the maintainer checks the app icons on the Apple TV; then the onboarding checklist. The test Pi has UxPlay and
+  shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
   replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
@@ -171,8 +183,8 @@ Remote pad, swipe area, keyboard entry, now-playing card, app launcher, power an
 - [x] Live check on the Apple TV: keys move the selection, play and pause work, now-playing
   follows; volume reports none (the TV's volume is set by IR from the Siri Remote)
 - [x] UI: remote pad, now-playing card, power and volume on the new front end
-- [ ] UI check on the Apple TV
-- [ ] UI: app launcher and text entry
+- [ ] UI check on the Apple TV (remote pad, now-playing, apps, keyboard)
+- [x] UI: app launcher and text entry (keyboard opens when the TV asks for text)
 
 ### Phase 4 · Audio to one device
 Capture → 44.1 kHz/16-bit → ALAC/AAC → AirPlay 2 session. Volume sync, metadata, latency setting.

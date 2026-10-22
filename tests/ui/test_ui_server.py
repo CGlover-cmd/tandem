@@ -138,3 +138,35 @@ async def test_stop_closes_open_sockets(backend: DemoBackend, static_dir: Path) 
         message = await asyncio.wait_for(socket.receive(), timeout=5)
         assert message.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED)
         await socket.close()
+
+
+async def test_serves_cached_app_icons_only(
+    backend: DemoBackend, static_dir: Path, tmp_path: Path
+) -> None:
+    icons = tmp_path / "icons"
+    icons.mkdir()
+    name = "0123456789abcdef0123456789abcdef.jpg"
+    (icons / name).write_bytes(b"\xff\xd8 jpeg")
+    (icons / "index.json").write_text("{}", "utf-8")
+    controller = AppController(backend, demo_mode=True)
+    server = UiServer(controller, static_dir=static_dir, icon_dir=icons)
+    await server.start()
+    try:
+        async with aiohttp.ClientSession() as http:
+            async with http.get(f"{server.origin}/app-icons/{name}") as icon:
+                assert icon.status == 200
+                assert icon.headers["Content-Type"] == "image/jpeg"
+                assert await icon.read() == b"\xff\xd8 jpeg"
+            for other in ("index.json", "fedcba9876543210fedcba9876543210.jpg", "..%2Findex.json"):
+                async with http.get(f"{server.origin}/app-icons/{other}") as missing:
+                    assert missing.status == 404
+    finally:
+        await server.stop()
+
+
+async def test_no_icon_folder_means_no_icons(running: tuple[AppController, UiServer]) -> None:
+    _, server = running
+    async with aiohttp.ClientSession() as http:
+        name = "0123456789abcdef0123456789abcdef.jpg"
+        async with http.get(f"{server.origin}/app-icons/{name}") as missing:
+            assert missing.status == 404

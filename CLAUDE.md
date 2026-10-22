@@ -57,6 +57,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `--service-type=classic`: pyatv's AirPlay 2 sender uses NTP timing, which its AirPlay 2 mode
   rejects. Spike F scripts reach the Pi via the `TANDEM_PI_HOST` env var. SSH key-only login as the `tandem` user
   (private key at `%USERPROFILE%\.ssh\tandem_pi`, outside the project; passwordless sudo set).
+- The Apple TV keeps one Companion connection per client: a second Tandem process (CLI, probe
+  script, a second window) connecting with the same credentials makes the TV drop the first.
+  Close the window before running device scripts, or expect it to reconnect.
 - Spike scripts live in `spikes/` (throwaway; pick devices by model, never print names, addresses
   or identifiers). For PIN pairing, run the script in the background and write the PIN the
   maintainer reads off the TV to `local/spike-a/pin.txt`. pyatv keys are in `local/spike-a/`.
