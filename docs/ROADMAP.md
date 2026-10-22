@@ -191,7 +191,10 @@ Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod min
   (known issue, see below)
 - [ ] Latency: find where the HomePod's ~5 s comes from (receiver buffer, pyatv's latency
   setting) and bring it down; needed before Phase 5's local-speaker delay
-- [ ] One hour, CPU, and a Wi-Fi blip
+- [x] One hour to the Pi: 3600.0 s received for 3600 s sent, nothing dropped, buffer steady
+  at about 100 ms (no clock drift to speak of), 3 brief underruns (0.8 s in total, at one
+  moment), 3.0% CPU
+- [ ] Wi-Fi blip on real hardware (resuming after a drop is covered by tests only)
 - [ ] Windows volume and mute (capture follows them; ADR-0005)
 
 ### Phase 5 · Multi-output audio router (hardest)
