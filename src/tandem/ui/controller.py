@@ -8,7 +8,8 @@ Messages for the user are sent as codes (`{"code": "wrongPin"}`); the front end 
 words, so translations live in one place. Text that comes from the backend (a
 `BackendError`) is safe to show and is passed through as `text`.
 
-Now-playing titles are personal: they go to the window only, never to a log.
+Now-playing titles and typed commands are personal: they go to the window only, never to a
+log.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from tandem.ui.backend import (
     Backend,
     BackendError,
     BackendEvent,
+    CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
     DeviceRemoved,
@@ -45,6 +47,9 @@ from tandem.ui.backend import (
 _LOGGER = logging.getLogger(__name__)
 
 _PIN = re.compile(r"\d{4}")
+
+MAX_COMMAND = 200
+"""Longest typed command the window may send; longer text is ignored."""
 
 Problem = dict[str, str]
 Listener = Callable[[], None]
@@ -199,6 +204,75 @@ class PairingController:
             self._on_change()
 
 
+class CommandBar:
+    """The typed command bar (Phase 9a).
+
+    The front end keeps the text box itself and sends each edit: `preview` says what Enter
+    would do, and `run` does it. Each preview and result carries the text it is for, so the
+    page can ignore one that arrives after the user has typed on.
+    """
+
+    def __init__(self, backend: Backend, runner: TaskRunner, *, on_change: Listener) -> None:
+        self._backend = backend
+        self._runner = runner
+        self._on_change = on_change
+        self.text = ""
+        self.preview_outcome: CommandOutcome | None = None
+        self.running = False
+        self.result: CommandOutcome | None = None
+        self.result_for = ""
+        self._attempt = 0
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "preview": _outcome_json(self.preview_outcome),
+            "running": self.running,
+            "result": _outcome_json(self.result),
+            "resultFor": self.result_for,
+        }
+
+    def preview(self, text: str) -> None:
+        if len(text) > MAX_COMMAND:
+            return
+        self.text = text
+        self.preview_outcome = self._backend.preview_command(text)
+        self._on_change()
+
+    def run(self, text: str) -> None:
+        if len(text) > MAX_COMMAND or not text.strip():
+            return
+        self._attempt += 1
+        self.text = text
+        self.running = True
+        self._on_change()
+        self._runner.run(self._run(self._attempt, text))
+
+    def clear(self) -> None:
+        """Forget the text and any result (the bar was closed)."""
+        self._attempt += 1
+        self.text = ""
+        self.preview_outcome = None
+        self.running = False
+        self.result = None
+        self.result_for = ""
+        self._on_change()
+
+    async def _run(self, attempt: int, text: str) -> None:
+        try:
+            outcome = await self._backend.run_command(text)
+        except BackendError as error:
+            outcome = CommandOutcome("failed", "backend", {"text": str(error)})
+        finally:
+            if attempt == self._attempt:
+                self.running = False
+        if attempt != self._attempt:
+            return
+        self.result = outcome
+        self.result_for = text
+        self._on_change()
+
+
 class AppController:
     """Everything the window and the tray menu show, and the commands they send."""
 
@@ -222,6 +296,7 @@ class AppController:
         self.pairing = PairingController(
             backend, self.runner, on_change=self._changed, on_paired=self.connect
         )
+        self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self._unsubscribe: Callable[[], None] | None = None
 
     # Observing
@@ -249,6 +324,7 @@ class AppController:
             "devices": [_device_json(d, self._controls.get(d.id)) for d in self.devices()],
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
+            "commands": self.commands.snapshot(),
             "message": self.message,
             "appearance": {
                 "theme": self.appearance.theme.value,
@@ -367,6 +443,12 @@ class AppController:
                 self.set_volume(device_id, float(level))
         elif kind == "setPower" and has_id and isinstance(command.get("on"), bool):
             self.set_power(device_id, command["on"])
+        elif kind == "previewCommand" and isinstance(command.get("text"), str):
+            self.commands.preview(command["text"])
+        elif kind == "runCommand" and isinstance(command.get("text"), str):
+            self.commands.run(command["text"])
+        elif kind == "clearCommand":
+            self.commands.clear()
         elif kind == "setAppearance":
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
@@ -444,6 +526,17 @@ def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
             "position": playing.position,
             "totalTime": playing.total_time,
         },
+    }
+
+
+def _outcome_json(outcome: CommandOutcome | None) -> dict[str, Any] | None:
+    if outcome is None:
+        return None
+    return {
+        "status": outcome.status,
+        "code": outcome.code,
+        "params": dict(outcome.params),
+        "suggestions": list(outcome.suggestions),
     }
 
 

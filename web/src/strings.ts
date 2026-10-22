@@ -2,6 +2,9 @@
 
 import type { DeviceKind, Problem } from "./types";
 
+type Params = Record<string, string>;
+type Words = (p: Params) => string;
+
 export const strings = {
   appName: "Tandem",
   devicesTitle: "Devices",
@@ -86,6 +89,75 @@ export const strings = {
     nothingPlaying: "Nothing playing",
     keyboardHint: "Arrow keys move, Enter selects, Backspace goes back. Hold for a long press.",
     done: "Done",
+  },
+
+  commands: {
+    open: "Commands",
+    shortcut: "Ctrl+K",
+    title: "Commands",
+    label: "Type a command",
+    placeholder: "Try “pause” or “volume 30 on the loft”",
+    hint: "Enter runs it. Esc closes.",
+    running: "Working…",
+    didYouMean: "Did you mean",
+    tryThese: "Try one of these",
+    examples: "Things you can type",
+    /** What Enter will do. */
+    ready: {
+      play: (p) => `Play on ${p.device}`,
+      pause: (p) => `Pause ${p.device}`,
+      next: (p) => `Next on ${p.device}`,
+      previous: (p) => `Previous on ${p.device}`,
+      volumeSet: (p) => `Set ${p.device} to ${p.level}%`,
+      volumeUp: (p) => `Turn ${p.device} up`,
+      volumeDown: (p) => `Turn ${p.device} down`,
+      openApp: (p) => `Open ${p.app} on ${p.device}`,
+      powerOn: (p) => `Turn on ${p.device}`,
+      powerOff: (p) => `Turn off ${p.device}`,
+      switchOn: (p) => `Turn on ${p.switch}`,
+      switchOff: (p) => `Turn off ${p.switch}`,
+    } satisfies Record<string, Words>,
+    /** What it did. */
+    done: {
+      play: (p) => `Playing on ${p.device}`,
+      pause: (p) => `Paused ${p.device}`,
+      next: (p) => `Skipped ahead on ${p.device}`,
+      previous: (p) => `Went back on ${p.device}`,
+      volumeSet: (p) => `${p.device} is at ${p.level}%`,
+      volumeUp: (p) => `Turned ${p.device} up`,
+      volumeDown: (p) => `Turned ${p.device} down`,
+      openApp: (p) => `Opened ${p.app} on ${p.device}`,
+      powerOn: (p) => `Turned on ${p.device}`,
+      powerOff: (p) => `Turned off ${p.device}`,
+      switchOn: (p) => `${p.switch} is on`,
+      switchOff: (p) => `${p.switch} is off`,
+    } satisfies Record<string, Words>,
+    /** Why it can't be done, or what's missing. */
+    problem: {
+      help: () => "Type what you want Tandem to do.",
+      notUnderstood: () => "Tandem didn't understand that.",
+      tooLong: () => "That's too long for a command.",
+      badVolume: () => "Volume goes from 0 to 100.",
+      unknownDevice: (p) => `There's no device called “${p.name}”.`,
+      ambiguousDevice: (p) => `“${p.name}” could be more than one device.`,
+      whichDevice: () => "Which device?",
+      noDevice: () => "No connected device can do that. Connect one first.",
+      notConnected: (p) => `${p.device} isn't connected. Connect it first.`,
+      cantDoThat: (p) => `${p.device} can't do that right now.`,
+      noVolumeLevel: (p) => `${p.device} can only step its volume up or down.`,
+      noVolume: (p) => `Tandem can't change the volume on ${p.device}. Use its own remote.`,
+      unknownApp: (p) => `There's no app called “${p.app}” on ${p.device}.`,
+      audioNotYet: () => "Sending the PC's audio isn't in Tandem yet.",
+      switchesNotYet: (p) =>
+        `There's no device called “${p.name}”. Home switches aren't in Tandem yet.`,
+      unknownSwitch: (p) => `There's no switch or device called “${p.name}”.`,
+      noResponse: (p) => (p.device ? `${p.device} didn't respond. Try again.` : "No response. Try again."),
+      backend: (p) => p.text || "Something went wrong. Try again.",
+      noCommands: () => "Commands aren't available here.",
+    } satisfies Record<string, Words>,
+    runKey: "to run",
+    closeKey: "to close",
+    somethingWrong: "Something went wrong. Try again.",
   },
 
   settingsSheet: {

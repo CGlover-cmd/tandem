@@ -348,3 +348,53 @@ h2 {
   border-radius: 999px !important;
   background: var(--field-background) !important;
 }
+
+/* Command bar (Phase 9a): a search-style sheet near the top of the window. */
+.command-bar {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.command-input {
+  font-size: 16px;
+}
+
+.command-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  padding: 0 4px;
+  font-size: 14px;
+}
+
+.command-status[data-tone="success"] {
+  color: var(--tandem-accent-text);
+}
+
+.command-status[data-tone="warning"],
+.command-status[data-tone="danger"] {
+  color: var(--danger);
+}
+
+.command-suggestions {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.command-footer {
+  justify-content: flex-start;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.command-button .command-kbd {
+  margin-left: 4px;
+}
+
+@media (max-width: 640px) {
+  .command-button span,
+  .command-button .command-kbd {
+    display: none;
+  }
+}

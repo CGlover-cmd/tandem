@@ -40,5 +40,11 @@ Commits use the GitHub `noreply` email. On GitHub, under Settings → Emails, en
 
 ## App behaviour
 
+Typed commands ("volume 30 on the loft") and their results name devices and apps, so they
+appear in the window only and are never written to a log or a diagnostics bundle. The same will
+go for the Home bridge's switch names and setup code (Phase 9b) and voice input (Phase 9c: the
+microphone stays off until the user turns it on, recognition runs on the PC, and no audio is
+saved or sent).
+
 The app collects no telemetry. Crash reports are opt-in, and diagnostics bundles are redacted
 (names, addresses and identifiers replaced with stable placeholders) before they are written.

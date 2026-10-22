@@ -3,8 +3,9 @@
 An open-source Windows app that sends audio and video to AirPlay devices
 (Apple TV, HomePod, AirPlay 2 speakers and TVs), with a polished Apple-inspired interface.
 (Screen mirroring was investigated and shelved: it is FairPlay-gated with no legitimate
-open-source path — see ADR-0006.) Smart-home control (HomeKit / Matter) follows once the
-AirPlay core is solid.
+open-source path — see ADR-0006.) Smart-home control and typed commands follow (Phase 9);
+Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home app
+(ADR-0011).
 
 > Name: **Tandem**. Names and branding must not use Apple trademarks (AirPlay, Apple, HomePod,
 > HomeKit). We describe compatibility in plain words, e.g. "works with Apple TV and HomePod".
@@ -46,6 +47,13 @@ _Update this section at the end of every working session._
   arrow keys, Enter and Backspace), Back, Home and play/pause, a now-playing card with
   progress and the media buttons the device offers, power, and volume as a slider, steps or
   a note to use the TV remote. Built and checked with demo devices.
+- **Phase 9a (typed command bar), built:** Ctrl+K (or **Commands** in the header) opens a
+  command bar. It understands play, pause, next, previous, volume (level or up/down), open an
+  app on the TV, and turn a device on or off, with device names matched loosely; it says what
+  Enter will do as you type and asks "which device?" when it can't tell. "Send audio" and
+  "stop streaming" answer "not available yet" until Phase 4 lands. No Siri: see
+  [ADR-0011](adr/0011-commands-no-siri.md). Checked in the demo window; the hardware gate (20
+  sample commands on the real devices) is still to run.
 - **Next:** the maintainer tries the Remote sheet on the Apple TV; then the app launcher and
   text entry in the window. The test Pi has UxPlay and shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
@@ -67,7 +75,8 @@ _Update this section at the end of every working session._
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
 - Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
-- Smart-home control of plugs, lamps and TV power (Phase 9)
+- Smart home and commands (Phase 9): a typed command bar, Tandem as a Home bridge, offline
+  voice input, and control of plugs, lamps and TV power
 - Apple-inspired, accessible UI with a system tray menu; English first, translation-ready
 
 **Out of scope** (revisit only after v1.0, if users ask)
@@ -199,10 +208,27 @@ unaffected and needs no FairPlay.)
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
 
-### Phase 9 · Smart-home control (feasibility spike first)
-Targets: smart plugs, lamps and TV power. Accessories already set up in Apple Home generally won't
-accept a second controller, so the paths are: Matter multi-admin, HomeKit (HAP) control through
-aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
+### Phase 9 · Smart home and commands
+Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer
+one (ADR-0011). Instead: Tandem's own command bar, and Tandem in the Home app so Siri on a
+HomePod can drive it. Targets for home control: smart plugs, lamps and TV power. Each step is
+its own PR with its own gate.
+- **9a · Typed command bar.** A command bar in the window (Ctrl+K), a local parser with a fixed
+  set of verbs, and device names from the registry. Needs nothing beyond Phases 3 to 5.
+  **Gate:** 20 sample commands run correctly on the reference devices.
+  - [x] Parser, dispatcher and command bar (demo-checked)
+  - [ ] Gate on the reference devices
+- **9b · Tandem as a Home bridge (spike).** Tandem shows in the Home app as a bridge with a
+  few switches; Siri on a HomePod flips them, and Home automations on them let Tandem control
+  Home devices. Off by default; pairing keys in the encrypted vault.
+  **Gate:** a Home automation turns a lamp off from Tandem, and the hands-on Siri test passes.
+- **9c · Offline voice input.** A push-to-talk microphone button and hotkey for the command
+  bar, using Windows' on-device recognizer with a phrase list. Microphone off by default
+  (opt-in in Settings), no audio saved or sent; never the WebView2 browser speech API (it is
+  online). **Gate:** 18 of the 20 sample commands recognized by voice in a quiet room.
+- **9d · Direct device control (optional).** Devices not in Apple Home through aiohomekit
+  (HomeKit allows one controller per accessory), and a Matter multi-admin spike on Windows.
+  **Gate:** go or no-go after the spike, only if the maintainer has such devices.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).

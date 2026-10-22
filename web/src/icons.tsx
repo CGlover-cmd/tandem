@@ -204,3 +204,12 @@ export function VolumeIcon({ level = 2, ...props }: IconProps & { level?: 0 | 1 
     </Svg>
   );
 }
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5 5" />
+    </Svg>
+  );
+}

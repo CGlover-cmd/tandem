@@ -75,10 +75,39 @@ export interface Appearance {
   background: string;
 }
 
+export type CommandStatus =
+  | "ready"
+  | "done"
+  | "help"
+  | "needsInfo"
+  | "notUnderstood"
+  | "notAvailable"
+  | "failed";
+
+/** What a typed command did, or would do. Holds device names: show it, never log it. */
+export interface CommandOutcome {
+  status: CommandStatus;
+  /** What it is about ("pause", "whichDevice", ...); commands.ts holds the words. */
+  code: string;
+  params: Record<string, string>;
+  /** Whole commands to offer instead, or examples. */
+  suggestions: string[];
+}
+
+/** The command bar. The text box is ours; each preview and result names the text it is for. */
+export interface CommandBarState {
+  text: string;
+  preview: CommandOutcome | null;
+  running: boolean;
+  result: CommandOutcome | null;
+  resultFor: string;
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
   pairing: Pairing;
+  commands: CommandBarState;
   message: Problem | null;
   appearance: Appearance;
   demo: boolean;
@@ -93,4 +122,6 @@ export type Command =
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }
-  | { type: "setPower"; id: string; on: boolean };
+  | { type: "setPower"; id: string; on: boolean }
+  | { type: "previewCommand" | "runCommand"; text: string }
+  | { type: "clearCommand" };

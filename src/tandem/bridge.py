@@ -9,20 +9,37 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine.command_dispatch import (
+    Ability,
+    ActionError,
+    AppChoice,
+    Code,
+    CommandDispatcher,
+    CommandResult,
+    EngineCommandServices,
+    SwitchState,
+    TargetState,
+)
+from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
+from tandem.engine.models import DeviceKind as EngineKind
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
 from tandem.engine.settings import SettingsChanged, SettingsStore
 from tandem.engine.settings import Theme as EngineTheme
 from tandem.ui import backend as ui
+
+if TYPE_CHECKING:
+    from tandem.ui.demo_backend import DemoBackend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +105,7 @@ class EngineBackend:
         self._listeners: list[ui.Listener] = []
         self._links: dict[str, _Link] = {}
         self._status: dict[str, ec.ControlStatus] = {}
+        self._commands = CommandDispatcher(EngineCommandServices(engine))
         bus = engine.bus
         self._unsubscribe = [
             bus.subscribe(DeviceEvent, self._on_device),
@@ -191,6 +209,12 @@ class EngineBackend:
         self._settings.update(
             theme=EngineTheme(appearance.theme.value), background=appearance.background
         )
+
+    def preview_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(self._commands.preview(text))
+
+    async def run_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(await self._commands.run(text))
 
     # Engine events
 
@@ -389,6 +413,125 @@ def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
         can_power=ec.Capability.POWER in caps,
         now_playing=now_playing,
     )
+
+
+def _outcome(result: CommandResult) -> ui.CommandOutcome:
+    return ui.CommandOutcome(
+        result.outcome.value, result.code, dict(result.params), result.suggestions
+    )
+
+
+# --- Typed commands in the demo window ----------------------------------------------------
+
+# Invented apps for the demo TV (docs/PRIVACY.md).
+_DEMO_APPS = (
+    AppChoice("demo.tv", "TV"),
+    AppChoice("demo.music", "Music"),
+    AppChoice("demo.photos", "Photos"),
+    AppChoice("demo.podcasts", "Podcasts"),
+    AppChoice("demo.video", "Example Video"),
+)
+_DEMO_VOLUME_STEP = 10.0
+
+
+class DemoCommands:
+    """The engine's command dispatcher on the demo backend's invented devices."""
+
+    def __init__(self, backend: DemoBackend) -> None:
+        self._dispatcher = CommandDispatcher(_DemoServices(backend))
+
+    def preview_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(self._dispatcher.preview(text))
+
+    async def run_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(await self._dispatcher.run(text))
+
+
+def demo_commands(backend: DemoBackend) -> DemoCommands:
+    return DemoCommands(backend)
+
+
+class _DemoServices:
+    def __init__(self, backend: DemoBackend) -> None:
+        self._backend = backend
+        self.launched: list[str] = []
+
+    def targets(self) -> list[TargetState]:
+        states: list[TargetState] = []
+        for device in self._backend.devices():
+            target = Target(device.id, device.name, EngineKind(device.kind.value))
+            controls = self._backend.controls(device.id)
+            if controls is None:
+                states.append(TargetState(target))
+                continue
+            found: set[Ability] = set()
+            if ui.MediaCommand.PLAY_PAUSE in controls.media:
+                found |= {Ability.PLAY, Ability.PAUSE}
+            if ui.MediaCommand.NEXT in controls.media:
+                found.add(Ability.NEXT)
+            if ui.MediaCommand.PREVIOUS in controls.media:
+                found.add(Ability.PREVIOUS)
+            if controls.volume is ui.Volume.LEVEL:
+                found |= {Ability.VOLUME_LEVEL, Ability.VOLUME_STEPS}
+            elif controls.volume is ui.Volume.STEPS:
+                found.add(Ability.VOLUME_STEPS)
+            if controls.can_power:
+                found.add(Ability.POWER)
+            if device.kind is ui.DeviceKind.APPLE_TV:
+                found.add(Ability.APPS)
+            playing = controls.now_playing is not None and controls.now_playing.state == "playing"
+            states.append(TargetState(target, True, frozenset(found), playing))
+        return states
+
+    def switches(self) -> Sequence[SwitchState]:
+        return ()
+
+    async def media(self, device_id: str, action: MediaAction) -> None:
+        if action is MediaAction.NEXT:
+            await _demo(self._backend.media(device_id, ui.MediaCommand.NEXT))
+        elif action is MediaAction.PREVIOUS:
+            await _demo(self._backend.media(device_id, ui.MediaCommand.PREVIOUS))
+        else:
+            controls = self._backend.controls(device_id)
+            playing = (
+                controls is not None
+                and controls.now_playing is not None
+                and (controls.now_playing.state == "playing")
+            )
+            if playing is not (action is MediaAction.PLAY):
+                await _demo(self._backend.media(device_id, ui.MediaCommand.PLAY_PAUSE))
+
+    async def set_volume(self, device_id: str, level: int) -> None:
+        await _demo(self._backend.set_volume(device_id, float(level)))
+
+    async def volume_step(self, device_id: str, up: bool) -> None:
+        controls = self._backend.controls(device_id)
+        if controls is not None and controls.volume_level is not None:
+            step = _DEMO_VOLUME_STEP if up else -_DEMO_VOLUME_STEP
+            await _demo(self._backend.set_volume(device_id, controls.volume_level + step))
+            return
+        key = ui.RemoteKey.VOLUME_UP if up else ui.RemoteKey.VOLUME_DOWN
+        await _demo(self._backend.press(device_id, key, ui.KeyAction.TAP))
+
+    async def set_power(self, device_id: str, on: bool) -> None:
+        await _demo(self._backend.set_power(device_id, on))
+
+    async def apps(self, device_id: str) -> list[AppChoice]:
+        return list(_DEMO_APPS)
+
+    async def launch(self, device_id: str, app_id: str) -> None:
+        self.launched.append(app_id)
+
+    async def set_switch(self, switch_id: str, on: bool) -> None:
+        raise ActionError(Code.CANT_DO_THAT)
+
+
+async def _demo(command: Awaitable[None]) -> None:
+    try:
+        await command
+    except ui.ControlError as error:
+        code = Code.NOT_CONNECTED if str(error) == NOT_CONNECTED else Code.CANT_DO_THAT
+        raise ActionError(code) from None
 
 
 def _message(reason: str) -> str:
