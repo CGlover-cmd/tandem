@@ -179,7 +179,11 @@ Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod min
 - [x] Pi (shairport-sync, classic): stream timing matches real time
 - [x] Pi: a 30 s tone played on the PC arrives clean: exact length, 440 Hz, no gaps or
   glitches, 74 dB signal-to-noise (loopback resampling sets the floor)
-- [ ] Soundbar, then a HomePod mini, by ear
+- [x] Soundbar, then a HomePod mini, by ear: no crackles or gaps. Lag: 0.5 to 1 s on the
+  soundbar; about 5 s on the HomePod mini after trimming Tandem's own start-up backlog
+  (known issue, see below)
+- [ ] Latency: find where the HomePod's ~5 s comes from (receiver buffer, pyatv's latency
+  setting) and bring it down; needed before Phase 5's local-speaker delay
 - [ ] One hour, CPU, and a Wi-Fi blip
 - [ ] Windows volume and mute (capture follows them; ADR-0005)
 
@@ -224,6 +228,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | tvOS / HomePod updates break protocols | Medium | Track pyatv upstream; version-gated code paths |
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
+| AirPlay latency too high for comfortable use (HomePod ~5 s in Phase 4) | Medium | Measure the receiver buffer and pyatv's latency setting; tune before Phase 5 |
 | Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
 | Test receiver can't take pyatv's AirPlay 2 stream (NTP vs PTP timing) | Medium | Spike F: Pi tests cover classic AirPlay; the AirPlay 2 path stays on the hardware checklist; Phase 5 checks early whether NTP timing holds multi-speaker sync |
 | 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 7 reopens |

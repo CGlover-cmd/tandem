@@ -34,7 +34,8 @@ class PcmBuffer:
     `push` may be called from any thread. The sender reads one packet at a time, in real time,
     and must never wait: `read` returns at once, with silence when there isn't enough audio.
     It first lets `prime_seconds` of audio build up, so the capture's 10 ms blocks and the
-    sender's packets don't have to line up. If the buffer runs dry (an underrun), it sends
+    sender's packets don't have to line up, and skips anything older than that, so a stream
+    whose receiver took a while to set up still starts live. If the buffer runs dry, it sends
     silence and primes again. If the sender falls more than `max_seconds` behind, the oldest
     audio is dropped: a live stream should stay current, not build up delay.
     """
@@ -55,6 +56,8 @@ class PcmBuffer:
         self.silent_frames = 0
         self.sent_frames = 0
         self.underruns = 0
+        self.trimmed_frames = 0
+        """Old audio skipped when (re)starting, so the stream starts live."""
 
     @property
     def buffered_frames(self) -> int:
@@ -111,6 +114,13 @@ class PcmBuffer:
                 return b""
             if not self._primed and (available >= self._prime_frames + frames or self._closed):
                 self._primed = True
+                # Audio that piled up before the sender started (while the receiver was
+                # setting up) would only add delay. Keep just the cushion and go live.
+                backlog = available - self._prime_frames - frames
+                if backlog > 0 and not self._closed:
+                    self._consume(backlog * FRAME_BYTES)
+                    self.trimmed_frames += backlog
+                    available -= backlog
             if self._primed and available >= frames:
                 self.sent_frames += frames
                 return self._consume(nbytes)

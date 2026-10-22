@@ -35,7 +35,9 @@ shaped the design:
 
 ## Consequences
 - No decode step and no extra latency on the sending side. The buffer adds about 100 ms on top
-  of the receiver's own buffer.
+  of the receiver's own buffer. Audio that piles up while a receiver sets up is skipped, so a
+  stream starts live. By ear the soundbar lagged 0.5 to 1 s and a HomePod mini about 5 s,
+  which is the receiver side and still to be tuned.
 - The capture clock and the sender's clock drift slowly apart. Phase 4 lives with it: a rare
   re-prime gap or a dropped slice. Phase 5 (several outputs in sync) needs real drift
   correction.

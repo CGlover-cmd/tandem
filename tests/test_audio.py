@@ -38,14 +38,26 @@ async def test_buffer_primes_before_sending() -> None:
     assert buffer.silent_frames == 352
 
 
+async def test_buffer_skips_backlog_when_it_starts() -> None:
+    buffer = PcmBuffer(prime_seconds=0.01)  # 441 frames
+    buffer.push(frames(4410, 1))  # 100 ms piled up before the sender's first read
+    buffer.push(frames(441, 2))
+    data = await buffer.read(352)
+    assert buffer.trimmed_frames == 4410 + 441 - 441 - 352
+    assert data == frames(352, 1)  # the newest audio of the first block
+    assert buffer.buffered_frames == 441  # just the cushion is left
+    assert buffer.dropped_frames == 0
+
+
 async def test_buffer_underrun_sends_silence_and_reprimes() -> None:
     buffer = PcmBuffer(prime_seconds=0.0)
-    buffer.push(frames(500))
+    buffer.push(frames(352))
     assert await buffer.read(352) == frames(352)
-    assert await buffer.read(352) == bytes(352 * FRAME_BYTES)  # 148 left: underrun
+    buffer.push(frames(148))
+    assert await buffer.read(352) == bytes(352 * FRAME_BYTES)  # only 148 ready: underrun
     assert buffer.underruns == 1
     assert buffer.buffered_frames == 148  # kept, not thrown away
-    buffer.push(frames(300))
+    buffer.push(frames(204))
     assert await buffer.read(352) == frames(352)
 
 
@@ -55,9 +67,8 @@ async def test_buffer_drops_oldest_when_reader_lags() -> None:
     buffer.push(frames(600, 2))
     assert buffer.buffered_frames == 882
     assert buffer.dropped_frames == 318
-    data = await buffer.read(282)
-    assert data == frames(282, 1)  # the oldest surviving audio comes out first
-    assert await buffer.read(600) == frames(600, 2)
+    # The oldest surviving audio comes out first.
+    assert await buffer.read(882) == frames(282, 1) + frames(600, 2)
 
 
 async def test_buffer_close_drains_then_ends() -> None:
@@ -89,16 +100,15 @@ async def test_buffer_push_from_another_thread() -> None:
 
     thread = threading.Thread(target=producer)
     thread.start()
-    received = 0
     deadline = time.monotonic() + 5
-    while received < 100 * 441 and time.monotonic() < deadline:
-        data = await buffer.read(441)
-        if data != bytes(len(data)):
-            received += 441
+    while (thread.is_alive() or buffer.buffered_frames >= 441) and time.monotonic() < deadline:
+        await buffer.read(441)
         await asyncio.sleep(0)
     thread.join()
-    assert received == 100 * 441
-    assert buffer.dropped_frames == 0
+    accounted = (
+        buffer.sent_frames + buffer.trimmed_frames + buffer.buffered_frames + buffer.dropped_frames
+    )
+    assert accounted == 100 * 441  # every pushed frame is sent, skipped or still held
 
 
 # --- Engine audio ------------------------------------------------------------------------

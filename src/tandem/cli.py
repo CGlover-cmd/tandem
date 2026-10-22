@@ -600,15 +600,14 @@ async def _stream(engine: Engine, args: argparse.Namespace, printer: _Printer) -
     printer.line("Streaming. Press Ctrl+C to stop." if not args.seconds else "Streaming.")
     started = time.perf_counter()
     try:
+        end = started + args.seconds if args.seconds else None
         while not failed.is_set():
-            elapsed = time.perf_counter() - started
-            if args.seconds and elapsed >= args.seconds:
+            now = time.perf_counter()
+            if end is not None and now >= end - 0.05:
                 break
-            wait = args.stats_every
-            if args.seconds:
-                wait = min(wait, args.seconds - elapsed)
+            wait = args.stats_every if end is None else min(args.stats_every, end - now)
             with suppress(TimeoutError):
-                await asyncio.wait_for(failed.wait(), max(wait, 0.01))
+                await asyncio.wait_for(failed.wait(), wait)
             stats = engine.audio_stats(device.id)
             if stats is not None:
                 printer.line(
