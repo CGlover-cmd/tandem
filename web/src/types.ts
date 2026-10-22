@@ -121,4 +121,5 @@ export type Command =
   | { type: "setPower"; id: string; on: boolean }
   | { type: "loadApps"; id: string }
   | { type: "launchApp"; id: string; appId: string }
+  | { type: "reorderApps"; id: string; order: string[] }
   | { type: "setText"; id: string; text: string };

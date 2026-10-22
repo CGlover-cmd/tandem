@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from tandem.ui.app_order import AppOrderStore
 from tandem.ui.backend import (
     MAX_TEXT,
     AppInfo,
@@ -741,3 +742,37 @@ async def test_malformed_app_icons_choice_is_ignored(backend: DemoBackend) -> No
     controller.handle({"type": "setAppearance", "appIcons": "yes"})
     await controller.runner.drain()
     assert controller.appearance.app_icons is True
+
+
+async def test_apps_can_be_rearranged_and_keep_their_order(backend: DemoBackend) -> None:
+    store = AppOrderStore()
+    controller = AppController(backend, app_order=store)
+    await controller.start()
+    await _paired_tv(controller)
+    controller.load_apps("demo-tv")
+    await controller.runner.drain()
+    ids = [a["id"] for a in _tv(controller)["apps"]["items"]]
+
+    moved = [ids[3], ids[0], "com.example.not-there"]
+    controller.handle({"type": "reorderApps", "id": "demo-tv", "order": moved})
+    after = [a["id"] for a in _tv(controller)["apps"]["items"]]
+    assert after[:2] == [ids[3], ids[0]]
+    assert sorted(after) == sorted(ids)  # nothing lost or added
+    assert store.order("demo-tv") == after
+
+    controller.load_apps("demo-tv")  # a fresh list keeps the user's order
+    await controller.runner.drain()
+    assert [a["id"] for a in _tv(controller)["apps"]["items"]] == after
+
+
+async def test_reordering_before_the_list_arrives_does_nothing(backend: DemoBackend) -> None:
+    store = AppOrderStore()
+    controller = AppController(backend, app_order=store)
+    await controller.start()
+    controller.handle({"type": "reorderApps", "id": "demo-tv", "order": ["a"]})
+    for bad in (
+        {"type": "reorderApps", "id": "demo-tv", "order": "a"},
+        {"type": "reorderApps", "id": "demo-tv", "order": [1]},
+    ):
+        controller.handle(bad)
+    assert store.order("demo-tv") == []

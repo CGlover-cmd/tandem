@@ -102,7 +102,9 @@ remote control and once for AirPlay. Once a device is connected, **Remote** open
 a touch pad (or the arrow keys, Enter and Backspace), Back, Home, what's playing, and volume.
 On an Apple TV, **Apps** lists its apps (with a search box) and opens the one you pick, and
 **Keyboard** types into the TV's text field. The keyboard opens by itself when the TV asks for
-text, such as in a search box.
+text, such as in a search box. To rearrange the apps, hold one until it lifts, then drag it
+into place (or press Ctrl and an arrow key). Tandem remembers the order on this PC; the Apple
+TV's own home screen isn't changed.
 
 App icons are looked up on the App Store the first time the list opens and kept on this PC
 ([ADR-0012](docs/adr/0012-app-icons-from-the-app-store.md)). This tells Apple which apps are on

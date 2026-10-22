@@ -58,7 +58,12 @@ _Update this section at the end of every working session._
   ([ADR-0012](adr/0012-app-icons-from-the-app-store.md)).
 - **Hardware check, Keyboard retry:** typing into the Apple TV's search box from the window
   works in real time.
-- **Next:** the maintainer checks the app icons on the Apple TV; then the onboarding checklist. The test Pi has UxPlay and
+- **Apps can be rearranged:** hold an app to lift it (it grows and the others jiggle), drag it
+  into place, and the others slide aside; Ctrl+Arrow does the same from the keyboard. The order
+  is saved per device on this PC (`app-order.json` in the UI data folder); the Apple TV's own
+  home screen can't be changed through pyatv. Checked in the demo window.
+- **Next:** the maintainer checks the app icons and rearranging on the Apple TV; then the
+  onboarding checklist. The test Pi has UxPlay and
   shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),

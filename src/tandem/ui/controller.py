@@ -18,8 +18,9 @@ import logging
 import re
 from collections.abc import Callable, Coroutine
 from enum import Enum
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, cast
 
+from tandem.ui.app_order import MAX_APPS, AppOrderStore, arrange
 from tandem.ui.backend import (
     MAX_TEXT,
     Appearance,
@@ -243,9 +244,11 @@ class AppController:
         demo_mode: bool = False,
         reduce_motion: bool = False,
         icons: IconSource | None = None,
+        app_order: AppOrderStore | None = None,
     ) -> None:
         self._backend = backend
         self._icons = icons
+        self._app_order = app_order or AppOrderStore()
         self.demo_mode = demo_mode
         self.reduce_motion = reduce_motion
         self.discovering = False
@@ -379,6 +382,19 @@ class AppController:
         self._changed()
         self.runner.run(self._load_apps(device_id, apps))
 
+    def reorder_apps(self, device_id: str, app_ids: list[str]) -> None:
+        """Save the order the user dragged the apps into. Ids the list doesn't know are
+        dropped; apps the order leaves out keep their place after the ones it names."""
+        apps = self._apps.get(device_id)
+        if apps is None or apps.state != "ready":
+            return
+        by_id = {app.id: app for app in apps.items}
+        named = [by_id[i] for i in dict.fromkeys(app_ids) if i in by_id]
+        named_ids = {app.id for app in named}
+        apps.items = named + [app for app in apps.items if app.id not in named_ids]
+        self._app_order.set_order(device_id, [app.id for app in apps.items])
+        self._changed()
+
     def launch_app(self, device_id: str, app_id: str) -> None:
         self.runner.run(self._backend.launch_app(device_id, app_id))
 
@@ -438,6 +454,8 @@ class AppController:
             self.set_power(device_id, command["on"])
         elif kind == "loadApps" and has_id:
             self.load_apps(device_id)
+        elif kind == "reorderApps" and has_id and _string_list(command.get("order")):
+            self.reorder_apps(device_id, command["order"])
         elif kind == "launchApp" and has_id and isinstance(command.get("appId"), str):
             self.launch_app(device_id, command["appId"])
         elif kind == "setText" and has_id and isinstance(command.get("text"), str):
@@ -496,7 +514,7 @@ class AppController:
             return
         if self._apps.get(device_id) is not apps:
             return
-        apps.items = sorted(found, key=lambda app: (app.name.casefold(), app.id))
+        apps.items = arrange(found, self._app_order.order(device_id))
         apps.state = "ready"
         self._changed()
         if self._icons is not None and self.appearance.app_icons:
@@ -584,6 +602,14 @@ def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
             "totalTime": playing.total_time,
         },
     }
+
+
+def _string_list(value: object) -> bool:
+    return (
+        isinstance(value, list)
+        and len(cast(list[object], value)) <= MAX_APPS
+        and all(isinstance(item, str) for item in cast(list[object], value))
+    )
 
 
 E = TypeVar("E", bound=Enum)

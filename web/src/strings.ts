@@ -100,6 +100,10 @@ export const strings = {
     retry: "Try again",
     refresh: "Refresh",
     openApp: (name: string) => `Open ${name}`,
+    arrangeHint: "Hold an app, then drag it to move it. Or press Ctrl and an arrow key.",
+    arrangeAfterSearch: "Clear the search to move apps.",
+    moved: (name: string, position: number, count: number) =>
+      `Moved ${name} to position ${position} of ${count}.`,
   },
 
   typing: {

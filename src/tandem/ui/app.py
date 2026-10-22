@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from tandem.ui.app_icons import AiohttpHttp, AppIconStore
+from tandem.ui.app_order import AppOrderStore
 from tandem.ui.backend import Backend
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
@@ -65,8 +66,13 @@ def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
 
         backend = create_engine_backend()
         icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
+    order_file = "demo-app-order.json" if args.demo else "app-order.json"
     controller = AppController(
-        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons
+        backend,
+        demo_mode=args.demo,
+        reduce_motion=reduce_motion(),
+        icons=icons,
+        app_order=AppOrderStore(ui_data_dir() / order_file),
     )
     server = UiServer(
         controller,
