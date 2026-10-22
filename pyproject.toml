@@ -28,6 +28,11 @@ dev = [
     "pyright>=1.1.380",
     "pre-commit>=3.8",
     "detect-secrets==1.5.0",
+    # Music spike 1 (Phase 6): Windows' media controls through the pywinrt projections.
+    "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
 ]
 # The interface (ADR-0008, ADR-0010): a HeroUI web front end served on loopback by aiohttp and
 # shown in a WebView2 window by pywebview, with a pystray tray icon (pystray draws with Pillow).
