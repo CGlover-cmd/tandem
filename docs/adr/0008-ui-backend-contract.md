@@ -30,3 +30,5 @@ not wait for it or import engine modules directly.
   with more than one PIN (`PairingFlow.steps`), because an Apple TV pairs remote control and
   AirPlay separately. Phase 3 added `ControlsSnapshot` and `ControlsChanged`, and the remote,
   media, volume and power commands (mirroring the engine's control API, ADR-0009).
+  Phase 9a added typed commands: `preview_command` and `run_command`, returning a
+  `CommandOutcome` (ADR-0011).

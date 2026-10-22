@@ -11,7 +11,7 @@ logs them.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
@@ -159,6 +159,30 @@ class ControlsChanged:
     """None once the device disconnects."""
 
 
+# --- Typed commands (Phase 9a) -----------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class CommandOutcome:
+    """What a typed command did, or would do. Holds device names: show it, never log it."""
+
+    status: str
+    """ready (preview only), done, help, needsInfo, notUnderstood, notAvailable or failed."""
+    code: str
+    """What it is about, e.g. "pause" or "whichDevice"; the front end holds the words."""
+    params: dict[str, str] = field(default_factory=dict[str, str])
+    suggestions: tuple[str, ...] = ()
+    """Whole commands to offer instead, or examples."""
+
+
+class CommandRunner(Protocol):
+    def preview_command(self, text: str) -> CommandOutcome:
+        """What running `text` would do. Touches no device, so it can run on every keystroke."""
+        ...
+
+    async def run_command(self, text: str) -> CommandOutcome: ...
+
+
 BackendEvent = (
     DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged | ControlsChanged
 )
@@ -246,4 +270,13 @@ class Backend(Protocol):
 
     async def set_appearance(self, appearance: Appearance) -> None:
         """Save the user's choice and publish `AppearanceChanged`."""
+        ...
+
+    def preview_command(self, text: str) -> CommandOutcome:
+        """What running the typed command `text` would do, without running it."""
+        ...
+
+    async def run_command(self, text: str) -> CommandOutcome:
+        """Run a typed command ("pause", "volume 30 on loft"). Problems are outcomes, not
+        errors."""
         ...

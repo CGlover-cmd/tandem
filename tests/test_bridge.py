@@ -379,3 +379,25 @@ async def test_updates_for_unknown_devices_are_ignored(harness: Harness) -> None
     harness.engine.bus.publish(PowerChanged("missing", PowerState.ON))
     harness.engine.bus.publish(ControlsUnavailable("missing"))
     assert not any(isinstance(e, ui.ControlsChanged) for e in harness.events)
+
+
+# Typed commands (Phase 9a)
+
+
+async def test_typed_commands_preview_then_run(harness: Harness) -> None:
+    await _connected(harness)
+
+    preview = harness.backend.preview_command("volume 30 on speaker")
+    result = await harness.backend.run_command("volume 30 on speaker")
+
+    assert preview == ui.CommandOutcome(
+        "ready", "volumeSet", {"device": "Living Room Speaker", "level": "30"}
+    )
+    assert result.status == "done"
+    assert harness.fake.controllers[SPEAKER.id].calls == [("set_volume", 30.0)]
+
+
+async def test_typed_command_problems_reach_the_window(harness: Harness) -> None:
+    result = await harness.backend.run_command("pause on the tv")
+    assert result == ui.CommandOutcome("notAvailable", "notConnected", {"device": "Living Room TV"})
+    assert harness.backend.preview_command("blorp").status == "notUnderstood"

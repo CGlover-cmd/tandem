@@ -115,6 +115,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Package code is in `src/tandem/` (ADR-0007). Only `engine/adapters/` imports pyatv; core
   modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
   shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
+- Typed commands (Phase 9a, ADR-0011): parser in `engine/commands.py`, dispatcher in
+  `engine/command_dispatch.py` behind a small `CommandServices` protocol (the engine's, and the
+  demo backend's via `tandem.bridge.demo_commands`). Results are codes plus params; the words
+  live in `web/src/strings.ts`. Command text and results name devices: never log them. Never
+  call the feature "Siri".
 - Anything the engine logs or shows goes through `Redactor`; register new private values
   (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
   `--show-private` is given; Claude never passes that flag.
