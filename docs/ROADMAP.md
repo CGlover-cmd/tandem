@@ -56,8 +56,9 @@ _Update this section at the end of every working session._
   field selected was silently dropped by pyatv; Tandem now says so instead. Apps now show real
   icons from the App Store lookup, with drawn icons for built-in apps and a Settings switch
   ([ADR-0012](adr/0012-app-icons-from-the-app-store.md)).
-- **Next:** the maintainer retries Keyboard on the Apple TV (select a search box first) and
-  checks the app icons. The test Pi has UxPlay and
+- **Hardware check, Keyboard retry:** typing into the Apple TV's search box from the window
+  works in real time.
+- **Next:** the maintainer checks the app icons on the Apple TV; then the onboarding checklist. The test Pi has UxPlay and
   shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
