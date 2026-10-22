@@ -10,11 +10,11 @@ is fixed. Six spikes ran; all the decisions they raised are recorded as accepted
 | Stream audio to AirPlay speakers | **Go** | Clean tone on the soundbar and both HomePod minis, no pairing ([Spike B](spike-b-audio.md)) | Phase 4 |
 | Capture the PC's own audio | **Go, with a limit** | WASAPI loopback, no gaps, low CPU; it follows the Windows volume and mute ([Spike C](spike-c-loopback.md), [ADR-0005](../adr/0005-multi-output-audio-routing.md)) | Phase 4: loopback by default; a user-installed virtual audio device to send to AirPlay with the PC's speakers silent |
 | AirPlay speakers and PC speakers in sync | **Go, unproven** | The pieces work separately (Spikes B, C); sync itself is Phase 5's job. pyatv times each stream with NTP, not the shared PTP clock AirPlay 2 speakers use ([Spike F](spike-f-pi-receiver.md)) | Phase 5: check early whether NTP timing holds ~20 ms across speakers |
-| Send video files and links to the Apple TV | **Go, untested** | pyatv offers `play_url`; not exercised yet ([Spike D](spike-d-mirroring.md)) | Phase 6 |
-| Screen mirroring | **No-go** | FairPlay-gated, no legitimate open-source sender ([Spike D](spike-d-mirroring.md), [ADR-0006](../adr/0006-screen-mirroring-fairplay.md)) | Phase 7 shelved |
+| Send video files and links to the Apple TV | **Go, untested** | pyatv offers `play_url`; not exercised yet ([Spike D](spike-d-mirroring.md)) | Phase 7 |
+| Screen mirroring | **No-go** | FairPlay-gated, no legitimate open-source sender ([Spike D](spike-d-mirroring.md), [ADR-0006](../adr/0006-screen-mirroring-fairplay.md)) | Phase 8 shelved |
 | Hardware video encode | **Go for 1080p** | Capture, NVENC encode and decode back in about 60 ms; 4K60 needs a GPU-only path ([Spike E](spike-e-encode.md)) | Only if mirroring reopens |
 | Automatic audio tests | **Go, classic AirPlay only** | shairport-sync on the Pi receives pyatv's stream bit-exact; it can't take pyatv's AirPlay 2 stream ([Spike F](spike-f-pi-receiver.md)) | Phase 4 integration tests; the AirPlay 2 path stays on the hardware checklist |
-| Smart-home control | **Not assessed** | Out of Phase 0 by plan | Phase 9 starts with its own feasibility spike |
+| Smart-home control | **Not assessed** | Out of Phase 0 by plan | Phase 10 starts with its own feasibility spike |
 | Windows 10 22H2 | **Not tested** | All spikes ran on the Windows 11 test laptop | Phase 1: add a Windows 10 check to the hardware checklist when a test machine is available |
 
 ## Decisions

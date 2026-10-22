@@ -17,5 +17,5 @@ Protocol gaps are filled in our own adapters and, where useful, contributed upst
 ## Consequences
 - Fast start, mature protocol coverage, an active upstream community.
 - One language across engine and UI lowers the bar for contributors.
-- Real-time video (Phase 7) may need a native helper if Spike E shows Python overhead matters.
+- Real-time video (Phase 8) may need a native helper if Spike E shows Python overhead matters.
 - Tooling: ruff, pyright, pytest; virtual environment kept outside synced folders.

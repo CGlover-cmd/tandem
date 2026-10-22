@@ -15,6 +15,9 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > redacted logs and diagnostics, and an encrypted credential store, with a developer
 > command-line tool that pairs with and connects to Apple TV, HomePod mini and an AirPlay 2
 > soundbar.
+> Music (Phase 6) has started with two spikes: Windows' media controls report and control the
+> Apple Music app, and Tandem's window can load the copy protection Apple Music's web player
+> needs.
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals
@@ -23,6 +26,10 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 - Apple TV remote control from your PC
 - Stream system audio to any mix of AirPlay speakers and your PC's own speakers, in sync
 - Send videos and links to Apple TV
+- A Music tab: see and control what any music app is playing, browse Spotify and Apple Music,
+  and play your own files and internet radio to your speakers
+  ([ADR-0012](docs/adr/0012-music-integration-boundaries.md)). Tandem is a remote for the
+  streaming apps; their sound reaches your speakers through Tandem's audio router
 - A clean, Apple-inspired interface that's accessible and works from the system tray
 
 Screen mirroring is **not** planned: it is gated by Apple's FairPlay content protection, with no
