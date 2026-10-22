@@ -12,6 +12,7 @@ const speaker: Device = {
   state: "disconnected",
   needsPairing: false,
   retryIn: null,
+  controls: null,
 };
 
 describe("device cards", () => {

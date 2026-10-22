@@ -6,7 +6,15 @@ from typing import Any
 
 import pytest
 
-from tandem.ui.backend import DeviceKind, DeviceSnapshot, LinkState, PairingError, PairingFlow
+from tandem.ui.backend import (
+    DeviceKind,
+    DeviceSnapshot,
+    KeyAction,
+    LinkState,
+    PairingError,
+    PairingFlow,
+    RemoteKey,
+)
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import WRONG_PIN, DemoBackend
 
@@ -59,6 +67,7 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "state": "disconnected",
         "needsPairing": True,
         "retryIn": None,
+        "controls": None,
     }
     assert snapshot["appearance"] == {"theme": "system", "background": "mist"}
     assert snapshot["pairing"]["state"] == "closed"
@@ -124,7 +133,18 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
     assert pairing.state == "enterPin"
     assert pairing.error == {"code": "wrongPin"}
 
+    assert pairing.snapshot()["step"] == 1
+    assert pairing.snapshot()["steps"] == 2
+
     pairing.submit_pin(" 4821 ")
+    await controller.runner.drain()
+    assert pairing.state == "enterPin"  # the TV shows its second PIN (AirPlay)
+    assert pairing.step == 2
+    tv = controller.device("demo-tv")
+    assert tv is not None
+    assert tv.needs_pairing
+
+    pairing.submit_pin("1357")
     await controller.runner.drain()
     assert pairing.state == "done"
     assert pairing.error is None
@@ -222,7 +242,9 @@ async def test_device_leaving_closes_its_pairing_sheet(backend: DemoBackend) -> 
 
 
 class _FailingSubmit:
-    async def submit_pin(self, pin: str) -> None:
+    steps = 1
+
+    async def submit_pin(self, pin: str) -> bool:
         raise PairingError("")
 
     async def cancel(self) -> None:
@@ -345,8 +367,9 @@ async def test_commands_drive_the_controller(backend: DemoBackend) -> None:
 
     controller.handle({"type": "pair", "id": "demo-tv"})
     await controller.runner.drain()
-    controller.handle({"type": "submitPin", "pin": "1234"})
-    await controller.runner.drain()
+    for pin in ("1234", "5678"):
+        controller.handle({"type": "submitPin", "pin": pin})
+        await controller.runner.drain()
     assert controller.pairing.state == "done"
     controller.handle({"type": "closePairing"})
     assert controller.pairing.state == "closed"
@@ -372,3 +395,102 @@ async def test_stop_unsubscribes(backend: DemoBackend) -> None:
     backend.remove("demo-speaker-1")
 
     assert controller.device("demo-speaker-1") is not None
+
+
+# Remote and media controls
+
+
+async def _paired_tv(controller: AppController) -> None:
+    controller.pair("demo-tv")
+    await controller.runner.drain()
+    for pin in ("1234", "5678"):
+        controller.pairing.submit_pin(pin)
+        await controller.runner.drain()
+
+
+async def test_connected_tv_shows_its_controls(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)  # pairing connects
+
+    tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
+    controls = tv["controls"]
+    assert controls["remote"] is True
+    assert controls["volume"] == "steps"
+    assert controls["canPower"] is True
+    assert "play_pause" in controls["media"]
+    assert controls["nowPlaying"]["title"] == "A Walk in the Woods"
+    assert controls["nowPlaying"]["totalTime"] == 2640.0
+
+    controller.disconnect("demo-tv")
+    await controller.runner.drain()
+    tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
+    assert tv["controls"] is None
+
+
+async def test_control_commands_reach_the_backend(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    await _paired_tv(controller)
+
+    controller.handle({"type": "press", "id": "demo-tv", "key": "select", "action": "hold"})
+    controller.handle({"type": "press", "id": "demo-tv", "key": "menu"})
+    controller.handle({"type": "media", "id": "demo-tv", "command": "play_pause"})
+    controller.handle({"type": "setPower", "id": "demo-tv", "on": False})
+    await controller.runner.drain()
+
+    assert [p[1:] for p in backend.presses] == [
+        (RemoteKey.SELECT, KeyAction.HOLD),
+        (RemoteKey.MENU, KeyAction.TAP),
+    ]
+    controls = backend.controls("demo-tv")
+    assert controls is not None
+    assert controls.power == "off"
+    assert controls.now_playing is not None
+    assert controls.now_playing.state == "paused"
+
+
+async def test_volume_slider_sets_the_level(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    controller.connect("demo-speaker-1")
+    await controller.runner.drain()
+
+    controller.handle({"type": "setVolume", "id": "demo-speaker-1", "level": 72})
+    await controller.runner.drain()
+
+    controls = backend.controls("demo-speaker-1")
+    assert controls is not None
+    assert controls.volume_level == 72.0
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        {"type": "press", "id": "demo-tv", "key": "jump"},
+        {"type": "press", "id": "demo-tv", "key": "up", "action": "wiggle"},
+        {"type": "media", "id": "demo-tv", "command": "rewind-forever"},
+        {"type": "setVolume", "id": "demo-tv", "level": 101},
+        {"type": "setVolume", "id": "demo-tv", "level": True},
+        {"type": "setPower", "id": "demo-tv", "on": "yes"},
+    ],
+)
+async def test_malformed_control_commands_are_ignored(
+    backend: DemoBackend, command: dict[str, Any]
+) -> None:
+    controller = await _started(backend)
+    controller.handle(command)
+    await controller.runner.drain()
+    assert backend.presses == []
+    assert controller.message is None
+
+
+async def test_control_errors_show_their_words(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+
+    controller.press("demo-speaker-1", RemoteKey.UP)  # not connected
+    await controller.runner.drain()
+    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+
+    controller.connect("demo-speaker-1")
+    await controller.runner.drain()
+    controller.press("demo-speaker-1", RemoteKey.UP)  # a HomePod has no remote pad
+    await controller.runner.drain()
+    assert controller.message == {"code": "backend", "text": "This device can't do that right now."}

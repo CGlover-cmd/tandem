@@ -94,3 +94,113 @@ export function LogoMark(props: IconProps) {
     </svg>
   );
 }
+
+function Filled({ size = 24, children, ...props }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export function PlayIcon(props: IconProps) {
+  return (
+    <Filled {...props}>
+      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+    </Filled>
+  );
+}
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <Filled {...props}>
+      <rect x="6.5" y="5" width="4" height="14" rx="1.2" />
+      <rect x="13.5" y="5" width="4" height="14" rx="1.2" />
+    </Filled>
+  );
+}
+
+export function NextIcon(props: IconProps) {
+  return (
+    <Filled {...props}>
+      <path d="M4 6.6v10.8a.8.8 0 0 0 1.2.7l8.3-5.4a.8.8 0 0 0 0-1.4L5.2 5.9a.8.8 0 0 0-1.2.7Z" />
+      <path d="M12 6.6v10.8a.8.8 0 0 0 1.2.7l8.3-5.4a.8.8 0 0 0 0-1.4l-8.3-5.4a.8.8 0 0 0-1.2.7Z" />
+    </Filled>
+  );
+}
+
+export function PreviousIcon(props: IconProps) {
+  return <NextIcon {...props} style={{ transform: "scaleX(-1)" }} />;
+}
+
+export function SkipForwardIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M19 12a7 7 0 1 1-2.05-4.95" />
+      <path d="M19 4v4h-4" />
+    </Svg>
+  );
+}
+
+export function SkipBackwardIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 12a7 7 0 1 0 2.05-4.95" />
+      <path d="M5 4v4h4" />
+    </Svg>
+  );
+}
+
+export function PowerIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.5v8" />
+      <path d="M6.7 6.6a7.5 7.5 0 1 0 10.6 0" />
+    </Svg>
+  );
+}
+
+export function BackIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="m14.5 6-6 6 6 6" strokeWidth={2} />
+    </Svg>
+  );
+}
+
+export function ChevronIcon({ direction, ...props }: IconProps & { direction: "up" | "down" | "left" | "right" }) {
+  const rotate = { up: 0, right: 90, down: 180, left: 270 }[direction];
+  return (
+    <Svg {...props} style={{ transform: `rotate(${rotate}deg)` }}>
+      <path d="m7 14 5-5 5 5" strokeWidth={2} />
+    </Svg>
+  );
+}
+
+export function RemoteIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="7" y="2.5" width="10" height="19" rx="5" />
+      <circle cx="12" cy="8" r="2.2" />
+      <path d="M12 13.5v.01M12 17v.01" strokeWidth={2.4} />
+    </Svg>
+  );
+}
+
+export function VolumeIcon({ level = 2, ...props }: IconProps & { level?: 0 | 1 | 2 }) {
+  return (
+    <Svg {...props}>
+      <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5Z" />
+      {level >= 1 && <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />}
+      {level >= 2 && <path d="M18 7a7 7 0 0 1 0 10" />}
+    </Svg>
+  );
+}

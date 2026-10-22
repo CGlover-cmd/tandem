@@ -2,6 +2,9 @@
 
 Threads: pywebview's window must own the main thread on Windows, so the asyncio loop (the
 backend, `AppController` and `UiServer`) runs on a second thread and pystray on a third.
+
+This is the composition root: it reaches the real engine only through `tandem.bridge`, so the
+rest of `tandem.ui` never imports engine code.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ import threading
 from collections.abc import Sequence
 from typing import Any
 
+from tandem.ui.backend import Backend
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.platform import reduce_motion, ui_data_dir
@@ -30,7 +34,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--demo",
         action="store_true",
-        help="use invented devices (the only mode until the engine is wired in)",
+        help="show invented devices instead of the ones on your network",
     )
     parser.add_argument(
         "--no-window",
@@ -51,15 +55,22 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 
 def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
-    backend = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
-    controller = AppController(backend, demo_mode=True, reduce_motion=reduce_motion())
+    backend: Backend
+    if args.demo:
+        backend = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
+    else:  # pragma: no cover - needs the network
+        from tandem.bridge import create_engine_backend
+
+        backend = create_engine_backend()
+    controller = AppController(backend, demo_mode=args.demo, reduce_motion=reduce_motion())
     server = UiServer(controller, port=args.port, extra_origins=args.dev_origin)
     return controller, server
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    if args.demo:  # the real engine sets up its own redacted logging
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     if args.no_window:
         return asyncio.run(_serve_only(args))
     return _run_with_window(args)  # pragma: no cover - needs a desktop; checked by hand

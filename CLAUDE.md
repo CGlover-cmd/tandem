@@ -122,7 +122,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
   `--show-private` is given; Claude never passes that flag.
 - The UI's side of the engine's API is the `Backend` protocol in `src/tandem/ui/backend.py`
-  (ADR-0008); `DemoBackend` (invented devices) stands in until the engine adapter for it exists.
+  (ADR-0008). `tandem.bridge.EngineBackend` implements it on the real engine and is the only
+  module that imports both layers; `DemoBackend` (invented devices, `--demo`) implements it for
+  tests and previews. Which services an Apple TV must pair, in order, is
+  `engine.pairing.services_to_pair` (used by the window and the developer tool).
+- Python here is the Microsoft Store build, which redirects `%LOCALAPPDATA%` writes to its own
+  package folder (`%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Local`).
+  So `%LOCALAPPDATA%\Tandem` looks empty from outside Python, though Tandem's files are there.
 - UI logic stays in Python (`tandem.ui.controller`, tested with pytest); React only renders the
   state it's sent and sends commands back over the loopback WebSocket (`tandem.ui.server`). Keep
   `web/src/types.ts` in step with `AppController.snapshot()` and `handle()`. User-facing words
@@ -130,9 +136,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Every colour is in `web/src/theme.ts`; `theme.test.ts` checks WCAG AA contrast on every
   background. Window backgrounds are listed in both `theme.ts` and `tandem.ui.backend.BACKGROUNDS`
   (a test keeps them equal).
-- Check visuals by running `python -m tandem.ui --no-window` (demo devices only, so screenshots are
+- Check visuals by running `python -m tandem.ui --demo --no-window` (invented devices, so screenshots are
   safe to share) and opening the printed address in the built-in browser. Never log that address:
   it carries the launch token. Stop the server by its own PID, never by image name.
+  Without `--demo` the window shows real device names, so never screenshot it; check it through
+  the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:

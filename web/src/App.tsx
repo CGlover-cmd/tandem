@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useBridge } from "./bridge";
 import { DeviceCard } from "./components/DeviceCard";
 import { PairingSheet } from "./components/PairingSheet";
+import { RemoteSheet } from "./components/RemoteSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { GearIcon, LogoMark } from "./icons";
 import { problemText, strings } from "./strings";
@@ -30,6 +31,8 @@ function resolveMode(choice: ThemeChoice, system: Mode): Mode {
 export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [remoteId, setRemoteId] = useState<string | null>(null);
+  const remoteDevice = state?.devices.find((d) => d.id === remoteId) ?? null;
   const system = useSystemMode();
   const mode = resolveMode(state?.appearance.theme ?? "system", system);
   const background = findBackground(state?.appearance.background ?? "mist");
@@ -94,6 +97,7 @@ export function App() {
                   <DeviceCard
                     device={device}
                     onActivate={() => send({ type: "activate", id: device.id })}
+                    onOpenControls={() => setRemoteId(device.id)}
                   />
                 </li>
               ))}
@@ -124,6 +128,7 @@ export function App() {
       )}
 
       {state && <PairingSheet pairing={state.pairing} send={send} />}
+      <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
       {state && (
         <SettingsSheet
           isOpen={settingsOpen}

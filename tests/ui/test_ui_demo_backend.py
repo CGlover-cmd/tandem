@@ -10,12 +10,18 @@ from tandem.ui.backend import (
     Appearance,
     AppearanceChanged,
     BackendEvent,
+    ControlError,
+    ControlsChanged,
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
+    KeyAction,
     LinkState,
+    MediaCommand,
     PairingError,
+    RemoteKey,
     Theme,
+    Volume,
     WrongPinError,
 )
 from tandem.ui.demo_backend import DEMO_DEVICES, FLAKY_DEVICE, WRONG_PIN, DemoBackend
@@ -84,9 +90,11 @@ async def test_wrong_pin_then_right_pin_pairs(backend: DemoBackend) -> None:
     await backend.start()
     flow = await backend.begin_pairing("demo-tv")
 
+    assert flow.steps == 2
     with pytest.raises(WrongPinError):
         await flow.submit_pin(WRONG_PIN)
-    await flow.submit_pin("1234")
+    assert await flow.submit_pin("1234") is True  # second PIN follows
+    assert await flow.submit_pin("5678") is False
 
     tv: DeviceSnapshot = next(d for d in backend.devices() if d.id == "demo-tv")
     assert not tv.needs_pairing
@@ -135,3 +143,46 @@ def test_front_end_offers_the_same_backgrounds() -> None:
     ids = re.findall(r'^\s+id: "([a-z]+)",$', theme.read_text(encoding="utf-8"), re.MULTILINE)
 
     assert tuple(ids) == BACKGROUNDS
+
+
+async def test_demo_controls_follow_the_connection(backend: DemoBackend) -> None:
+    await backend.start()
+    events: list[BackendEvent] = []
+    backend.subscribe(events.append)
+
+    await backend.connect("demo-speaker-1")
+    controls = backend.controls("demo-speaker-1")
+    assert controls is not None
+    assert controls.volume is Volume.LEVEL
+    assert ControlsChanged("demo-speaker-1", controls) in events
+
+    await backend.disconnect("demo-speaker-1")
+    assert backend.controls("demo-speaker-1") is None
+
+
+async def test_demo_controls_refuse_what_a_device_cannot_do(backend: DemoBackend) -> None:
+    await backend.start()
+    with pytest.raises(ControlError, match="isn't connected"):
+        await backend.media("demo-soundbar", MediaCommand.NEXT)
+
+    await backend.connect("demo-soundbar")
+    for attempt in (
+        backend.press("demo-soundbar", RemoteKey.PLAY_PAUSE, KeyAction.TAP),
+        backend.media("demo-soundbar", MediaCommand.NEXT),
+        backend.set_power("demo-soundbar", False),
+    ):
+        with pytest.raises(ControlError, match="can't do that"):
+            await attempt
+    await backend.press("demo-soundbar", RemoteKey.VOLUME_UP, KeyAction.TAP)
+    await backend.set_volume("demo-soundbar", 250)
+    controls = backend.controls("demo-soundbar")
+    assert controls is not None
+    assert controls.volume_level == 100.0
+
+
+async def test_demo_speaker_volume_keys_need_a_volume(backend: DemoBackend) -> None:
+    await backend.start()
+    await backend.connect("demo-speaker-2")
+    await backend.press("demo-speaker-2", RemoteKey.VOLUME_DOWN, KeyAction.TAP)
+    with pytest.raises(ControlError, match="isn't connected"):
+        await backend.set_volume("demo-tv", 10)
