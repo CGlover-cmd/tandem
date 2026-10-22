@@ -53,6 +53,8 @@ export interface Controls {
 export interface AppInfo {
   id: string;
   name: string;
+  /** The app's icon on Tandem's own server, once looked up (Settings can turn this off). */
+  icon: string | null;
 }
 
 /** The launcher's list for one device, once asked for with `loadApps`. */
@@ -94,6 +96,8 @@ export interface Pairing {
 export interface Appearance {
   theme: ThemeChoice;
   background: string;
+  /** Look up real app icons on the App Store for the launcher. */
+  appIcons: boolean;
 }
 
 export interface AppState {
@@ -110,7 +114,7 @@ export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" }
-  | { type: "setAppearance"; theme?: ThemeChoice; background?: string }
+  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }

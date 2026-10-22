@@ -122,6 +122,12 @@ async def test_appearance_defaults_and_publishes_changes(backend: DemoBackend) -
 async def test_appearance_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "ui" / "appearance.json"
     await DemoBackend(appearance_file=path).set_appearance(Appearance(Theme.LIGHT, "dusk"))
+    assert DemoBackend(appearance_file=path).appearance().app_icons is True
+    await DemoBackend(appearance_file=path).set_appearance(
+        Appearance(Theme.LIGHT, "dusk", app_icons=False)
+    )
+    assert DemoBackend(appearance_file=path).appearance().app_icons is False
+    await DemoBackend(appearance_file=path).set_appearance(Appearance(Theme.LIGHT, "dusk"))
 
     assert DemoBackend(appearance_file=path).appearance() == Appearance(Theme.LIGHT, "dusk")
 

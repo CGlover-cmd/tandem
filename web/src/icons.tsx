@@ -225,3 +225,39 @@ export function KeyboardIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="m15 15 5 5" />
+    </Svg>
+  );
+}
+
+export function StoreIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5.5 8.5h13l-1 11h-11Z" />
+      <path d="M9 10.5V7a3 3 0 0 1 6 0v3.5" />
+    </Svg>
+  );
+}
+
+export function GamepadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7.5 7.5h9a4.5 4.5 0 0 1 4.4 5.5l-.6 3a2.6 2.6 0 0 1-4.6 1.1L14.3 15H9.7l-1.4 2.1a2.6 2.6 0 0 1-4.6-1.1l-.6-3a4.5 4.5 0 0 1 4.4-5.5Z" />
+      <path d="M8 10v3M6.5 11.5h3M15.5 11h.01M17.5 12.5h.01" />
+    </Svg>
+  );
+}
+
+export function ComputerIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="4.5" width="17" height="11" rx="2" />
+      <path d="M9 19.5h6M12 15.5v4" />
+    </Svg>
+  );
+}

@@ -259,6 +259,13 @@ class NotConnectedError(ControlError):
         super().__init__("not connected")
 
 
+class NoTextFieldError(ControlError):
+    """Text was sent, but the device isn't showing a text field to type into."""
+
+    def __init__(self) -> None:
+        super().__init__("no text field is selected")
+
+
 class UnsupportedError(ControlError):
     """The device doesn't offer this right now (see its capabilities)."""
 
@@ -415,7 +422,8 @@ class DeviceControls:
         await controller.launch(app_id)
 
     async def set_text(self, text: str) -> None:
-        """Replace the text in the focused text field on the device."""
+        """Replace the text in the focused text field on the device. Raises
+        `NoTextFieldError` when no text field is selected (it would be dropped silently)."""
         controller = self._live()
         self._require(controller, Capability.TEXT_ENTRY)
         await controller.set_text(text)

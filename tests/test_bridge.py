@@ -19,6 +19,7 @@ from tandem.engine.control import (
     KeyAction,
     KeyboardFocus,
     MediaCommand,
+    NoTextFieldError,
     NowPlaying,
     PlayState,
     PowerChanged,
@@ -260,12 +261,14 @@ async def test_devices_that_show_no_pin_pair_straight_away(harness: Harness) -> 
 async def test_appearance_is_saved_in_engine_settings(harness: Harness, tmp_path: Path) -> None:
     assert harness.backend.appearance() == ui.Appearance()
 
-    await harness.backend.set_appearance(ui.Appearance(ui.Theme.DARK, "aurora"))
+    choice = ui.Appearance(ui.Theme.DARK, "aurora", app_icons=False)
+    await harness.backend.set_appearance(choice)
 
-    assert harness.events[-1] == ui.AppearanceChanged(ui.Appearance(ui.Theme.DARK, "aurora"))
+    assert harness.events[-1] == ui.AppearanceChanged(choice)
     saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
     assert saved["theme"] == "dark"
     assert saved["background"] == "aurora"
+    assert saved["app_icons"] is False
 
 
 async def test_unknown_saved_background_falls_back(harness: Harness) -> None:
@@ -428,3 +431,11 @@ async def test_apps_errors_are_worded_for_the_window(harness: Harness) -> None:
         await harness.backend.apps(SPEAKER.id)
     with pytest.raises(ui.ControlError, match="can't do that"):
         await harness.backend.set_text(SPEAKER.id, "hi")
+
+
+async def test_typing_without_a_text_field_says_so(harness: Harness) -> None:
+    await _connected(harness)
+    harness.fake.controllers[SPEAKER.id].fail = NoTextFieldError()
+    with pytest.raises(ui.ControlError) as failed:
+        await harness.backend.set_text(SPEAKER.id, "hi")
+    assert str(failed.value) == bridge.NO_TEXT_FIELD

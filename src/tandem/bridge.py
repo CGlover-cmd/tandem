@@ -45,6 +45,7 @@ WRONG_PIN = "That PIN didn't match."
 NOT_CONNECTED = "This device isn't connected."
 CANT_DO_THAT = "This device can't do that right now."
 NO_RESPONSE = "The device didn't respond. Try again."
+NO_TEXT_FIELD = "Select a search box or text field on the TV first, then type."
 
 _MEDIA = {
     ui.MediaCommand.NEXT: ec.MediaCommand.NEXT,
@@ -118,7 +119,7 @@ class EngineBackend:
         background = settings.background
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
-        return ui.Appearance(ui.Theme(settings.theme.value), background)
+        return ui.Appearance(ui.Theme(settings.theme.value), background, settings.app_icons)
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
         status = self._status.get(device_id)
@@ -202,7 +203,9 @@ class EngineBackend:
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
         self._settings.update(
-            theme=EngineTheme(appearance.theme.value), background=appearance.background
+            theme=EngineTheme(appearance.theme.value),
+            background=appearance.background,
+            app_icons=appearance.app_icons,
         )
 
     # Engine events
@@ -370,6 +373,8 @@ async def _control(command: Awaitable[T]) -> T:
         return await command
     except ec.NotConnectedError:
         raise ui.ControlError(NOT_CONNECTED) from None
+    except ec.NoTextFieldError:
+        raise ui.ControlError(NO_TEXT_FIELD) from None
     except (ec.UnsupportedError, ValueError):
         raise ui.ControlError(CANT_DO_THAT) from None
     except (ec.ControlError, OSError, TimeoutError) as exc:

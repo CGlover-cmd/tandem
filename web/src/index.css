@@ -391,6 +391,16 @@ h2 {
   transition: transform 160ms var(--tandem-spring);
 }
 
+.app-tile-icon svg {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.app-tile-img {
+  object-fit: cover;
+  background: var(--field-background);
+}
+
 .app-tile[data-pressed] .app-tile-icon {
   transform: scale(0.94);
 }

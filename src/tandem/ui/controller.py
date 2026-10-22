@@ -18,7 +18,7 @@ import logging
 import re
 from collections.abc import Callable, Coroutine
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from tandem.ui.backend import (
     MAX_TEXT,
@@ -50,6 +50,16 @@ _PIN = re.compile(r"\d{4}")
 
 Problem = dict[str, str]
 Listener = Callable[[], None]
+
+
+class IconSource(Protocol):
+    """Icons for the app launcher (`tandem.ui.app_icons.AppIconStore`)."""
+
+    async def icons(self, app_ids: list[str]) -> dict[str, str]:
+        """App ids in, icon URLs on Tandem's own server out, for the apps that have one."""
+        ...
+
+    async def close(self) -> None: ...
 
 
 class TaskRunner:
@@ -204,15 +214,21 @@ class PairingController:
 class AppList:
     """A device's apps, as the launcher shows them: loading, ready or failed."""
 
-    def __init__(self, items: list[AppInfo] | None = None) -> None:
+    def __init__(
+        self, items: list[AppInfo] | None = None, icons: dict[str, str] | None = None
+    ) -> None:
         self.state = "loading"
         self.items: list[AppInfo] = items or []
+        self.icons: dict[str, str] = icons or {}
         self.error: Problem | None = None
 
     def snapshot(self) -> dict[str, Any]:
         return {
             "state": self.state,
-            "items": [{"id": app.id, "name": app.name} for app in self.items],
+            "items": [
+                {"id": app.id, "name": app.name, "icon": self.icons.get(app.id)}
+                for app in self.items
+            ],
             "error": self.error,
         }
 
@@ -226,8 +242,10 @@ class AppController:
         *,
         demo_mode: bool = False,
         reduce_motion: bool = False,
+        icons: IconSource | None = None,
     ) -> None:
         self._backend = backend
+        self._icons = icons
         self.demo_mode = demo_mode
         self.reduce_motion = reduce_motion
         self.discovering = False
@@ -277,6 +295,7 @@ class AppController:
             "appearance": {
                 "theme": self.appearance.theme.value,
                 "background": self.appearance.background,
+                "appIcons": self.appearance.app_icons,
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
@@ -300,6 +319,8 @@ class AppController:
             self._unsubscribe = None
         self.pairing.close()
         await self.runner.drain()
+        if self._icons is not None:
+            await self._icons.close()
         await self._backend.stop()
 
     # Commands
@@ -350,7 +371,10 @@ class AppController:
         current = self._apps.get(device_id)
         if current is not None and current.state == "loading":
             return
-        apps = AppList(current.items if current is not None else None)
+        apps = AppList(
+            current.items if current is not None else None,
+            current.icons if current is not None else None,
+        )
         self._apps[device_id] = apps
         self._changed()
         self.runner.run(self._load_apps(device_id, apps))
@@ -366,9 +390,9 @@ class AppController:
             self._text_sending.add(device_id)
             self.runner.run(self._send_text(device_id))
 
-    def set_appearance(self, theme: str, background: str) -> None:
+    def set_appearance(self, theme: str, background: str, app_icons: bool = True) -> None:
         try:
-            appearance = Appearance(Theme(theme), background)
+            appearance = Appearance(Theme(theme), background, app_icons)
         except ValueError:
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
@@ -421,8 +445,13 @@ class AppController:
         elif kind == "setAppearance":
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
-            if isinstance(theme, str) and isinstance(background, str):
-                self.set_appearance(theme, background)
+            app_icons = command.get("appIcons", self.appearance.app_icons)
+            if (
+                isinstance(theme, str)
+                and isinstance(background, str)
+                and isinstance(app_icons, bool)
+            ):
+                self.set_appearance(theme, background, app_icons)
         else:
             _LOGGER.debug("Ignoring an unknown command")
 
@@ -448,6 +477,7 @@ class AppController:
                     self._controls[device_id] = controls
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
+                self._refresh_icons()
         self._changed()
 
     async def _load_apps(self, device_id: str, apps: AppList) -> None:
@@ -469,6 +499,27 @@ class AppController:
         apps.items = sorted(found, key=lambda app: (app.name.casefold(), app.id))
         apps.state = "ready"
         self._changed()
+        if self._icons is not None and self.appearance.app_icons:
+            self.runner.run(self._load_icons(device_id, apps))
+
+    async def _load_icons(self, device_id: str, apps: AppList) -> None:
+        assert self._icons is not None
+        try:
+            icons = await self._icons.icons([app.id for app in apps.items])
+        except Exception as error:  # icons are a nicety: keep the letters
+            _LOGGER.info("Loading app icons failed: %s", type(error).__name__)
+            return
+        if self._apps.get(device_id) is apps and self.appearance.app_icons:
+            apps.icons = icons
+            self._changed()
+
+    def _refresh_icons(self) -> None:
+        """Follow the app icons setting for lists already on screen."""
+        for device_id, apps in list(self._apps.items()):
+            if not self.appearance.app_icons:
+                apps.icons = {}
+            elif self._icons is not None and apps.state == "ready":
+                self.runner.run(self._load_icons(device_id, apps))
 
     async def _send_text(self, device_id: str) -> None:
         try:

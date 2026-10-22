@@ -36,6 +36,17 @@ export const TILE_COLOURS = [
   "#0f6c66",
 ] as const;
 
+/** Apps built into tvOS that aren't on the App Store: Tandem draws their icons. Keep in step
+ *  with DRAWN in tandem/ui/app_icons.py. */
+export type Glyph = "settings" | "search" | "store" | "arcade" | "computers";
+export const DRAWN_APPS: Record<string, { glyph: Glyph; colour: string }> = {
+  "com.apple.TVSettings": { glyph: "settings", colour: "#4a5363" },
+  "com.apple.TVSearch": { glyph: "search", colour: "#4a5363" },
+  "com.apple.TVAppStore": { glyph: "store", colour: "#2557c4" },
+  "com.apple.Arcade": { glyph: "arcade", colour: "#b0362d" },
+  "com.apple.TVHomeSharing": { glyph: "computers", colour: "#0f6c66" },
+};
+
 /** The same app always gets the same colour. */
 export function tileColour(appId: string): string {
   let hash = 0;

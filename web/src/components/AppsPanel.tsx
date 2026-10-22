@@ -1,10 +1,37 @@
 import { Button, SearchField, Spinner } from "@heroui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { ChevronIcon } from "../icons";
-import { filterApps, monogram, tileColour } from "../launcher";
+import { ChevronIcon, ComputerIcon, GamepadIcon, GearIcon, SearchIcon, StoreIcon } from "../icons";
+import { DRAWN_APPS, filterApps, monogram, tileColour, type Glyph } from "../launcher";
 import { problemText, strings } from "../strings";
-import type { AppList, Command } from "../types";
+import type { AppInfo, AppList, Command } from "../types";
+
+const GLYPHS: Record<Glyph, ReactNode> = {
+  settings: <GearIcon size={28} />,
+  search: <SearchIcon size={28} />,
+  store: <StoreIcon size={28} />,
+  arcade: <GamepadIcon size={28} />,
+  computers: <ComputerIcon size={28} />,
+};
+
+/** The app's real icon when we have it; our own drawing for built-in apps; else its letters. */
+function AppIcon({ app }: { app: AppInfo }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [app.icon]);
+  if (app.icon && !broken) {
+    return <img className="app-tile-icon app-tile-img" src={app.icon} alt="" draggable={false} onError={() => setBroken(true)} />;
+  }
+  const drawn = DRAWN_APPS[app.id];
+  return (
+    <span
+      className="app-tile-icon"
+      style={{ backgroundColor: drawn ? drawn.colour : tileColour(app.id) }}
+      aria-hidden="true"
+    >
+      {drawn ? GLYPHS[drawn.glyph] : monogram(app.name)}
+    </span>
+  );
+}
 
 interface Props {
   deviceId: string;
@@ -79,9 +106,7 @@ export function AppsPanel({ deviceId, apps, send, onDone }: Props) {
                   onDone();
                 }}
               >
-                <span className="app-tile-icon" style={{ backgroundColor: tileColour(app.id) }} aria-hidden="true">
-                  {monogram(app.name)}
-                </span>
+                <AppIcon app={app} />
                 <span className="app-tile-name">{app.name}</span>
               </Button>
             </li>

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { contrast, over, parseColour } from "./contrast";
-import { filterApps, monogram, TILE_COLOURS, tileColour } from "./launcher";
+import { DRAWN_APPS, filterApps, monogram, TILE_COLOURS, tileColour } from "./launcher";
 import type { AppInfo } from "./types";
 
 // Invented apps (docs/PRIVACY.md).
 const apps: AppInfo[] = [
-  { id: "com.example.cafe", name: "Café Radio" },
-  { id: "com.example.nature", name: "Nature Hour" },
-  { id: "com.example.tv", name: "TV" },
-  { id: "com.example.weather", name: "Weather Now" },
+  { id: "com.example.cafe", name: "Café Radio", icon: null },
+  { id: "com.example.nature", name: "Nature Hour", icon: null },
+  { id: "com.example.tv", name: "TV", icon: null },
+  { id: "com.example.weather", name: "Weather Now", icon: null },
 ];
 
 describe("filterApps", () => {
@@ -51,10 +51,23 @@ describe("tile colours", () => {
   it("keep white text readable, under the tile's highlight too", () => {
     const white = parseColour("#ffffff");
     const highlight = parseColour("rgba(255, 255, 255, 0.14)");
-    for (const colour of TILE_COLOURS) {
+    for (const colour of [...TILE_COLOURS, ...Object.values(DRAWN_APPS).map((d) => d.colour)]) {
       const base = parseColour(colour);
       expect(contrast(white, base)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(white, over(highlight, base))).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+describe("drawn built-in apps", () => {
+  it("match the list the Python side never looks up", () => {
+    // tandem/ui/app_icons.py DRAWN
+    expect(Object.keys(DRAWN_APPS).sort()).toEqual([
+      "com.apple.Arcade",
+      "com.apple.TVAppStore",
+      "com.apple.TVHomeSharing",
+      "com.apple.TVSearch",
+      "com.apple.TVSettings",
+    ]);
   });
 });

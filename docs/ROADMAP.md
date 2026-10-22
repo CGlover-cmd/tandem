@@ -50,8 +50,14 @@ _Update this section at the end of every working session._
   a search box; picking one opens it) and **Keyboard** (types into the TV's text field, sending
   the newest text a moment after each keystroke). The engine now pushes keyboard focus, so the
   keyboard opens by itself when the TV asks for text. Built and checked with demo devices.
-- **Next:** the maintainer tries the Remote sheet on the Apple TV, including Apps and Keyboard
-  (open a search box on the TV and check the keyboard appears). The test Pi has UxPlay and
+- **Hardware check, Apps and Keyboard:** the keyboard field opened on the Apple TV, but the
+  maintainer saw no typed text on the TV. Re-tested from the PC: text typed through the app's
+  own path reached the TV's search box, so the miss wasn't reproduced. Typing with no text
+  field selected was silently dropped by pyatv; Tandem now says so instead. Apps now show real
+  icons from the App Store lookup, with drawn icons for built-in apps and a Settings switch
+  ([ADR-0012](adr/0012-app-icons-from-the-app-store.md)).
+- **Next:** the maintainer retries Keyboard on the Apple TV (select a search box first) and
+  checks the app icons. The test Pi has UxPlay and
   shairport-sync, both on demand.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),

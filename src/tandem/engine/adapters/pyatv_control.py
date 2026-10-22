@@ -28,6 +28,7 @@ from tandem.engine.control import (
     KeyboardFocus,
     MediaCommand,
     MediaType,
+    NoTextFieldError,
     NowPlaying,
     PlayState,
     PowerState,
@@ -274,6 +275,10 @@ class PyatvController:
         await _guard(self._atv.apps.launch_app(app_id), "launch app")
 
     async def set_text(self, text: str) -> None:
+        # With no text field selected, the Apple TV ignores typed text and pyatv reports
+        # nothing, so check first and say so.
+        if not self.keyboard_focused():
+            raise NoTextFieldError()
         await _guard(self._atv.keyboard.text_set(text), "text entry")
 
     # --- push updates --------------------------------------------------------------

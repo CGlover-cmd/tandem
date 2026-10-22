@@ -104,6 +104,10 @@ On an Apple TV, **Apps** lists its apps (with a search box) and opens the one yo
 **Keyboard** types into the TV's text field. The keyboard opens by itself when the TV asks for
 text, such as in a search box.
 
+App icons are looked up on the App Store the first time the list opens and kept on this PC
+([ADR-0012](docs/adr/0012-app-icons-from-the-app-store.md)). This tells Apple which apps are on
+the TV; turn off **App icons** in Settings to show letters instead.
+
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear
 button at the top right.

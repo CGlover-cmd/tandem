@@ -61,6 +61,8 @@ BACKGROUNDS = NEUTRAL_BACKGROUNDS + GRADIENT_BACKGROUNDS
 class Appearance:
     theme: Theme = Theme.SYSTEM
     background: str = "mist"
+    app_icons: bool = True
+    """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:

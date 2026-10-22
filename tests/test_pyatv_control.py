@@ -25,6 +25,7 @@ from tandem.engine.control import (
     KeyboardFocus,
     MediaCommand,
     MediaType,
+    NoTextFieldError,
     PlayState,
     PowerState,
     RemoteKey,
@@ -246,7 +247,7 @@ async def test_now_playing_conversion() -> None:
 
 
 async def test_artwork_apps_and_errors() -> None:
-    controller, _ = _controller()
+    controller, atv = _controller()
     art = await controller.artwork(64, 64)
     assert art is not None
     assert (art.mimetype, art.width) == ("image/png", 64)
@@ -257,6 +258,9 @@ async def test_artwork_apps_and_errors() -> None:
     ]
     with pytest.raises(UnsupportedError):
         await controller.launch("com.example.video")
+    with pytest.raises(NoTextFieldError):  # no text field selected: say so, don't drop it
+        await controller.set_text("x")
+    atv.keyboard.text_focus_state = KeyboardFocusState.Focused
     with pytest.raises(ControlError, match="ProtocolError"):
         await controller.set_text("x")
 

@@ -94,7 +94,9 @@ export function TextEntry({ deviceId, asking, send, onClose }: Props) {
           </Button>
         </div>
       </TextField>
-      <p className="text-[11px] text-[var(--muted)]">{strings.typing.hint}</p>
+      <p className="text-[11px] text-[var(--muted)]">
+        {asking ? strings.typing.hint : strings.typing.selectFirst}
+      </p>
     </section>
   );
 }

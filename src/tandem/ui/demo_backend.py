@@ -110,15 +110,15 @@ DEMO_APPS = (
     AppInfo("com.example.tv", "TV"),
     AppInfo("com.example.music", "Music"),
     AppInfo("com.example.photos", "Photos"),
-    AppInfo("com.example.search", "Search"),
-    AppInfo("com.example.settings", "Settings"),
+    AppInfo("com.apple.TVSearch", "Search"),  # built into tvOS: the window draws these icons
+    AppInfo("com.apple.TVSettings", "Settings"),
     AppInfo("com.example.podcasts", "Podcasts"),
     AppInfo("com.example.nature", "Nature Hour"),
     AppInfo("com.example.arcade", "Arcade Classics"),
     AppInfo("com.example.fitness", "Fitness"),
     AppInfo("com.example.weather", "Weather Now"),
 )
-SEARCH_APP = "com.example.search"
+SEARCH_APP = "com.apple.TVSearch"
 
 
 class DemoBackend:
@@ -360,14 +360,20 @@ def _load_appearance(path: Path | None) -> Appearance:
         return Appearance()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return Appearance(Theme(data["theme"]), str(data["background"]))
+        return Appearance(
+            Theme(data["theme"]), str(data["background"]), bool(data.get("appIcons", True))
+        )
     except (OSError, ValueError, KeyError, TypeError):
         _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
         return Appearance()
 
 
 def _save_appearance(path: Path, appearance: Appearance) -> None:
-    data = {"theme": appearance.theme.value, "background": appearance.background}
+    data = {
+        "theme": appearance.theme.value,
+        "background": appearance.background,
+        "appIcons": appearance.app_icons,
+    }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data), encoding="utf-8")

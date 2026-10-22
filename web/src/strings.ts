@@ -108,6 +108,7 @@ export const strings = {
     label: "Text for your TV",
     asking: "Your TV is asking for text.",
     hint: "What you type appears in the text field on your TV.",
+    selectFirst: "Select a search box or text field on your TV first, then type here.",
     placeholder: "Type here",
     clear: "Clear",
   },
@@ -122,6 +123,8 @@ export const strings = {
     background: "Background",
     neutral: "Neutral",
     gradients: "Gradients",
+    appIcons: "App icons",
+    appIconsDetail: "Shows each Apple TV app's real icon, looked up on the App Store. Turn off to show letters instead.",
     done: "Done",
   },
 };
