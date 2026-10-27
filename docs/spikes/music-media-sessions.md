@@ -49,7 +49,7 @@ output is safe to paste.
 - A command's "accepted" result doesn't mean it did anything. Show only the controls the
   session says are enabled, and confirm by the next event rather than by the return value.
 - Titles and artists reach the engine, so they must go through `Redactor` in logs and
-  diagnostics like device names (ADR-0007, ADR-0012).
+  diagnostics like device names (ADR-0007, ADR-0013).
 - `playback_type` (music, video, image) needs the `winrt-Windows.Media` package too; add it
   when the adapter wants it.
 

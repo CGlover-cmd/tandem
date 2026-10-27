@@ -72,7 +72,7 @@ _Update this section at the end of every working session._
   retry is still unchecked on hardware. Next for the UI: the onboarding checklist.
 - **In parallel, Phase 6 Music (started, docs and spikes only):** a new phase after the
   multi-output router; the phases after it moved down by one. Boundaries in
-  [ADR-0012](adr/0012-music-integration-boundaries.md). Music spike 1: Windows' media controls
+  [ADR-0013](adr/0013-music-integration-boundaries.md). Music spike 1: Windows' media controls
   read and control the Apple Music app (status, timeline, artwork, play and pause, with change
   events and no polling) ([findings](spikes/music-media-sessions.md)). Music spike 2: inside
   Tandem's WebView2 window, Widevine (software) and PlayReady load and build licence
@@ -90,7 +90,7 @@ _Update this section at the end of every working session._
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
 - Music (Phase 6): now playing and remote control for any music app, Spotify through its Web
-  API, Apple Music browsing, and a player for local files and internet radio (ADR-0012)
+  API, Apple Music browsing, and a player for local files and internet radio (ADR-0013)
 - Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
 - Smart-home control of plugs, lamps and TV power (Phase 10)
 - Apple-inspired, accessible UI with a system tray menu; English first, translation-ready
@@ -231,7 +231,7 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries
 their sound, plus a player for local files and internet radio, plus Apple Music browsing.
-Boundaries in [ADR-0012](adr/0012-music-integration-boundaries.md): the official apps play
+Boundaries in [ADR-0013](adr/0013-music-integration-boundaries.md): the official apps play
 streamed music; Tandem never plays or records Spotify streams itself. Depends on Phase 4 and,
 for several speakers at once, Phase 5. (Added after Phase 5; the later phases moved down by
 one.)
@@ -298,7 +298,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Smart App Control blocks a newly released native npm binary in the front-end toolchain | Medium | Pin the last version that loads (`overrides` in `web/package.json`); end users never run Node |
 | WebView2 runtime missing on an older Windows 10 PC | Low | Ships with Windows 11 and with Edge on Windows 10; the Phase 9 installer adds Microsoft's bootstrapper |
-| Spotify tightens developer access again (it did in Nov 2024, Mar 2025, Feb 2026) | Medium | Spotify is a remote only and each user brings their own key (ADR-0012); now playing, the local player and radio don't depend on it |
-| Apple Music full tracks won't play in Tandem's window | Medium | Music spike 2: Widevine works in WebView2 on this PC; a token test decides. Fallback: browse in Tandem, play in the Apple Music app (ADR-0012) |
+| Spotify tightens developer access again (it did in Nov 2024, Mar 2025, Feb 2026) | Medium | Spotify is a remote only and each user brings their own key (ADR-0013); now playing, the local player and radio don't depend on it |
+| Apple Music full tracks won't play in Tandem's window | Medium | Music spike 2: Widevine works in WebView2 on this PC; a token test decides. Fallback: browse in Tandem, play in the Apple Music app (ADR-0013) |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |
 | Trademark complaint | Low | Neutral name, plain compatibility wording |

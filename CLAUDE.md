@@ -28,7 +28,7 @@ Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 - No timelines or duration estimates in the docs.
 - Test only on the reference devices in ROADMAP; other AirPlay devices on the network are excluded.
 - Phase 10 targets: smart plugs, smart lamps and TV power on/off.
-- Music (Phase 6, ADR-0012): Tandem is a remote for Spotify and Apple Music and its router
+- Music (Phase 6, ADR-0013): Tandem is a remote for Spotify and Apple Music and its router
   carries their sound; it never plays Spotify streams itself (no Web Playback SDK, no
   librespot). Spotify is Web API only, each user brings their own Client ID. Apple Music needs
   the maintainer's MusicKit key, which stays in `local/`.

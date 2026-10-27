@@ -28,7 +28,7 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 - Send videos and links to Apple TV
 - A Music tab: see and control what any music app is playing, browse Spotify and Apple Music,
   and play your own files and internet radio to your speakers
-  ([ADR-0012](docs/adr/0012-music-integration-boundaries.md)). Tandem is a remote for the
+  ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)). Tandem is a remote for the
   streaming apps; their sound reaches your speakers through Tandem's audio router
 - A clean, Apple-inspired interface that's accessible and works from the system tray
 

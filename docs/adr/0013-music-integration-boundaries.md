@@ -1,4 +1,4 @@
-# ADR-0012: Music integration boundaries
+# ADR-0013: Music integration boundaries
 
 - Status: Accepted (maintainer chose the "remote and router, plus Apple Music browsing" option)
 - Date: 2026-10-21

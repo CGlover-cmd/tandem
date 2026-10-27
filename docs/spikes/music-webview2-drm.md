@@ -70,7 +70,7 @@ should behave the same (the opener link is kept), but the token test will confir
   `tandem.ui.app` so that Apple's sign-in page opens in a WebView2 popup (only for Apple's
   sign-in origin), instead of pywebview's default of the system browser.
 - **Private mode stays.** Widevine works in it, and Tandem keeps the Apple Music user token in
-  its own vault (ADR-0012), so the web view doesn't need to remember it.
+  its own vault (ADR-0013), so the web view doesn't need to remember it.
 - Results are for this PC and this runtime. The Phase 9 installer's WebView2 bootstrapper
   installs the same Evergreen runtime, so other PCs should match; recheck on Windows 10 22H2.
 
