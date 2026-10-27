@@ -67,6 +67,7 @@ python -m tandem remote apple_tv up up select
 python -m tandem media apple_tv pause
 python -m tandem playing apple_tv --watch 30
 python -m tandem volume apple_tv up
+python -m tandem stream homepod --nth 1 --volume 30
 ```
 
 `pair`, `connect` and `forget` take a target: `all`, a kind (`apple_tv`, `homepod`, `receiver`),
@@ -80,6 +81,11 @@ The Apple TV commands connect, act and disconnect. `controls` lists what the dev
 now (it changes with what's playing). Media titles are hidden unless `--show-private` is given.
 An Apple TV that changes the TV's volume by infrared (its Volume Control setting) can't have
 its volume changed from Tandem; `volume` says so.
+
+`stream` sends whatever the PC is playing to one device until Ctrl+C (or `--seconds`), and
+prints how much audio went out. If the connection drops it picks up again when the device
+reconnects. For now the PC's own speakers keep playing too, and turning the PC's volume down
+also turns the stream down.
 
 Settings, the encrypted credential store and logs live in `%LOCALAPPDATA%\Tandem`.
 

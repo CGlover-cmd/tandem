@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from tandem.engine import diagnostics, pairing
+from tandem.engine.audio import AudioSink, AudioStats, PcmCapture
+from tandem.engine.audio_hub import AudioHub
 from tandem.engine.control import Controller, DeviceControls
 from tandem.engine.control_hub import ControlHub
 from tandem.engine.discovery import Discovery, Sleep
@@ -49,6 +51,14 @@ class Backend(Protocol):
 
     def controller(self, link: Link) -> Controller | None:
         """Remote and media controls on an open link; None if the device has none."""
+        ...
+
+    def audio_sink(self, link: Link) -> AudioSink | None:
+        """Streams PCM to the device on an open link; None if it takes no audio."""
+        ...
+
+    def capture(self) -> PcmCapture:
+        """A fresh capture of the PC's own audio."""
         ...
 
 
@@ -85,6 +95,7 @@ class Engine:
         )
         self._sessions: dict[str, ConnectionSession] = {}
         self._controls = ControlHub(self.bus, backend.controller, self._live_link)
+        self._audio = AudioHub(self.bus, backend.capture, backend.audio_sink, self._live_link)
 
     def _live_link(self, device_id: str) -> Link | None:
         session = self._sessions.get(device_id)
@@ -101,6 +112,7 @@ class Engine:
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
         await self.discovery.stop()
+        await self._audio.close()
         for device_id in list(self._sessions):
             await self.disconnect(device_id)
         await self._controls.close()
@@ -222,3 +234,28 @@ class Engine:
         return diagnostics.write_bundle(
             out_dir, self.redactor, devices=devices, settings=settings, log_dir=log_dir
         )
+
+    # --- System audio (Phase 4) ---------------------------------------------------------
+
+    async def start_audio(
+        self,
+        device_id: str,
+        *,
+        volume: float | None = None,
+        timeout: float | None = 30.0,
+    ) -> None:
+        """Connect if needed, then stream the PC's audio to the device until `stop_audio`.
+        The stream survives connection drops: it resumes when the device reconnects."""
+        if volume is not None and not 0 <= volume <= 100:
+            raise ValueError("volume must be between 0 and 100")
+        await self.connect(device_id, timeout=timeout)
+        self._audio.start(device_id, volume=volume)
+
+    async def stop_audio(self, device_id: str) -> None:
+        await self._audio.stop(device_id)
+
+    def audio_stats(self, device_id: str) -> AudioStats | None:
+        return self._audio.stats(device_id)
+
+    def streaming_audio(self, device_id: str) -> bool:
+        return self._audio.streaming(device_id)

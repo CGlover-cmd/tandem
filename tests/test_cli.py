@@ -304,3 +304,31 @@ def test_control_command_without_connection(tandem_home: Path, tv_backend: FakeB
 def test_control_command_needs_one_target(tandem_home: Path) -> None:
     backend = FakeBackend([SPEAKER, SPEAKER_2])
     assert "2 devices match" in _run(backend, "controls", "homepod", code=1)
+
+
+# --- Phase 4 stream command -------------------------------------------------------------
+
+
+def test_stream_for_a_few_seconds(tandem_home: Path, backend: FakeBackend) -> None:
+    output = _run(backend, "stream", "homepod", "--seconds", "0.3", "--stats-every", "0.1")
+    assert ": starting" in output
+    assert ": streaming" in output
+    assert "sent " in output
+    assert "underruns 0" in output
+    assert ": stopped" in output
+    assert "Living Room Speaker" not in output
+
+
+def test_stream_bad_volume(tandem_home: Path, backend: FakeBackend) -> None:
+    assert "volume must be between" in _run(backend, "stream", "homepod", "--volume", "200", code=1)
+
+
+def test_stream_device_without_audio(tandem_home: Path, backend: FakeBackend) -> None:
+    backend.audio_enabled = False
+    output = _run(backend, "stream", "homepod", "--seconds", "1", code=1)
+    assert "failed (NoAudioOutput)" in output
+
+
+def test_stream_without_connection(tandem_home: Path, backend: FakeBackend) -> None:
+    backend.connect_failures[SPEAKER.id] = [OSError()] * 20
+    assert "Could not connect" in _run(backend, "stream", "homepod", "--seconds", "1", code=1)

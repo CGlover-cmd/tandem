@@ -11,7 +11,10 @@ from pyatv.const import DeviceModel, PairingRequirement, Protocol
 from pyatv.interface import AppleTV, BaseConfig, DeviceListener, PairingHandler
 from pyatv.storage import AbstractStorage
 
+from tandem.engine.adapters.loopback import LoopbackCapture
+from tandem.engine.adapters.pyatv_audio import PyatvAudioSink
 from tandem.engine.adapters.pyatv_control import PyatvController
+from tandem.engine.audio import AudioSink, PcmCapture
 from tandem.engine.control import Controller
 from tandem.engine.models import Device, DeviceKind, Service
 from tandem.engine.pairing import PairingFactory, PairingHandle
@@ -217,3 +220,11 @@ class PyatvBackend:
         if isinstance(link, PyatvLink):
             return PyatvController(link.atv)
         return None
+
+    def audio_sink(self, link: Link) -> AudioSink | None:
+        if isinstance(link, PyatvLink):
+            return PyatvAudioSink(link.atv)
+        return None
+
+    def capture(self) -> PcmCapture:
+        return LoopbackCapture()
