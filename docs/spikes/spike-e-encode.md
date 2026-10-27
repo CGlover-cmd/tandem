@@ -93,7 +93,7 @@ Network transfer, the receiver's buffer and its display are not included.
 | GPU-only encode not reachable from PyAV | FFmpeg's `ddagrab` filter does work through PyAV and returns D3D11 GPU frames, and NVENC accepts D3D11 input. But PyAV gives no way to hand the encoder the frames' GPU context, so opening it fails | Not solved in the spike (see below) |
 | GPU scaling | FFmpeg's `scale_d3d11` filter could not create its output texture from `ddagrab` frames in this build | CPU scaling (libswscale), 14 ms per frame from 4K to 1080p |
 
-## What this means if mirroring is ever reopened (Phase 7)
+## What this means if mirroring is ever reopened (Phase 8)
 
 - **The encoder is not the bottleneck.** NVENC itself needs about 2.5 ms per 1080p frame and
   10 ms per 4K frame. Total time on the PC is about 60 ms, which leaves about 190 ms of the
