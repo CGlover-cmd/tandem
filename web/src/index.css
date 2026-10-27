@@ -423,7 +423,9 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 8px;
-/* Command bar (Phase 9a): a search-style sheet near the top of the window. */
+}
+
+/* Command bar (Phase 10a): a search-style sheet near the top of the window. */
 .command-bar {
   width: min(640px, calc(100vw - 32px));
 }
