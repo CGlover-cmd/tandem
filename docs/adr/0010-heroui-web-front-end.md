@@ -15,7 +15,7 @@ The front end has to sit beside a Python engine (pyatv, ADR-0001), keep a tray m
 GPL-3 compatible (ADR-0003), need no extra devices, run on Windows 10 22H2+ and 11, and meet
 the targets in the roadmap (cold start under 2 s, under 200 MB RAM while streaming). On the
 maintainer's PC, Smart App Control blocks unsigned executables we build ourselves until code
-signing arrives in Phase 8.
+signing arrives in Phase 9.
 
 ## Options
 
@@ -67,11 +67,11 @@ Option B.
 ## Consequences
 - Tandem becomes a web app in a native window: HeroUI's components and animation, and a much
   smaller install than Qt.
-- WebView2 is part of Windows 11 and is installed on Windows 10 with Edge; the Phase 8
+- WebView2 is part of Windows 11 and is installed on Windows 10 with Edge; the Phase 9
   installer adds Microsoft's WebView2 bootstrapper for the rare machine without it.
 - The UI is now TypeScript, so CI gains a Node job (type check, lint, Vitest, build).
 - Licences stay compatible with GPL-3: HeroUI, React, Tailwind, Vite and pythonnet are MIT,
   pywebview is BSD-3, pystray is LGPL-3, and WebView2 is an operating-system component.
 - The QML work in Phase 2 is replaced, but its contract, demo backend and ViewModel tests carry
   over.
-- Shipping our own `.exe` (Phase 8) is unchanged: Python plus web files either way.
+- Shipping our own `.exe` (Phase 9) is unchanged: Python plus web files either way.

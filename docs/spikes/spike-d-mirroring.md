@@ -4,7 +4,7 @@
 mirroring, but there is no open-source path to *send* it: pyatv streams audio and plays media
 URLs, not mirroring, and the mirroring video stream is keyed by FairPlay (the AirPlay
 `fp-setup` step), Apple's content protection. This spike deliberately does not implement or
-bypass FairPlay. Whether Phase 7 proceeds is a maintainer decision, captured in
+bypass FairPlay. Whether Phase 8 proceeds is a maintainer decision, captured in
 [ADR-0006](../adr/0006-screen-mirroring-fairplay.md).
 
 Script: [spikes/spike_d_mirror.py](../../spikes/spike_d_mirror.py)
@@ -30,13 +30,13 @@ Script: [spikes/spike_d_mirror.py](../../spikes/spike_d_mirror.py)
 |---|---|---|---|
 | Found by service, not name | Pass | Pass | UxPlay: AirPlay + RAOP, no Companion; Apple TV: AirPlay + Companion + RAOP |
 | Advertises screen mirroring | Yes | Yes | Both are mirroring receivers |
-| pyatv can send a media URL / file | Yes | Yes | `Stream.play_url` — this is Phase 6, not mirroring |
+| pyatv can send a media URL / file | Yes | Yes | `Stream.play_url` — this is Phase 7, not mirroring |
 | pyatv can stream audio | Yes | Yes | `Stream.stream_file` — Phase 4 |
 | **pyatv can send screen mirroring** | **No** | **No** | pyatv implements no mirroring *sender* |
 
 ## What this means for later phases
 
-- **Phase 7 (screen mirroring) is gated here, as the roadmap and risk register predicted.**
+- **Phase 8 (screen mirroring) is gated here, as the roadmap and risk register predicted.**
   The receiver side is willing; the sender side does not exist in our stack. To mirror, Tandem
   would have to speak the AirPlay mirroring protocol itself, and that protocol encrypts the
   video with a key set up through FairPlay (`fp-setup`). Open-source *receivers* (UxPlay,
@@ -45,10 +45,10 @@ Script: [spikes/spike_d_mirror.py](../../spikes/spike_d_mirror.py)
   Apple's content protection. For a public project that is both a legal risk and out of step
   with the project's values, so this spike stops at the boundary.
 - **This does not affect the rest of the app.** Discovery, pairing, Apple TV control (Spike A),
-  audio out (Spike B), loopback capture (Spike C) and sending media files/URLs (Phase 6) are
+  audio out (Spike B), loopback capture (Spike C) and sending media files/URLs (Phase 7) are
   all independent of FairPlay and remain feasible. Only screen mirroring is blocked.
 - **The decision is the maintainer's**, recorded in
-  [ADR-0006](../adr/0006-screen-mirroring-fairplay.md): shelve Phase 7 mirroring unless a
+  [ADR-0006](../adr/0006-screen-mirroring-fairplay.md): shelve Phase 8 mirroring unless a
   legitimate path appears (for example a signed virtual-display driver plus a receiver that
   takes an unprotected stream, or an officially sanctioned route), and keep building the
   FairPlay-free features that make up the alpha.
