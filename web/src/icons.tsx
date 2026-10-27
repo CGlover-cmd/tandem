@@ -258,6 +258,7 @@ export function ComputerIcon(props: IconProps) {
     <Svg {...props}>
       <rect x="3.5" y="4.5" width="17" height="11" rx="2" />
       <path d="M9 19.5h6M12 15.5v4" />
+      <path d="M15 15l5 5" />
     </Svg>
   );
 }

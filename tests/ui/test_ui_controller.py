@@ -9,6 +9,7 @@ import pytest
 from tandem.ui.backend import (
     MAX_TEXT,
     AppInfo,
+    CommandOutcome,
     ControlError,
     DeviceKind,
     DeviceSnapshot,
@@ -18,7 +19,7 @@ from tandem.ui.backend import (
     PairingFlow,
     RemoteKey,
 )
-from tandem.ui.controller import AppController
+from tandem.ui.controller import MAX_COMMAND, AppController
 from tandem.ui.demo_backend import WRONG_PIN, DemoBackend
 
 
@@ -741,3 +742,105 @@ async def test_malformed_app_icons_choice_is_ignored(backend: DemoBackend) -> No
     controller.handle({"type": "setAppearance", "appIcons": "yes"})
     await controller.runner.drain()
     assert controller.appearance.app_icons is True
+
+
+# Typed commands (Phase 10a)
+
+
+class _Commands:
+    """A command runner that echoes the text back; `gate` holds a run until released."""
+
+    def __init__(self) -> None:
+        self.ran: list[str] = []
+        self.gate: asyncio.Event | None = None
+        self.fail = False
+
+    def preview_command(self, text: str) -> CommandOutcome:
+        return CommandOutcome("ready", "pause", {"device": text})
+
+    async def run_command(self, text: str) -> CommandOutcome:
+        if self.gate is not None:
+            await self.gate.wait()
+        if self.fail:
+            raise ControlError("This device isn't connected.")
+        self.ran.append(text)
+        return CommandOutcome("done", "pause", {"device": text}, ("next",))
+
+
+async def test_command_preview_and_run(backend: DemoBackend) -> None:
+    runner = _Commands()
+    backend.commands = runner
+    controller = await _started(backend)
+
+    controller.handle({"type": "previewCommand", "text": "pause"})
+    preview = controller.snapshot()["commands"]
+    controller.handle({"type": "runCommand", "text": "pause"})
+    running = controller.snapshot()["commands"]["running"]
+    await controller.runner.drain()
+
+    assert preview["text"] == "pause"
+    assert preview["preview"] == {
+        "status": "ready",
+        "code": "pause",
+        "params": {"device": "pause"},
+        "suggestions": [],
+    }
+    assert running is True
+    state = controller.snapshot()["commands"]
+    assert state["running"] is False
+    assert state["result"]["status"] == "done"
+    assert state["result"]["suggestions"] == ["next"]
+    assert state["resultFor"] == "pause"
+    assert runner.ran == ["pause"]
+
+
+async def test_command_bar_ignores_bad_input(backend: DemoBackend) -> None:
+    runner = _Commands()
+    backend.commands = runner
+    controller = await _started(backend)
+
+    controller.handle({"type": "runCommand", "text": "   "})
+    controller.handle({"type": "runCommand", "text": "x" * (MAX_COMMAND + 1)})
+    controller.handle({"type": "previewCommand", "text": "x" * (MAX_COMMAND + 1)})
+    controller.handle({"type": "runCommand", "text": 5})
+    await controller.runner.drain()
+
+    assert runner.ran == []
+    assert controller.snapshot()["commands"]["preview"] is None
+
+
+async def test_closing_the_bar_drops_a_late_result(backend: DemoBackend) -> None:
+    runner = _Commands()
+    runner.gate = asyncio.Event()
+    backend.commands = runner
+    controller = await _started(backend)
+
+    controller.handle({"type": "runCommand", "text": "pause"})
+    await asyncio.sleep(0)
+    controller.handle({"type": "clearCommand"})
+    runner.gate.set()
+    await controller.runner.drain()
+
+    state = controller.snapshot()["commands"]
+    assert state == {
+        "text": "",
+        "preview": None,
+        "running": False,
+        "result": None,
+        "resultFor": "",
+    }
+
+
+async def test_a_backend_error_while_running_is_a_result(backend: DemoBackend) -> None:
+    runner = _Commands()
+    runner.fail = True
+    backend.commands = runner
+    controller = await _started(backend)
+
+    controller.handle({"type": "runCommand", "text": "pause"})
+    await controller.runner.drain()
+
+    result = controller.snapshot()["commands"]["result"]
+    assert result["status"] == "failed"
+    assert result["params"] == {"text": "This device isn't connected."}
+    assert controller.message is None

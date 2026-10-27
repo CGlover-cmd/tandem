@@ -1,12 +1,14 @@
-import { Button, Chip, Spinner, Toast, toast } from "@heroui/react";
+import { Button, Chip, Kbd, Spinner, Toast, toast } from "@heroui/react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
+import { isCommandShortcut } from "./commands";
+import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
-import { GearIcon, LogoMark } from "./icons";
+import { GearIcon, LogoMark, SearchIcon } from "./icons";
 import { problemText, strings } from "./strings";
 import { applyTheme, backgroundCss, findBackground, type Mode } from "./theme";
 import type { ThemeChoice } from "./types";
@@ -31,6 +33,7 @@ function resolveMode(choice: ThemeChoice, system: Mode): Mode {
 export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const remoteDevice = state?.devices.find((d) => d.id === remoteId) ?? null;
   const system = useSystemMode();
@@ -41,6 +44,17 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.reduceMotion = state?.reduceMotion ? "true" : "false";
   }, [state?.reduceMotion]);
+
+  // Ctrl+K opens the command bar from anywhere in the window.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!isCommandShortcut(event)) return;
+      event.preventDefault();
+      setCommandsOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Show the backend's messages as toasts, then tell it they've been seen.
   const message = state?.message;
@@ -78,6 +92,17 @@ export function App() {
                 {strings.demoBadge}
               </Chip>
             )}
+            <Button
+              variant="tertiary"
+              aria-label={strings.commands.open}
+              aria-keyshortcuts="Control+K"
+              onPress={() => setCommandsOpen(true)}
+              className="command-button"
+            >
+              <SearchIcon size={18} />
+              <span>{strings.commands.open}</span>
+              <Kbd className="command-kbd">{strings.commands.shortcut}</Kbd>
+            </Button>
             <Button
               isIconOnly
               variant="tertiary"
@@ -128,6 +153,14 @@ export function App() {
       )}
 
       {state && <PairingSheet pairing={state.pairing} send={send} />}
+      {state && (
+        <CommandBar
+          isOpen={commandsOpen}
+          onClose={() => setCommandsOpen(false)}
+          commands={state.commands}
+          send={send}
+        />
+      )}
       <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
       {state && (
         <SettingsSheet

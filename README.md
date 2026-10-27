@@ -11,6 +11,10 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > Screen mirroring was investigated and shelved: it is
 > gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
 > ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
+> A typed command bar (Ctrl+K) runs commands like "pause" or "volume 30 on the loft".
+> Tandem can't talk to Siri (there's no supported way from Windows), but Siri on a HomePod
+> will be able to drive Tandem through the Home app
+> ([ADR-0014](docs/adr/0014-commands-no-siri.md)).
 > The core engine (Phase 1) is done: discovery, pairing, connection handling, settings,
 > redacted logs and diagnostics, and an encrypted credential store, with a developer
 > command-line tool that pairs with and connects to Apple TV, HomePod mini and an AirPlay 2
@@ -31,6 +35,8 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
   ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)). Tandem is a remote for the
   streaming apps; their sound reaches your speakers through Tandem's audio router
 - A clean, Apple-inspired interface that's accessible and works from the system tray
+- Commands: type (later, say) what you want, such as "pause" or "open Music on the TV"
+- Works with the Home app: Siri on a HomePod and Home automations can drive Tandem
 
 Screen mirroring is **not** planned: it is gated by Apple's FairPlay content protection, with no
 legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
@@ -120,6 +126,24 @@ text, such as in a search box.
 App icons are looked up on the App Store the first time the list opens and kept on this PC
 ([ADR-0012](docs/adr/0012-app-icons-from-the-app-store.md)). This tells Apple which apps are on
 the TV; turn off **App icons** in Settings to show letters instead.
+
+Press **Ctrl+K** (or choose **Commands** at the top) to type a command. As you type, the line
+under the box says what Enter will do:
+
+```
+pause
+next on the patio
+volume 30 on loft
+set the den soundbar volume to 20
+louder
+open Music on the TV
+turn off the TV
+help
+```
+
+Device names can be partial ("loft", "liv") and forgive small typos. When a command could
+mean more than one device, Tandem asks which and lists the choices; pick one with the arrow
+keys and Enter. "send audio to ..." and "stop streaming" will work once audio streaming lands.
 
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear

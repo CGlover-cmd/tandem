@@ -7,6 +7,9 @@ Behaviour worth seeing in the UI:
 - the soundbar's first connection attempt fails, so the retry state shows;
 - the TV lists apps, and opening Search brings up its on-screen keyboard (Back closes it).
 
+Typed commands need the engine's parser, which the UI layer doesn't import, so `tandem.ui.app`
+plugs one in (`commands`, from `tandem.bridge.demo_commands`).
+
 The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
 given, so a background picked in Settings survives a restart.
 """
@@ -26,6 +29,8 @@ from tandem.ui.backend import (
     AppearanceChanged,
     AppInfo,
     BackendEvent,
+    CommandOutcome,
+    CommandRunner,
     ControlError,
     ControlsChanged,
     ControlsSnapshot,
@@ -129,7 +134,9 @@ class DemoBackend:
         delay: float = 0.6,
         retry_after: float = 2.0,
         appearance_file: Path | None = None,
+        commands: CommandRunner | None = None,
     ):
+        self.commands = commands
         self._sleep = sleep
         self._appearance_file = appearance_file
         self._appearance = _load_appearance(appearance_file)
@@ -344,6 +351,18 @@ class DemoBackend:
         if not self._live(device_id).text_entry:
             raise ControlError(CANT_DO_THAT)
         self.texts.append((device_id, text[:MAX_TEXT]))
+
+    # Typed commands
+
+    def preview_command(self, text: str) -> CommandOutcome:
+        if self.commands is None:
+            return CommandOutcome("notAvailable", "noCommands")
+        return self.commands.preview_command(text)
+
+    async def run_command(self, text: str) -> CommandOutcome:
+        if self.commands is None:
+            return CommandOutcome("notAvailable", "noCommands")
+        return await self.commands.run_command(text)
 
     def remove(self, device_id: str) -> None:
         """Forget a device, as if it left the network (used by tests)."""

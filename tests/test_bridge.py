@@ -439,3 +439,25 @@ async def test_typing_without_a_text_field_says_so(harness: Harness) -> None:
     with pytest.raises(ui.ControlError) as failed:
         await harness.backend.set_text(SPEAKER.id, "hi")
     assert str(failed.value) == bridge.NO_TEXT_FIELD
+
+
+# Typed commands (Phase 10a)
+
+
+async def test_typed_commands_preview_then_run(harness: Harness) -> None:
+    await _connected(harness)
+
+    preview = harness.backend.preview_command("volume 30 on speaker")
+    result = await harness.backend.run_command("volume 30 on speaker")
+
+    assert preview == ui.CommandOutcome(
+        "ready", "volumeSet", {"device": "Living Room Speaker", "level": "30"}
+    )
+    assert result.status == "done"
+    assert harness.fake.controllers[SPEAKER.id].calls == [("set_volume", 30.0)]
+
+
+async def test_typed_command_problems_reach_the_window(harness: Harness) -> None:
+    result = await harness.backend.run_command("pause on the tv")
+    assert result == ui.CommandOutcome("notAvailable", "notConnected", {"device": "Living Room TV"})
+    assert harness.backend.preview_command("blorp").status == "notUnderstood"

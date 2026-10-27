@@ -59,7 +59,11 @@ def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
     backend: Backend
     icons: AppIconStore | None = None
     if args.demo:  # invented apps: nothing to look up
-        backend = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
+        from tandem.bridge import demo_commands
+
+        demo = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
+        demo.commands = demo_commands(demo)
+        backend = demo
     else:  # pragma: no cover - needs the network
         from tandem.bridge import create_engine_backend
 
