@@ -1,0 +1,99 @@
+name: Installer
+
+# Builds the Windows installer on every pull request and push to main (so packaging can't rot),
+# smoke-tests it by installing it on the runner, and publishes a GitHub release for a "v*" tag.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    permissions:
+      contents: write # only used by the release step, which runs for tags
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build the front end
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          cache: pip
+      - name: Build the wheel
+        run: |
+          python -m pip install build -e ".[ui]"
+          python -m build --wheel
+
+      - name: Read the version
+        id: version
+        shell: bash
+        run: echo "version=$(python -c 'import tandem; print(tandem.__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Build the app folder
+        shell: bash
+        run: python packaging/build_bundle.py --wheel dist/tandem-*.whl --out build/Tandem --python-version 3.11.9
+
+      - name: Smoke-test the app folder
+        run: python packaging/build_bundle.py --smoke build/Tandem
+
+      - name: Fetch the WebView2 bootstrapper
+        shell: pwsh
+        run: Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile build/MicrosoftEdgeWebview2Setup.exe
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" packaging\tandem.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install, smoke-test and uninstall
+        shell: pwsh
+        run: |
+          $setup = "dist\Tandem-${{ steps.version.outputs.version }}-setup.exe"
+          Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          netsh advfirewall firewall show rule name="Tandem" | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Error "The installer didn't add the firewall rule"; exit 1 }
+          Start-Process "$env:ProgramFiles\Tandem\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          if (Test-Path "$env:ProgramFiles\Tandem\python") { Write-Error "Uninstall left files"; exit 1 }
+
+      - name: Portable zip
+        shell: pwsh
+        run: Compress-Archive -Path build\Tandem\* -DestinationPath "dist\Tandem-${{ steps.version.outputs.version }}-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tandem-${{ steps.version.outputs.version }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.whl
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.zip dist/*.whl \
+            --title "Tandem ${{ steps.version.outputs.version }}" \
+            --notes-file docs/release-notes.md --prerelease
