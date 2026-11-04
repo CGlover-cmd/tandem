@@ -382,7 +382,10 @@ def _load_appearance(path: Path | None) -> Appearance:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return Appearance(
-            Theme(data["theme"]), str(data["background"]), bool(data.get("appIcons", True))
+            Theme(data["theme"]),
+            str(data["background"]),
+            bool(data.get("appIcons", True)),
+            bool(data.get("onboarded", False)),
         )
     except (OSError, ValueError, KeyError, TypeError):
         _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
@@ -394,6 +397,7 @@ def _save_appearance(path: Path, appearance: Appearance) -> None:
         "theme": appearance.theme.value,
         "background": appearance.background,
         "appIcons": appearance.app_icons,
+        "onboarded": appearance.onboarded,
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

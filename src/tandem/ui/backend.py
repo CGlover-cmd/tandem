@@ -63,6 +63,8 @@ class Appearance:
     background: str = "mist"
     app_icons: bool = True
     """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
+    onboarded: bool = False
+    """The first-run checklist has been closed (it opens by itself until then)."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:

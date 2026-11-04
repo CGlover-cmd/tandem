@@ -22,7 +22,8 @@ _Update this section at the end of every working session._
   - Phase 6: Tandem's own player (local files, internet radio) and reading and controlling
     what the PC plays through Windows' media controls.
   - Phase 7: send a video file or link to the Apple TV.
-- **Next:** wire Phases 5–7 into the window; fix the HomePod mini's ~5 s lag (needed for
+- **2026-11-04 later:** the window now has an **Audio** panel (outputs, volume, delay, source) and **Send** on a connected Apple TV (file picker or link), checked in the demo window; the command bar sends and stops audio. An `onboarded` flag is in settings for the first-run checklist, whose sheet isn't built yet.
+- **Next:** the onboarding checklist sheet; the Home bridge; the installer and release workflow; then wire anything left of Phases 5–7 into the window; fix the HomePod mini's ~5 s lag (needed for
   Phase 5 sync); then the open hardware checks, and a v0.1 alpha release with the untested
   items listed in its notes.
 - **Repo note:** work happens on `claude/project-thread-y59f3u`, which merges PRs #8, #10 and #11.

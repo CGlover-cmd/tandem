@@ -79,6 +79,7 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "theme": "system",
         "background": "mist",
         "appIcons": True,
+        "onboarded": False,
     }
     assert snapshot["pairing"]["state"] == "closed"
     assert snapshot["demo"] is True
@@ -324,6 +325,7 @@ async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
         "theme": "dark",
         "background": "sky",
         "appIcons": True,
+        "onboarded": False,
     }
 
 
@@ -340,6 +342,7 @@ async def test_unknown_appearance_is_ignored(
         "theme": "system",
         "background": "mist",
         "appIcons": True,
+        "onboarded": False,
     }
     assert "unknown appearance" in caplog.text
 
@@ -720,7 +723,7 @@ async def test_launcher_shows_icons_when_allowed(backend: DemoBackend) -> None:
     await controller.runner.drain()
     assert len(icons.asked) == 1  # no lookups while switched off
 
-    controller.handle({"type": "setAppearance", "appIcons": True})
+    controller.handle({"type": "setAppearance", "appIcons": True, "onboarded": False})
     await controller.runner.drain()
     assert len(icons.asked) == 2
     await controller.stop()

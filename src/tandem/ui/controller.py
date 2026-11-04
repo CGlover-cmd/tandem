@@ -379,6 +379,7 @@ class AppController:
                 "theme": self.appearance.theme.value,
                 "background": self.appearance.background,
                 "appIcons": self.appearance.app_icons,
+                "onboarded": self.appearance.onboarded,
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
@@ -474,9 +475,13 @@ class AppController:
             self._text_sending.add(device_id)
             self.runner.run(self._send_text(device_id))
 
-    def set_appearance(self, theme: str, background: str, app_icons: bool = True) -> None:
+    def set_appearance(
+        self, theme: str, background: str, app_icons: bool = True, onboarded: bool | None = None
+    ) -> None:
+        if onboarded is None:
+            onboarded = self.appearance.onboarded
         try:
-            appearance = Appearance(Theme(theme), background, app_icons)
+            appearance = Appearance(Theme(theme), background, app_icons, onboarded)
         except ValueError:
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
@@ -536,12 +541,14 @@ class AppController:
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
             app_icons = command.get("appIcons", self.appearance.app_icons)
+            onboarded = command.get("onboarded", self.appearance.onboarded)
             if (
                 isinstance(theme, str)
                 and isinstance(background, str)
                 and isinstance(app_icons, bool)
+                and isinstance(onboarded, bool)
             ):
-                self.set_appearance(theme, background, app_icons)
+                self.set_appearance(theme, background, app_icons, onboarded)
         elif isinstance(kind, str) and self.audio.handle(kind, command):
             pass
         else:
