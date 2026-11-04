@@ -111,7 +111,9 @@ class EngineBackend(EngineAudio):
         self._listeners: list[ui.Listener] = []
         self._links: dict[str, _Link] = {}
         self._status: dict[str, ec.ControlStatus] = {}
-        self._commands = CommandDispatcher(EngineCommandServices(engine))
+        self._commands = CommandDispatcher(
+            EngineCommandServices(engine, start_output=self._start_from_command)
+        )
         bus = engine.bus
         self._unsubscribe = [
             bus.subscribe(DeviceEvent, self._on_device),
@@ -234,6 +236,9 @@ class EngineBackend(EngineAudio):
 
     async def run_command(self, text: str) -> ui.CommandOutcome:
         return _outcome(await self._commands.run(text))
+
+    async def _start_from_command(self, output_id: str) -> None:
+        await self.set_output(output_id, True)
 
     # Engine events
 
@@ -481,6 +486,7 @@ class _DemoServices:
     def __init__(self, backend: DemoBackend) -> None:
         self._backend = backend
         self.launched: list[str] = []
+        self._last_audio: tuple[str, ...] = ()
 
     def targets(self) -> list[TargetState]:
         states: list[TargetState] = []
@@ -550,6 +556,31 @@ class _DemoServices:
 
     async def set_switch(self, switch_id: str, on: bool) -> None:
         raise ActionError(Code.CANT_DO_THAT)
+
+    def audio_targets(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.kind is ui.OutputKind.AIRPLAY
+        )
+
+    def streaming(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.state is not ui.OutputState.OFF
+        )
+
+    def last_audio(self) -> tuple[str, ...]:
+        return self._last_audio
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None:
+        self._last_audio = tuple(device_ids)
+        for device_id in device_ids:
+            try:
+                await self._backend.set_output(device_id, True)
+            except ui.AudioError:
+                raise ActionError(Code.CANT_DO_THAT) from None
+
+    async def stop_audio(self) -> None:
+        for output_id in self.streaming():
+            await self._backend.set_output(output_id, False)
 
 
 async def _demo(command: Awaitable[None]) -> None:

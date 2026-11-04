@@ -71,6 +71,8 @@ class Code:
     POWER_OFF = "powerOff"
     SWITCH_ON = "switchOn"
     SWITCH_OFF = "switchOff"
+    SEND_AUDIO = "sendAudio"
+    STOP_STREAMING = "stopStreaming"
     HELP = "help"
     # Problems
     WHICH_DEVICE = "whichDevice"
@@ -81,6 +83,8 @@ class Code:
     NO_VOLUME = "noVolume"
     UNKNOWN_APP = "unknownApp"
     AUDIO_NOT_YET = "audioNotYet"
+    NOT_STREAMING = "notStreaming"
+    NO_SPEAKER = "noSpeaker"
     SWITCHES_NOT_YET = "switchesNotYet"
     UNKNOWN_SWITCH = "unknownSwitch"
     NO_RESPONSE = "noResponse"
@@ -153,6 +157,22 @@ class CommandServices(Protocol):
     async def apps(self, device_id: str) -> Sequence[AppChoice]: ...
     async def launch(self, device_id: str, app_id: str) -> None: ...
     async def set_switch(self, switch_id: str, on: bool) -> None: ...
+
+    # Sending the PC's audio (Phases 4 and 5)
+    def audio_targets(self) -> frozenset[str]:
+        """Devices that can play the PC's audio."""
+        ...
+
+    def streaming(self) -> frozenset[str]:
+        """Outputs playing the PC's audio now."""
+        ...
+
+    def last_audio(self) -> tuple[str, ...]:
+        """The devices audio was last sent to, for a bare "send audio"."""
+        ...
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None: ...
+    async def stop_audio(self) -> None: ...
 
 
 # --- The dispatcher ----------------------------------------------------------------------
@@ -236,9 +256,43 @@ class CommandDispatcher:
             return self._open_app(parsed, states)
         if isinstance(parsed, Turn):
             return self._turn(parsed, states)
-        # SendAudio and StopStreaming: streaming isn't in the engine yet (Phase 4).
-        assert isinstance(parsed, SendAudio | StopStreaming)
-        return CommandResult(Outcome.NOT_AVAILABLE, Code.AUDIO_NOT_YET)
+        if isinstance(parsed, SendAudio):
+            return self._send_audio(parsed, states)
+        assert isinstance(parsed, StopStreaming)
+        if not self._services.streaming():
+            return CommandResult(Outcome.NOT_AVAILABLE, Code.NOT_STREAMING)
+        return _Plan(Code.STOP_STREAMING, {}, lambda: _done(self._services.stop_audio()))
+
+    def _send_audio(self, intent: SendAudio, states: list[TargetState]) -> _Plan | CommandResult:
+        audio = self._services.audio_targets()
+        speakers = [s.target for s in states if s.target.id in audio]
+        if intent.everywhere:
+            chosen = speakers
+        elif intent.devices:
+            for target in intent.devices:
+                if target.id not in audio:
+                    return CommandResult(
+                        Outcome.NOT_AVAILABLE, Code.CANT_DO_THAT, {"device": target.name}
+                    )
+            chosen = list(intent.devices)
+        else:
+            last = set(self._services.last_audio())
+            chosen = [t for t in speakers if t.id in last]
+            if not chosen and len(speakers) == 1:
+                chosen = speakers
+            elif not chosen and speakers:
+                return CommandResult(
+                    Outcome.NEEDS_INFO,
+                    Code.WHICH_DEVICE,
+                    suggestions=tuple(f"send audio to {t.name}" for t in speakers[:5]),
+                )
+        if not chosen:
+            return CommandResult(Outcome.NOT_AVAILABLE, Code.NO_SPEAKER)
+        ids = [t.id for t in chosen]
+        names = ", ".join(t.name for t in chosen)
+        return _Plan(
+            Code.SEND_AUDIO, {"devices": names}, lambda: _done(self._services.start_audio(ids))
+        )
 
     def _problem(self, problem: Problem, switches: list[SwitchState]) -> CommandResult:
         if problem.code is ProblemCode.EMPTY:
@@ -434,8 +488,39 @@ def _volume_fallback(
 class EngineCommandServices:
     """`CommandServices` on `Engine`: devices from the registry, actions on their controls."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        start_output: Callable[[str], Awaitable[None]] | None = None,
+    ) -> None:
         self._engine = engine
+        self._start_output = start_output
+        self._last: tuple[str, ...] = ()
+
+    def audio_targets(self) -> frozenset[str]:
+        return frozenset(d.id for d in self._engine.registry.devices() if d.can_play_audio)
+
+    def streaming(self) -> frozenset[str]:
+        return frozenset(self._engine.outputs_on())
+
+    def last_audio(self) -> tuple[str, ...]:
+        return self._last
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None:
+        self._last = tuple(device_ids)
+        for device_id in device_ids:
+            try:
+                if self._start_output is not None:
+                    await self._start_output(device_id)
+                else:
+                    await self._engine.start_output(device_id)
+            except Exception as error:
+                raise _audio_error(error) from None
+
+    async def stop_audio(self) -> None:
+        for output_id in list(self._engine.outputs_on()):
+            await self._engine.stop_output(output_id)
 
     def targets(self) -> list[TargetState]:
         states: list[TargetState] = []
@@ -538,6 +623,14 @@ async def _act(command: Awaitable[None]) -> None:
         await command
     except Exception as error:
         raise _action_error(error) from None
+
+
+def _audio_error(error: Exception) -> ActionError:
+    if isinstance(error, ActionError):
+        return error
+    # Starting an output connects first: any failure here means the device didn't answer.
+    _LOGGER.info("Sending audio from a command failed (%s)", type(error).__name__)
+    return ActionError(Code.NO_RESPONSE)
 
 
 def _action_error(error: Exception) -> ActionError:

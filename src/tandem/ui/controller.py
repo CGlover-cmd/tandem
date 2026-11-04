@@ -550,6 +550,8 @@ class AppController:
     # Internals
 
     def _on_event(self, event: BackendEvent) -> None:
+        if isinstance(event, DeviceUpdated | DeviceRemoved):
+            self.audio.audio = self._backend.audio()  # outputs follow the device list
         match event:
             case DeviceUpdated(device=device):
                 self._devices[device.id] = device
