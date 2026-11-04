@@ -646,3 +646,28 @@ h2 {
   border-radius: 16px;
   padding: 10px 14px;
 }
+
+/* Getting started: one rounded row per step, with a numbered or ticked mark. */
+.onboarding-step {
+  list-style: none;
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+
+.step-mark {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--field-background);
+}
+
+.step-mark[data-done] {
+  background: var(--success);
+  color: #ffffff;
+}

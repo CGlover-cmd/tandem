@@ -163,3 +163,13 @@ async def test_window_picker_without_a_window_returns_nothing() -> None:
 
     picker = WindowFilePicker()
     assert await picker.pick_video() is None
+
+
+async def test_closing_the_checklist_is_remembered(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    assert controller.snapshot()["appearance"]["onboarded"] is False
+    controller.handle({"type": "setAppearance", "onboarded": True})
+    controller.handle({"type": "setAppearance", "onboarded": "yes"})  # bad: ignored
+    await controller.runner.drain()
+    assert controller.snapshot()["appearance"]["onboarded"] is True
+    assert controller.snapshot()["appearance"]["background"] == "mist"  # kept

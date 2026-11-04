@@ -153,7 +153,9 @@ class EngineBackend(EngineAudio):
         background = settings.background
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
-        return ui.Appearance(ui.Theme(settings.theme.value), background, settings.app_icons)
+        return ui.Appearance(
+            ui.Theme(settings.theme.value), background, settings.app_icons, settings.onboarded
+        )
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
         status = self._status.get(device_id)
@@ -266,6 +268,7 @@ class EngineBackend(EngineAudio):
             theme=EngineTheme(appearance.theme.value),
             background=appearance.background,
             app_icons=appearance.app_icons,
+            onboarded=appearance.onboarded,
         )
 
     def preview_command(self, text: str) -> ui.CommandOutcome:
