@@ -14,6 +14,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar
 
+from tandem.bridge_audio import EngineAudio
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.command_dispatch import (
@@ -31,6 +32,7 @@ from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
 from tandem.engine.models import DeviceKind as EngineKind
+from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
@@ -92,7 +94,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend:
+class EngineBackend(EngineAudio):
     def __init__(
         self,
         engine: Engine,
@@ -100,6 +102,7 @@ class EngineBackend:
         *,
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
+        output_prefs: OutputPrefsStore | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -116,6 +119,7 @@ class EngineBackend:
             bus.subscribe(SettingsChanged, self._on_settings),
             bus.subscribe(ec.ControlEvent, self._on_control),
         ]
+        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
 
     # Observing
 
@@ -573,10 +577,12 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     bus = EventBus()
     store = SettingsStore(paths.settings_file(), bus)
     settings = store.load()
+    prefs = OutputPrefsStore(paths.data_dir() / "outputs.json")
+    prefs.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
         redactor=redactor,
         discovery_interval=settings.discovery_interval_s,
     )
-    return EngineBackend(engine, store)
+    return EngineBackend(engine, store, output_prefs=prefs)

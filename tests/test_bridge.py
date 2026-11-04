@@ -118,7 +118,7 @@ async def test_a_failing_first_scan_still_finishes_discovery(
 
 async def test_a_lost_device_is_removed(harness: Harness) -> None:
     harness.engine.bus.publish(DeviceLost(SPEAKER))
-    assert harness.events[-1] == ui.DeviceRemoved(SPEAKER.id)
+    assert ui.DeviceRemoved(SPEAKER.id) in harness.events
 
 
 async def test_unsubscribe_stops_events(harness: Harness) -> None:

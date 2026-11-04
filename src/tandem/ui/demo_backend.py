@@ -52,6 +52,7 @@ from tandem.ui.backend import (
     Volume,
     WrongPinError,
 )
+from tandem.ui.demo_audio import DemoAudio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ DEMO_APPS = (
 SEARCH_APP = "com.apple.TVSearch"
 
 
-class DemoBackend:
+class DemoBackend(DemoAudio):
     def __init__(
         self,
         *,
@@ -150,6 +151,7 @@ class DemoBackend:
         self.presses: list[tuple[str, RemoteKey, KeyAction]] = []
         self.launched: list[tuple[str, str]] = []
         self.texts: list[tuple[str, str]] = []
+        self._init_audio()
 
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)

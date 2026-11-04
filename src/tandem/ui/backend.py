@@ -203,8 +203,88 @@ class CommandRunner(Protocol):
     async def run_command(self, text: str) -> CommandOutcome: ...
 
 
+# --- Audio outputs (Phases 4 and 5) and sending media (Phase 7) -------------------------
+
+
+class OutputKind(Enum):
+    AIRPLAY = "airplay"  # an AirPlay device, by its device id
+    PC = "pc"  # one of the PC's own sound outputs
+
+
+class OutputState(Enum):
+    OFF = "off"
+    STARTING = "starting"
+    STREAMING = "streaming"
+    WAITING = "waiting"  # the connection dropped; it resumes on reconnect
+    FAILED = "failed"
+
+
+class AudioSourceChoice(Enum):
+    SYSTEM = "system"  # whatever the PC plays
+    PLAYER = "player"  # Tandem's own player (files and radio)
+
+
+MAX_DELAY_MS = 10_000
+
+
+@dataclass(frozen=True, slots=True)
+class OutputSnapshot:
+    """One place the sound can go. `name` is shown on screen, never logged."""
+
+    id: str
+    name: str
+    kind: OutputKind
+    state: OutputState = OutputState.OFF
+    volume: float | None = None
+    """0 to 100; None until the user sets it (the device keeps its own volume)."""
+    delay_ms: int = 0
+    """Extra delay for this output, to line it up with the others by ear."""
+    device_kind: DeviceKind | None = None
+    needs_pairing: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class AudioSnapshot:
+    source: AudioSourceChoice = AudioSourceChoice.SYSTEM
+    outputs: tuple[OutputSnapshot, ...] = ()
+    pc_outputs_hidden: bool = False
+    """The PC's default output is left out because it would echo (system audio as source)."""
+
+
+@dataclass(frozen=True, slots=True)
+class AudioChanged:
+    audio: AudioSnapshot
+
+
+class SendState(Enum):
+    STARTING = "starting"
+    PLAYING = "playing"
+    ENDED = "ended"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class SendSnapshot:
+    """What was last sent to a device. `title` is a file name or link host: never logged."""
+
+    state: SendState
+    title: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SendChanged:
+    device_id: str
+    send: SendSnapshot | None
+
+
 BackendEvent = (
-    DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged | ControlsChanged
+    DeviceUpdated
+    | DeviceRemoved
+    | DiscoveryChanged
+    | AppearanceChanged
+    | ControlsChanged
+    | AudioChanged
+    | SendChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -212,6 +292,14 @@ Unsubscribe = Callable[[], None]
 
 class BackendError(Exception):
     """A command didn't work. `str(error)` is safe to show the user; it holds no private data."""
+
+
+class MediaError(BackendError):
+    """Sending media didn't work."""
+
+
+class AudioError(BackendError):
+    """An output couldn't be turned on or changed."""
 
 
 class PairingError(BackendError):
@@ -311,3 +399,29 @@ class Backend(Protocol):
         """Run a typed command ("pause", "volume 30 on loft"). Problems are outcomes, not
         errors."""
         ...
+
+    # Audio outputs and sending media
+
+    def audio(self) -> AudioSnapshot: ...
+
+    async def set_output(self, output_id: str, on: bool) -> None:
+        """Turn an output on (connecting an AirPlay device if needed) or off. Raises
+        `AudioError`."""
+        ...
+
+    async def set_output_volume(self, output_id: str, level: float) -> None: ...
+
+    async def set_output_delay(self, output_id: str, delay_ms: int) -> None: ...
+
+    async def set_audio_source(self, source: AudioSourceChoice) -> None: ...
+
+    def send(self, device_id: str) -> SendSnapshot | None:
+        """What was last sent to the device, while it's playing or just after."""
+        ...
+
+    async def send_media(self, device_id: str, location: str) -> None:
+        """Play a link or a file on this PC on an Apple TV. Raises `MediaError`. The location
+        is personal: never log it."""
+        ...
+
+    async def stop_media(self, device_id: str) -> None: ...
