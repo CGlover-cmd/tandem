@@ -49,6 +49,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 ## Environment
 - Dev virtualenv lives OUTSIDE the OneDrive-synced project: `%USERPROFILE%\.venvs\tandem-dev`
   (Python 3.11). Run tools via `%USERPROFILE%\.venvs\tandem-dev\Scripts\python.exe`.
+- `.git` is in OneDrive and a crash once zeroed a branch ref and the index. Commit and push work
+  in progress before ending any working block. Repair: take the last SHA from
+  `.git/logs/refs/heads/<branch>`, write it to the ref, delete `.git/index`, run `git reset`.
 - pip must use the Windows certificate store (HTTPS inspection on this machine). pip ≥ 24.2 does
   this by default; on older pip pass `--use-feature=truststore`.
 - Windows Smart App Control is ON. It blocks unsigned executables, including pip's console-script

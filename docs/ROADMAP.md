@@ -14,8 +14,20 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
-- **Current phase:** 3, Apple TV control (engine side). Phase 0 is complete (see the
-  [go/no-go table](spikes/phase-0-summary.md)) and so is Phase 1.
+- **Current state (2026-11-04):** Phases 0 and 1 are complete (see the
+  [go/no-go table](spikes/phase-0-summary.md)). Phases 2–4 and 10a are built, with some hardware
+  checks open (see each phase). The engine side of Phases 5, 6 and 7 is built and unit-tested,
+  but has no UI and no hardware checks yet ([ADR-0015](adr/0015-local-outputs-and-media-send.md)):
+  - Phase 5: PC sound devices as outputs next to AirPlay, with per-output volume and delay.
+  - Phase 6: Tandem's own player (local files, internet radio) and reading and controlling
+    what the PC plays through Windows' media controls.
+  - Phase 7: send a video file or link to the Apple TV.
+- **Next:** wire Phases 5–7 into the window; fix the HomePod mini's ~5 s lag (needed for
+  Phase 5 sync); then the open hardware checks, and a v0.1 alpha release with the untested
+  items listed in its notes.
+- **Repo note:** work happens on `claude/project-thread-y59f3u`, which merges PRs #8, #10 and #11.
+  A crash on 2026-10-27 corrupted this branch's git files; it was repaired and pushed on
+  2026-11-04 with no work lost.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
