@@ -16,6 +16,33 @@ export const strings = {
     "Make sure your Apple TV or speakers are on and connected to the same network as this PC.",
   settings: "Settings",
   reconnecting: "Reconnecting to Tandem…",
+
+  tabs: {
+    label: "Sections",
+    devices: "Devices",
+    music: "Music",
+  },
+
+  music: {
+    title: "Music",
+    subtitle: "What's playing on this PC, from any app",
+    nothingTitle: "Nothing is playing on this PC",
+    nothingBody:
+      "Play something in Spotify, Apple Music, a browser or any other app, and it shows up here. Tandem controls the app; the app plays the music.",
+    untitled: "Playing now",
+    from: (app: string) => `Playing in ${app}`,
+    anApp: "an app on this PC",
+    play: "Play",
+    pause: "Pause",
+    next: "Next",
+    previous: "Previous",
+    position: "Position",
+    of: (at: string, length: string) => `${at} of ${length}`,
+    live: "Live",
+    openMusic: "Open Music",
+    bar: (title: string) => `Now playing: ${title}. Open Music`,
+    note: "Tandem is a remote for the app that's playing. To hear it on your speakers, send the PC's audio to them.",
+  },
   dismiss: "Dismiss",
 
   kind: {

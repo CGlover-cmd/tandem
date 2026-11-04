@@ -20,7 +20,9 @@ _Update this section at the end of every working session._
   but has no UI and no hardware checks yet ([ADR-0015](adr/0015-local-outputs-and-media-send.md)):
   - Phase 5: PC sound devices as outputs next to AirPlay, with per-output volume and delay.
   - Phase 6: Tandem's own player (local files, internet radio) and reading and controlling
-    what the PC plays through Windows' media controls.
+    what the PC plays through Windows' media controls. Now playing is in the window too: a
+    **Music** tab, a now-playing bar on the other tabs, and play/pause and next in the tray
+    menu, following any app's track changes without polling.
   - Phase 7: send a video file or link to the Apple TV.
 - **Next:** wire Phases 5–7 into the window; fix the HomePod mini's ~5 s lag (needed for
   Phase 5 sync); then the open hardware checks, and a v0.1 alpha release with the untested
@@ -96,10 +98,11 @@ _Update this section at the end of every working session._
   Tandem's WebView2 window, Widevine (software) and PlayReady load and build licence
   requests, so full-track MusicKit JS playback is possible in principle; sign-in popups need
   Tandem to stop pywebview sending new windows to the browser
-  ([findings](spikes/music-webview2-drm.md)). **Next for Music:** check a browser with the
-  media-sessions spike (the maintainer accepted the Apple Music result for the Spotify app
-  too, so Spotify isn't tested separately); a MusicKit JS test with a real developer token
-  (needs the maintainer's Apple Developer membership).
+  ([findings](spikes/music-webview2-drm.md)). Now playing is built: Music tab, bar and tray
+  controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
+  (needs a paid Apple Developer membership; resumes if the maintainer joins). **Next for Music:** the now-playing bar's
+  Apple Music check (the app was closed during the browser check), then the local player
+  and radio in the window.
 
 ## Scope
 
@@ -109,7 +112,8 @@ _Update this section at the end of every working session._
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
 - Music (Phase 6): now playing and remote control for any music app, Spotify through its Web
-  API, Apple Music browsing, and a player for local files and internet radio (ADR-0013)
+  API, and a player for local files and internet radio (ADR-0013). Apple Music browsing is on
+  hold until the maintainer has an Apple Developer membership
 - Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
 - Smart home and commands (Phase 10): a typed command bar, Tandem as a Home bridge, offline
   voice input, and control of plugs, lamps and TV power
@@ -260,21 +264,35 @@ one.)
   **Exit:** all three show the right title and artwork and obey the controls.
   Started: the Apple Music app passes ([findings](spikes/music-media-sessions.md)). The
   maintainer accepted that result for the Spotify app too (both report through the same
-  Windows media controls), so Spotify isn't tested separately; a browser is still to check.
+  Windows media controls), so Spotify isn't tested separately. A browser's titles and change
+  events were checked with the now-playing bar below; its controls are still to try.
 - [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
-  **Exit:** it updates within a second of a track change.
+  **Exit:** it updates within a second of a track change, with the Apple Music app and with a
+  browser tab. Built: a **Music** tab (artwork, title, artist and album, a position slider
+  when the app allows seeking, previous / play-pause / next), a compact bar on the other tabs
+  and play/pause and next in the tray menu. Light and dark, checked with the demo's invented
+  music. **Browser: passed** with a quiet test-tone page changing track every 12 s: every
+  change reached the window within Windows' clock resolution (about 16 ms)
+  (`spikes/now_playing_latency.py`). That check found and fixed two browser quirks: a session
+  briefly vanishing on a track change (now a 1 s grace instead of the bar blinking out) and a
+  session re-made with the same app id (now re-hooked every time). **Apple Music: to run**;
+  the app was closed, and Tandem doesn't start it (it would play from the maintainer's
+  account).
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.
-- [ ] Spike: Apple Music in Tandem's window. Can MusicKit JS sign in and play full tracks in
-  WebView2? **Exit:** a go or no-go, recorded in an ADR. Started: the copy-protection check
-  passed and sign-in popups need a small host change; a test with a real developer token is
-  next ([findings](spikes/music-webview2-drm.md)).
-- [ ] Apple Music browsing (only on a go): catalog and library browsing; playback handed to the
-  Apple Music app unless the spike shows full tracks play in the window.
+- [ ] **On hold** (needs a paid Apple Developer membership; resumes if the maintainer joins). Spike: Apple Music in
+  Tandem's window. Can MusicKit JS sign in and play full tracks in WebView2? **Exit:** a go or
+  no-go, recorded in an ADR. Started: the copy-protection check passed and sign-in popups
+  need a small host change; a test with a real developer token is next
+  ([findings](spikes/music-webview2-drm.md)).
+- [ ] **On hold** (needs a paid Apple Developer membership; resumes if the maintainer joins). Apple Music browsing (only
+  on a go): catalog and library browsing; playback handed to the Apple Music app unless the
+  spike shows full tracks play in the window. Meanwhile Apple Music works through now playing
+  and the router, like any other app.
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.

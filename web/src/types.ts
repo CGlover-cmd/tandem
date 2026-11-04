@@ -128,6 +128,25 @@ export interface CommandBarState {
   resultFor: string;
 }
 
+export type MusicCommand = "play_pause" | "next" | "previous";
+
+/** What an app on this PC is playing (Phase 6). Shown on screen only; never log it. */
+export interface Music {
+  app: string | null;
+  state: "playing" | "paused" | "stopped" | "other";
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  /** Seconds in, as of when this state was sent; null for live streams. */
+  position: number | null;
+  duration: number | null;
+  /** What the app allows right now. */
+  commands: MusicCommand[];
+  canSeek: boolean;
+  /** Changes whenever the artwork does; null when there is none. */
+  artwork: number | null;
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -137,6 +156,8 @@ export interface AppState {
   appearance: Appearance;
   demo: boolean;
   reduceMotion: boolean;
+  /** What the PC is playing; null when nothing is. */
+  music: Music | null;
 }
 
 export type Command =
@@ -152,4 +173,6 @@ export type Command =
   | { type: "launchApp"; id: string; appId: string }
   | { type: "setText"; id: string; text: string }
   | { type: "previewCommand" | "runCommand"; text: string }
-  | { type: "clearCommand" };
+  | { type: "clearCommand" }
+  | { type: "music"; command: MusicCommand }
+  | { type: "musicSeek"; position: number };

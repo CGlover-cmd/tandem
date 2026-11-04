@@ -26,7 +26,7 @@ from tandem.engine.control import (
     VolumeControl,
 )
 from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
-from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying
+from tandem.engine.pc_media import ChangeKind, PcArtwork, PcMediaCommand, PcNowPlaying
 from tandem.engine.player import Track
 
 
@@ -320,21 +320,74 @@ class FakeStream:
 
 
 class FakeSessions:
+    """Windows' media controls, as the engine sees them. Titles are invented.
+
+    With `react` on (the default), commands change `now` the way an app would: play/pause
+    flips the state, next and previous move to another invented track, seek moves the
+    position. With it off, the app "accepts" commands and does nothing.
+    """
+
     def __init__(self) -> None:
         self.now: PcNowPlaying | None = None
+        self.art: PcArtwork | None = None
         self.commands: list[PcMediaCommand] = []
+        self.seeks: list[float] = []
         self.fail: BaseException | None = None
+        self.watch_fail: BaseException | None = None
+        self.react = True
+        self.reads = 0
+        self.art_reads = 0
+        self.on_change: Callable[[ChangeKind], None] | None = None
+        self.unwatched = False
+
+    def change(self, kind: ChangeKind = ChangeKind.MEDIA) -> None:
+        """Say something changed, as Windows would."""
+        assert self.on_change is not None
+        self.on_change(kind)
+
+    async def watch(self, on_change: Callable[[ChangeKind], None]) -> None:
+        if self.watch_fail is not None:
+            raise self.watch_fail
+        self.on_change = on_change
+
+    async def unwatch(self) -> None:
+        self.unwatched = True
 
     async def current(self) -> PcNowPlaying | None:
+        self.reads += 1
         if self.fail is not None:
             raise self.fail
         return self.now
+
+    async def artwork(self) -> PcArtwork | None:
+        self.art_reads += 1
+        return self.art
 
     async def command(self, command: PcMediaCommand) -> bool:
         if self.fail is not None:
             raise self.fail
         self.commands.append(command)
-        return self.now is not None
+        if self.now is None:
+            return False
+        if self.react:
+            if command is PcMediaCommand.PLAY_PAUSE:
+                state = "paused" if self.now.state == "playing" else "playing"
+                self.now = dataclasses.replace(self.now, state=state)
+                self.change(ChangeKind.PLAYBACK)
+            else:
+                title = "Second Example Song" if command is PcMediaCommand.NEXT else "Opener"
+                self.now = dataclasses.replace(self.now, title=title, position=0.0)
+                self.change(ChangeKind.MEDIA)
+        return True
+
+    async def seek(self, position: float) -> bool:
+        self.seeks.append(position)
+        if self.now is None:
+            return False
+        if self.react:
+            self.now = dataclasses.replace(self.now, position=position)
+            self.change(ChangeKind.TIMELINE)
+        return True
 
 
 ALL_CAPABILITIES = frozenset(Capability)

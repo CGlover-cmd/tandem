@@ -1,7 +1,7 @@
 # Music spike 1: reading and controlling media sessions
 
-**Result: go for the Apple Music app, accepted for the Spotify app too; a browser is still
-to check.**
+**Result: go for the Apple Music app, accepted for the Spotify app too; a browser's titles
+and change events work (its controls are still to try).**
 Windows' media controls (`Windows.Media.Control`, "GSMTC") give Python everything the
 now-playing bar needs from the Apple Music app: the app's id, playback status, which controls
 it allows, the timeline, whether there's a title, artist and artwork, and change events, so
@@ -58,8 +58,14 @@ output is safe to paste.
 
 The maintainer accepted the Apple Music result for the Spotify app as well (2026-11-04): both
 report through the same Windows media controls, so Spotify isn't tested separately. If a
-Spotify problem turns up later, the same commands check it. To finish this spike, with
-something playing in a browser:
+Spotify problem turns up later, the same commands check it.
+
+A browser was checked with the now-playing bar (`spikes/now_playing_latency.py --page`, a
+Chromium-based browser tab playing quiet test tones): titles and change events arrive, and two
+quirks showed up. On a track change a browser can drop its session for a moment, or re-make
+it with the same app id as a new object whose events are the only ones that fire. Tandem now
+waits a second before saying nothing plays and re-hooks on every session event. Still to try,
+with something playing in a browser:
 
 ```
 python spikes/spike_music_media_sessions.py list
@@ -67,4 +73,4 @@ python spikes/spike_music_media_sessions.py watch --seconds 30
 python spikes/spike_music_media_sessions.py control --app MSEdge --action toggle
 ```
 
-- A browser tab (Edge or Firefox) playing audio.
+- Play, pause and skip on a browser tab.

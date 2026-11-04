@@ -203,8 +203,59 @@ class CommandRunner(Protocol):
     async def run_command(self, text: str) -> CommandOutcome: ...
 
 
+# --- What the PC is playing (Phase 6) -------------------------------------------------------
+
+
+class MusicCommand(Enum):
+    PLAY_PAUSE = "play_pause"
+    NEXT = "next"
+    PREVIOUS = "previous"
+
+
+@dataclass(frozen=True, slots=True)
+class MusicSnapshot:
+    """What an app on this PC is playing (Spotify, Apple Music, a browser...). Titles are
+    personal: shown on screen only, never logged."""
+
+    app: str | None
+    """The app's name, e.g. "Apple Music"."""
+    state: str = "other"  # playing, paused, stopped, other
+    title: str | None = None
+    artist: str | None = None
+    album: str | None = None
+    position: float | None = None
+    """Seconds into the item at `position_at`; None for live streams."""
+    duration: float | None = None
+    position_at: float = 0.0
+    """`time.monotonic()` when `position` was read; count on from here while playing."""
+    commands: frozenset[MusicCommand] = frozenset[MusicCommand]()
+    """What the app allows right now."""
+    can_seek: bool = False
+    artwork: int | None = None
+    """Changes whenever the artwork does; None when there is none."""
+
+
+@dataclass(frozen=True, slots=True)
+class MusicArtwork:
+    """Artwork for what's playing. Kept in memory and sent to the window only."""
+
+    data: bytes
+    mimetype: str
+
+
+@dataclass(frozen=True, slots=True)
+class MusicChanged:
+    music: MusicSnapshot | None
+    """None when no app on the PC is playing media."""
+
+
 BackendEvent = (
-    DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged | ControlsChanged
+    DeviceUpdated
+    | DeviceRemoved
+    | DiscoveryChanged
+    | AppearanceChanged
+    | ControlsChanged
+    | MusicChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -301,6 +352,21 @@ class Backend(Protocol):
 
     async def set_appearance(self, appearance: Appearance) -> None:
         """Save the user's choice and publish `AppearanceChanged`."""
+        ...
+
+    def music(self) -> MusicSnapshot | None:
+        """What an app on the PC is playing now; changes arrive as `MusicChanged`."""
+        ...
+
+    def music_artwork(self) -> MusicArtwork | None: ...
+
+    async def music_command(self, command: MusicCommand) -> None:
+        """Play/pause, next or previous in the app that's playing. Raises `ControlError` if
+        the app doesn't allow it or doesn't respond."""
+        ...
+
+    async def music_seek(self, position: float) -> None:
+        """Move to `position` seconds in the app that's playing. Raises `ControlError`."""
         ...
 
     def preview_command(self, text: str) -> CommandOutcome:

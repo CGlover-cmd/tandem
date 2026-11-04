@@ -19,9 +19,9 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 > redacted logs and diagnostics, and an encrypted credential store, with a developer
 > command-line tool that pairs with and connects to Apple TV, HomePod mini and an AirPlay 2
 > soundbar.
-> Music (Phase 6) has started with two spikes: Windows' media controls report and control the
-> Apple Music app, and Tandem's window can load the copy protection Apple Music's web player
-> needs.
+> Music (Phase 6): the window's **Music** tab shows what any app on the PC is playing (Spotify,
+> Apple Music, a browser), with artwork and play/pause, skip and seek, plus a now-playing bar
+> and tray controls.
 > See the [roadmap](docs/ROADMAP.md).
 
 ## Goals
@@ -30,8 +30,9 @@ and other AirPlay 2 speakers and TVs, with smart-home control planned later.
 - Apple TV remote control from your PC
 - Stream system audio to any mix of AirPlay speakers and your PC's own speakers, in sync
 - Send videos and links to Apple TV
-- A Music tab: see and control what any music app is playing, browse Spotify and Apple Music,
-  and play your own files and internet radio to your speakers
+- A Music tab: see and control what any music app is playing, browse Spotify, and play your
+  own files and internet radio to your speakers (Apple Music browsing is on hold: it needs a
+  paid Apple developer membership; Apple Music still works through now playing)
   ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)). Tandem is a remote for the
   streaming apps; their sound reaches your speakers through Tandem's audio router
 - A clean, Apple-inspired interface that's accessible and works from the system tray
@@ -144,6 +145,12 @@ help
 Device names can be partial ("loft", "liv") and forgive small typos. When a command could
 mean more than one device, Tandem asks which and lists the choices; pick one with the arrow
 keys and Enter. "send audio to ..." and "stop streaming" will work once audio streaming lands.
+
+The **Music** tab shows what any app on this PC is playing (Spotify, Apple Music, a browser
+tab), with its artwork, and lets you play, pause, skip and, where the app allows, seek. On the
+other tabs a small now-playing bar does the same; the tray menu has play/pause and next. Tandem
+is a remote here: the app plays the music, and Tandem's audio streaming sends the PC's sound to
+your speakers.
 
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear

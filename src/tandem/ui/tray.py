@@ -12,14 +12,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from tandem.ui.backend import LinkState
+from tandem.ui.backend import LinkState, MusicCommand
 from tandem.ui.controller import AppController
 
 
 @dataclass(frozen=True, slots=True)
 class Entry:
     label: str = ""
-    action: str = ""  # "open", "activate", "pair", "quit"; "" for a separator or a note
+    action: str = ""
+    """"open", "activate", "pair", "quit", "music_play_pause" or "music_next"; "" for a
+    separator or a note."""
     device_id: str = ""
     checked: bool = False
     enabled: bool = True
@@ -31,9 +33,34 @@ class Entry:
 
 SEPARATOR = Entry()
 
+_LABEL_MAX = 48  # longer now-playing lines are cut, so the menu stays narrow
+
+
+def _now_playing_label(title: str | None, artist: str | None, app: str | None) -> str:
+    label = " · ".join(part for part in (title, artist) if part) or app or "Something"
+    return label if len(label) <= _LABEL_MAX else label[: _LABEL_MAX - 1].rstrip() + "…"
+
+
+def music_entries(controller: AppController) -> list[Entry]:
+    """What the PC is playing, with play/pause and next (Phase 6). Empty when nothing plays."""
+    music = controller.music
+    if music is None:
+        return []
+    playing = music.state == "playing"
+    return [
+        Entry(_now_playing_label(music.title, music.artist, music.app), enabled=False),
+        Entry(
+            "Pause" if playing else "Play",
+            "music_play_pause",
+            enabled=MusicCommand.PLAY_PAUSE in music.commands,
+        ),
+        Entry("Next", "music_next", enabled=MusicCommand.NEXT in music.commands),
+        SEPARATOR,
+    ]
+
 
 def menu_entries(controller: AppController) -> list[Entry]:
-    entries = [Entry("Open Tandem", "open"), SEPARATOR]
+    entries = [Entry("Open Tandem", "open"), SEPARATOR, *music_entries(controller)]
     devices = controller.devices()
     if not devices:
         entries.append(Entry("Looking for devices…", enabled=False))
@@ -133,6 +160,12 @@ class Tray:  # pragma: no cover - needs a desktop; checked by hand
                 self._loop.call_soon_threadsafe(self._controller.pair, entry.device_id)
             elif entry.action == "activate":
                 self._loop.call_soon_threadsafe(self._controller.activate, entry.device_id)
+            elif entry.action == "music_play_pause":
+                self._loop.call_soon_threadsafe(
+                    self._controller.music_command, MusicCommand.PLAY_PAUSE
+                )
+            elif entry.action == "music_next":
+                self._loop.call_soon_threadsafe(self._controller.music_command, MusicCommand.NEXT)
 
         return run
 
