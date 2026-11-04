@@ -96,9 +96,10 @@ _Update this section at the end of every working session._
   Tandem's WebView2 window, Widevine (software) and PlayReady load and build licence
   requests, so full-track MusicKit JS playback is possible in principle; sign-in popups need
   Tandem to stop pywebview sending new windows to the browser
-  ([findings](spikes/music-webview2-drm.md)). **Next for Music:** check the Spotify app and a
-  browser with the media-sessions spike; a MusicKit JS test with a real developer token
-  (needs the maintainer's Apple Developer membership).
+  ([findings](spikes/music-webview2-drm.md)). The Spotify app isn't tested separately
+  (maintainer's decision: the Apple Music result covers it). **Next for Music:** the
+  now-playing bar; a MusicKit JS test with a real developer token (needs the maintainer's
+  Apple Developer membership).
 
 ## Scope
 
@@ -254,13 +255,15 @@ Boundaries in [ADR-0013](adr/0013-music-integration-boundaries.md): the official
 streamed music; Tandem never plays or records Spotify streams itself. Depends on Phase 4 and,
 for several speakers at once, Phase 5. (Added after Phase 5; the later phases moved down by
 one.)
-- [ ] Spike: media sessions. Read now playing and send play, pause and skip to the Spotify app,
-  the Apple Music app and a browser through Windows' media controls.
-  **Exit:** all three show the right title and artwork and obey the controls.
-  Started: the Apple Music app passes ([findings](spikes/music-media-sessions.md)); the Spotify
-  app and a browser are still to check.
+- [x] Spike: media sessions. Read now playing and send play, pause and skip through Windows'
+  media controls.
+  **Exit:** the Apple Music app shows the right title and artwork and obeys the controls.
+  Passed ([findings](spikes/music-media-sessions.md)). The Spotify app isn't tested
+  separately: it uses the same media controls, so the maintainer chose to take the Apple Music
+  result as covering it. A browser tab is checked in the now-playing bar's exit test.
 - [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
-  **Exit:** it updates within a second of a track change.
+  **Exit:** it updates within a second of a track change, with the Apple Music app and with a
+  browser tab.
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
