@@ -1,6 +1,8 @@
 # Music spike 1: reading and controlling media sessions
 
-**Result: go for the Apple Music app; the Spotify app and a browser are still to check.**
+**Result: go.** The Apple Music app passes. By the maintainer's decision (2026-11-04), the Spotify
+app is not tested separately: it uses the same Windows media controls, so we take the Apple Music
+result as covering it.
 Windows' media controls (`Windows.Media.Control`, "GSMTC") give Python everything the
 now-playing bar needs from the Apple Music app: the app's id, playback status, which controls
 it allows, the timeline, whether there's a title, artist and artwork, and change events, so
@@ -53,9 +55,11 @@ output is safe to paste.
 - `playback_type` (music, video, image) needs the `winrt-Windows.Media` package too; add it
   when the adapter wants it.
 
-## Still to check
+## Not tested
 
-The phase's exit needs three apps. To finish this spike, with something playing in each:
+- **The Spotify app:** skipped by the maintainer's decision (2026-11-04). It reports through the
+  same Windows media controls, so the Apple Music result is taken to cover it. If the now-playing
+  bar misbehaves with Spotify later, rerun this spike against it:
 
 ```
 python spikes/spike_music_media_sessions.py list
@@ -63,5 +67,4 @@ python spikes/spike_music_media_sessions.py watch --seconds 30
 python spikes/spike_music_media_sessions.py control --app Spotify --action next
 ```
 
-- The Spotify app: next and previous on a playlist, and whether artwork is present.
-- A browser tab (Edge or Firefox) playing audio.
+- **A browser tab:** checked as part of the now-playing bar's own exit test instead of here.
