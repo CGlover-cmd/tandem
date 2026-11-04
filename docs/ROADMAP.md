@@ -96,8 +96,9 @@ _Update this section at the end of every working session._
   Tandem's WebView2 window, Widevine (software) and PlayReady load and build licence
   requests, so full-track MusicKit JS playback is possible in principle; sign-in popups need
   Tandem to stop pywebview sending new windows to the browser
-  ([findings](spikes/music-webview2-drm.md)). **Next for Music:** check the Spotify app and a
-  browser with the media-sessions spike; a MusicKit JS test with a real developer token
+  ([findings](spikes/music-webview2-drm.md)). **Next for Music:** check a browser with the
+  media-sessions spike (the maintainer accepted the Apple Music result for the Spotify app
+  too, so Spotify isn't tested separately); a MusicKit JS test with a real developer token
   (needs the maintainer's Apple Developer membership).
 
 ## Scope
@@ -257,8 +258,9 @@ one.)
 - [ ] Spike: media sessions. Read now playing and send play, pause and skip to the Spotify app,
   the Apple Music app and a browser through Windows' media controls.
   **Exit:** all three show the right title and artwork and obey the controls.
-  Started: the Apple Music app passes ([findings](spikes/music-media-sessions.md)); the Spotify
-  app and a browser are still to check.
+  Started: the Apple Music app passes ([findings](spikes/music-media-sessions.md)). The
+  maintainer accepted that result for the Spotify app too (both report through the same
+  Windows media controls), so Spotify isn't tested separately; a browser is still to check.
 - [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
   **Exit:** it updates within a second of a track change.
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;

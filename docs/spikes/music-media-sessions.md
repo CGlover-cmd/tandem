@@ -1,6 +1,7 @@
 # Music spike 1: reading and controlling media sessions
 
-**Result: go for the Apple Music app; the Spotify app and a browser are still to check.**
+**Result: go for the Apple Music app, accepted for the Spotify app too; a browser is still
+to check.**
 Windows' media controls (`Windows.Media.Control`, "GSMTC") give Python everything the
 now-playing bar needs from the Apple Music app: the app's id, playback status, which controls
 it allows, the timeline, whether there's a title, artist and artwork, and change events, so
@@ -55,13 +56,15 @@ output is safe to paste.
 
 ## Still to check
 
-The phase's exit needs three apps. To finish this spike, with something playing in each:
+The maintainer accepted the Apple Music result for the Spotify app as well (2026-11-04): both
+report through the same Windows media controls, so Spotify isn't tested separately. If a
+Spotify problem turns up later, the same commands check it. To finish this spike, with
+something playing in a browser:
 
 ```
 python spikes/spike_music_media_sessions.py list
 python spikes/spike_music_media_sessions.py watch --seconds 30
-python spikes/spike_music_media_sessions.py control --app Spotify --action next
+python spikes/spike_music_media_sessions.py control --app MSEdge --action toggle
 ```
 
-- The Spotify app: next and previous on a playlist, and whether artwork is present.
 - A browser tab (Edge or Firefox) playing audio.
