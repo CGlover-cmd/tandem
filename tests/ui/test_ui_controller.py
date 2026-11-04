@@ -73,6 +73,7 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "retryIn": None,
         "controls": None,
         "apps": None,
+        "send": None,
     }
     assert snapshot["appearance"] == {
         "theme": "system",

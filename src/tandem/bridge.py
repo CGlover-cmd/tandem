@@ -14,6 +14,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar
 
+from tandem.bridge_audio import EngineAudio
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.command_dispatch import (
@@ -31,6 +32,7 @@ from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
 from tandem.engine.models import Device, Service
 from tandem.engine.models import DeviceKind as EngineKind
+from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
@@ -102,7 +104,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend:
+class EngineBackend(EngineAudio):
     def __init__(
         self,
         engine: Engine,
@@ -110,6 +112,7 @@ class EngineBackend:
         *,
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
+        output_prefs: OutputPrefsStore | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -118,7 +121,9 @@ class EngineBackend:
         self._listeners: list[ui.Listener] = []
         self._links: dict[str, _Link] = {}
         self._status: dict[str, ec.ControlStatus] = {}
-        self._commands = CommandDispatcher(EngineCommandServices(engine))
+        self._commands = CommandDispatcher(
+            EngineCommandServices(engine, start_output=self._start_from_command)
+        )
         bus = engine.bus
         self._unsubscribe = [
             bus.subscribe(DeviceEvent, self._on_device),
@@ -127,6 +132,7 @@ class EngineBackend:
             bus.subscribe(ec.ControlEvent, self._on_control),
             bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
+        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
 
     # Observing
 
@@ -267,6 +273,9 @@ class EngineBackend:
 
     async def run_command(self, text: str) -> ui.CommandOutcome:
         return _outcome(await self._commands.run(text))
+
+    async def _start_from_command(self, output_id: str) -> None:
+        await self.set_output(output_id, True)
 
     # Engine events
 
@@ -540,6 +549,7 @@ class _DemoServices:
     def __init__(self, backend: DemoBackend) -> None:
         self._backend = backend
         self.launched: list[str] = []
+        self._last_audio: tuple[str, ...] = ()
 
     def targets(self) -> list[TargetState]:
         states: list[TargetState] = []
@@ -610,6 +620,31 @@ class _DemoServices:
     async def set_switch(self, switch_id: str, on: bool) -> None:
         raise ActionError(Code.CANT_DO_THAT)
 
+    def audio_targets(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.kind is ui.OutputKind.AIRPLAY
+        )
+
+    def streaming(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.state is not ui.OutputState.OFF
+        )
+
+    def last_audio(self) -> tuple[str, ...]:
+        return self._last_audio
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None:
+        self._last_audio = tuple(device_ids)
+        for device_id in device_ids:
+            try:
+                await self._backend.set_output(device_id, True)
+            except ui.AudioError:
+                raise ActionError(Code.CANT_DO_THAT) from None
+
+    async def stop_audio(self) -> None:
+        for output_id in self.streaming():
+            await self._backend.set_output(output_id, False)
+
 
 async def _demo(command: Awaitable[None]) -> None:
     try:
@@ -636,10 +671,12 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     bus = EventBus()
     store = SettingsStore(paths.settings_file(), bus)
     settings = store.load()
+    prefs = OutputPrefsStore(paths.data_dir() / "outputs.json")
+    prefs.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
         redactor=redactor,
         discovery_interval=settings.discovery_interval_s,
     )
-    return EngineBackend(engine, store)
+    return EngineBackend(engine, store, output_prefs=prefs)

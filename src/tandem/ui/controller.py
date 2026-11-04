@@ -22,11 +22,13 @@ from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any, Protocol, TypeVar
 
+from tandem.ui.audio_panel import AudioPanel, FilePicker
 from tandem.ui.backend import (
     MAX_TEXT,
     Appearance,
     AppearanceChanged,
     AppInfo,
+    AudioChanged,
     Backend,
     BackendError,
     BackendEvent,
@@ -47,6 +49,7 @@ from tandem.ui.backend import (
     PairingError,
     PairingFlow,
     RemoteKey,
+    SendChanged,
     Theme,
     WrongPinError,
 )
@@ -322,6 +325,7 @@ class AppController:
         demo_mode: bool = False,
         reduce_motion: bool = False,
         icons: IconSource | None = None,
+        picker: FilePicker | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
@@ -344,6 +348,7 @@ class AppController:
             backend, self.runner, on_change=self._changed, on_paired=self.connect
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
+        self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
         self._unsubscribe: Callable[[], None] | None = None
 
     # Observing
@@ -370,8 +375,10 @@ class AppController:
         return {
             "devices": [
                 _device_json(d, self._controls.get(d.id), self._apps.get(d.id))
+                | {"send": self.audio.send_json(d.id)}
                 for d in self.devices()
             ],
+            "audio": self.audio.snapshot(),
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
             "commands": self.commands.snapshot(),
@@ -396,6 +403,7 @@ class AppController:
             controls = self._backend.controls(device.id)
             if controls is not None:
                 self._controls[device.id] = controls
+        self.audio.audio = self._backend.audio()
         self._changed()
         await self._backend.start()
 
@@ -567,12 +575,16 @@ class AppController:
                 and isinstance(app_icons, bool)
             ):
                 self.set_appearance(theme, background, app_icons)
+        elif isinstance(kind, str) and self.audio.handle(kind, command):
+            pass
         else:
             _LOGGER.debug("Ignoring an unknown command")
 
     # Internals
 
     def _on_event(self, event: BackendEvent) -> None:
+        if isinstance(event, DeviceUpdated | DeviceRemoved):
+            self.audio.audio = self._backend.audio()  # outputs follow the device list
         match event:
             case DeviceUpdated(device=device):
                 self._devices[device.id] = device
@@ -595,6 +607,13 @@ class AppController:
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
                 self._refresh_icons()
+            case AudioChanged(audio=audio):
+                self.audio.audio = audio
+            case SendChanged(device_id=device_id, send=send):
+                if send is None:
+                    self.audio.sends.pop(device_id, None)
+                else:
+                    self.audio.sends[device_id] = send
         self._changed()
 
     async def _load_apps(self, device_id: str, apps: AppList) -> None:

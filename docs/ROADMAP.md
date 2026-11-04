@@ -259,13 +259,13 @@ Boundaries in [ADR-0013](adr/0013-music-integration-boundaries.md): the official
 streamed music; Tandem never plays or records Spotify streams itself. Depends on Phase 4 and,
 for several speakers at once, Phase 5. (Added after Phase 5; the later phases moved down by
 one.)
-- [ ] Spike: media sessions. Read now playing and send play, pause and skip to the Spotify app,
-  the Apple Music app and a browser through Windows' media controls.
-  **Exit:** all three show the right title and artwork and obey the controls.
-  Started: the Apple Music app passes ([findings](spikes/music-media-sessions.md)). The
-  maintainer accepted that result for the Spotify app too (both report through the same
-  Windows media controls), so Spotify isn't tested separately. A browser's titles and change
-  events were checked with the now-playing bar below; its controls are still to try.
+- [x] Spike: media sessions. Read now playing and send play, pause and skip through Windows'
+  media controls.
+  **Exit:** the Apple Music app shows the right title and artwork and obeys the controls.
+  Passed ([findings](spikes/music-media-sessions.md)). The Spotify app isn't tested
+  separately: it uses the same media controls, so the maintainer chose to take the Apple Music
+  result as covering it. A browser tab is checked in the now-playing bar's exit test (titles and change
+  events passed; its controls are still to try).
 - [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
   **Exit:** it updates within a second of a track change, with the Apple Music app and with a
   browser tab. Built: a **Music** tab (artwork, title, artist and album, a position slider

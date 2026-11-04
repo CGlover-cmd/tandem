@@ -2,7 +2,8 @@ import { Button, Card, Spinner } from "@heroui/react";
 import { useEffect, useState } from "react";
 
 import { actionFor, statusFor, type Tone } from "../devices";
-import { DeviceIcon, RemoteIcon } from "../icons";
+import { canSend } from "../audio";
+import { DeviceIcon, RemoteIcon, SendIcon } from "../icons";
 import { strings } from "../strings";
 import type { Device } from "../types";
 
@@ -35,9 +36,10 @@ interface Props {
   device: Device;
   onActivate: () => void;
   onOpenControls: () => void;
+  onOpenSend: () => void;
 }
 
-export function DeviceCard({ device, onActivate, onOpenControls }: Props) {
+export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: Props) {
   const secondsLeft = useCountdown(device);
   const action = actionFor(device);
   const status = statusFor(device, secondsLeft);
@@ -95,6 +97,17 @@ export function DeviceCard({ device, onActivate, onOpenControls }: Props) {
           >
             <RemoteIcon size={16} />
             {strings.remote.open}
+          </Button>
+        )}
+        {canSend(device) && (
+          <Button
+            size="sm"
+            variant="tertiary"
+            onPress={onOpenSend}
+            aria-label={`${strings.sendSheet.open}: ${device.name}`}
+          >
+            <SendIcon size={16} />
+            {strings.sendSheet.open}
           </Button>
         )}
       </Card.Footer>

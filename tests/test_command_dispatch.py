@@ -50,6 +50,26 @@ class FakeServices:
         self.app_list = list(apps)
         self.fail = fail
         self.calls: list[tuple[Any, ...]] = []
+        self.speakers: frozenset[str] = frozenset({"loft", "patio"})
+        self.playing_to: set[str] = set()
+        self.last: tuple[str, ...] = ()
+
+    def audio_targets(self) -> frozenset[str]:
+        return self.speakers
+
+    def streaming(self) -> frozenset[str]:
+        return frozenset(self.playing_to)
+
+    def last_audio(self) -> tuple[str, ...]:
+        return self.last
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None:
+        await self._record("start_audio", tuple(device_ids))
+        self.playing_to |= set(device_ids)
+
+    async def stop_audio(self) -> None:
+        await self._record("stop_audio")
+        self.playing_to.clear()
 
     def targets(self) -> list[TargetState]:
         return self.states
@@ -284,11 +304,79 @@ async def test_unknown_switch_when_there_are_switches() -> None:
 # Audio, help and problems
 
 
-@pytest.mark.parametrize("text", ["send audio to loft", "stop streaming", "start streaming"])
-async def test_audio_streaming_is_not_available_yet(text: str) -> None:
-    commands, _ = dispatcher(connected(LOFT, SPEAKER_CAN))
-    result = await commands.run(text)
-    assert result == CommandResult(Outcome.NOT_AVAILABLE, Code.AUDIO_NOT_YET)
+async def test_send_audio_to_named_speakers_then_stop() -> None:
+    commands, services = dispatcher(connected(LOFT, SPEAKER_CAN), TargetState(PATIO))
+    preview = commands.preview("send audio to loft")
+    assert preview == CommandResult(Outcome.READY, Code.SEND_AUDIO, {"devices": "Loft Speaker"})
+    result = await commands.run("send audio to loft and patio")
+    assert result.outcome is Outcome.DONE
+    assert services.calls == [("start_audio", ("loft", "patio"))]
+    assert (await commands.run("stop streaming")).code == Code.STOP_STREAMING
+    assert services.calls[-1] == ("stop_audio",)
+    result = await commands.run("stop streaming")
+    assert result == CommandResult(Outcome.NOT_AVAILABLE, Code.NOT_STREAMING)
+
+
+async def test_send_audio_everywhere_and_to_the_last_speakers() -> None:
+    commands, services = dispatcher(
+        connected(TV, TV_CAN), connected(LOFT, SPEAKER_CAN), TargetState(PATIO)
+    )
+    result = await commands.run("send audio everywhere")
+    assert result.params == {"devices": "Loft Speaker, Patio Speaker"}
+    services.last = ("patio",)
+    await commands.run("start streaming")
+    assert services.calls[-1] == ("start_audio", ("patio",))
+
+
+async def test_bare_send_audio_asks_which_or_picks_the_only_one() -> None:
+    commands, services = dispatcher(connected(LOFT, SPEAKER_CAN), TargetState(PATIO))
+    result = commands.preview("start streaming")
+    assert result.outcome is Outcome.NEEDS_INFO
+    assert result.code == Code.WHICH_DEVICE
+    assert "send audio to Loft Speaker" in result.suggestions
+    services.speakers = frozenset({"loft"})
+    assert commands.preview("start streaming").params == {"devices": "Loft Speaker"}
+    services.speakers = frozenset()
+    result = commands.preview("start streaming")
+    assert result == CommandResult(Outcome.NOT_AVAILABLE, Code.NO_SPEAKER)
+
+
+async def test_send_audio_to_a_device_without_audio() -> None:
+    commands, services = dispatcher(connected(TV, TV_CAN), connected(LOFT, SPEAKER_CAN))
+    result = commands.preview("send audio to the tv")
+    assert result == CommandResult(
+        Outcome.NOT_AVAILABLE, Code.CANT_DO_THAT, {"device": "Living Room TV"}
+    )
+    services.fail = Code.NO_RESPONSE
+    result = await commands.run("send audio to loft")
+    assert result.outcome is Outcome.FAILED
+
+
+async def test_engine_services_send_and_stop_audio() -> None:
+    speaker = make_device(id="AA:BB:CC:00:00:05", name="Loft Speaker")
+    backend = FakeBackend([speaker])
+    engine = Engine(backend)
+    await engine.scan()
+    services = EngineCommandServices(engine)
+    assert services.audio_targets() == frozenset({speaker.id})
+    await services.start_audio([speaker.id])
+    assert services.last_audio() == (speaker.id,)
+    assert services.streaming() == frozenset({speaker.id})
+    await services.stop_audio()
+    assert services.streaming() == frozenset()
+
+    started: list[str] = []
+
+    async def start(output_id: str) -> None:
+        started.append(output_id)
+        raise OSError("no route")
+
+    services = EngineCommandServices(engine, start_output=start)
+    with pytest.raises(ActionError) as failed:
+        await services.start_audio([speaker.id])
+    assert failed.value.code == Code.NO_RESPONSE
+    assert started == [speaker.id]
+    await engine.close()
 
 
 async def test_help_and_empty_text_list_examples() -> None:

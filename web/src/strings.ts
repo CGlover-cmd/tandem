@@ -143,6 +143,60 @@ export const strings = {
     clear: "Clear",
   },
 
+  audio: {
+    open: "Audio",
+    title: "Audio",
+    subtitle: "Choose where Tandem plays sound. Turn on as many as you like.",
+    source: "Sound from",
+    sourceSystem: "This PC",
+    sourcePlayer: "Tandem's player",
+    sourceSystemDetail: "Everything the PC plays: Spotify, Apple Music, a browser, games.",
+    sourcePlayerDetail: "Only what you queue in Tandem's player (music files and radio).",
+    airplay: "Speakers and TVs",
+    pc: "This PC",
+    noOutputs: "No speakers found yet. Make sure they're on and on the same network.",
+    noPcOutputs: "No other sound outputs on this PC.",
+    echoNote:
+      "Your PC's main speakers aren't listed while Tandem sends the PC's own sound: they'd echo. To hear the PC and your speakers in sync, set a virtual audio cable as Windows' default output, then turn your real speakers on here.",
+    volume: "Volume",
+    volumeOf: (name: string) => `Volume for ${name}`,
+    delay: "Delay",
+    delayOf: (name: string) => `Delay for ${name}`,
+    delayHint: "Delay the faster speakers until they all play together.",
+    seconds: (ms: number) => `${(ms / 1000).toFixed(1)} s`,
+    state: {
+      off: "Off",
+      starting: "Starting…",
+      streaming: "Playing",
+      waiting: "Reconnecting…",
+      failed: "Couldn't play here",
+    } as Record<string, string>,
+    pairFirst: "Pair first",
+    turnOn: (name: string) => `Play on ${name}`,
+    allOff: "Turn all off",
+    done: "Done",
+    badge: (count: number) => (count === 1 ? "1 playing" : `${count} playing`),
+  },
+
+  sendSheet: {
+    open: "Send",
+    title: (name: string) => `Send to ${name}`,
+    subtitle: "Play a video file from this PC, or a link to a video, on your TV.",
+    link: "Link to a video",
+    linkPlaceholder: "https://…",
+    sendLink: "Play link",
+    chooseFile: "Choose a video…",
+    choosing: "Choosing…",
+    formats: "MP4 and MOV files work best. Links must point straight at a video file or stream.",
+    starting: (title: string) => `Starting ${title}…`,
+    playing: (title: string) => `Playing ${title}`,
+    ended: (title: string) => `Finished ${title}`,
+    failed: (title: string) => `The TV couldn't play ${title}`,
+    stop: "Stop",
+    done: "Done",
+    connectFirst: "Connect the TV first.",
+  },
+
   commands: {
     open: "Commands",
     shortcut: "Ctrl+K",
@@ -168,6 +222,8 @@ export const strings = {
       powerOff: (p) => `Turn off ${p.device}`,
       switchOn: (p) => `Turn on ${p.switch}`,
       switchOff: (p) => `Turn off ${p.switch}`,
+      sendAudio: (p) => `Send the PC's audio to ${p.devices}`,
+      stopStreaming: () => "Stop sending audio",
     } satisfies Record<string, Words>,
     /** What it did. */
     done: {
@@ -183,6 +239,8 @@ export const strings = {
       powerOff: (p) => `Turned off ${p.device}`,
       switchOn: (p) => `${p.switch} is on`,
       switchOff: (p) => `${p.switch} is off`,
+      sendAudio: (p) => `Sending the PC's audio to ${p.devices}`,
+      stopStreaming: () => "Stopped sending audio",
     } satisfies Record<string, Words>,
     /** Why it can't be done, or what's missing. */
     problem: {
@@ -200,6 +258,8 @@ export const strings = {
       noVolume: (p) => `Tandem can't change the volume on ${p.device}. Use its own remote.`,
       unknownApp: (p) => `There's no app called “${p.app}” on ${p.device}.`,
       audioNotYet: () => "Sending the PC's audio isn't in Tandem yet.",
+      notStreaming: () => "Tandem isn't sending audio anywhere.",
+      noSpeaker: () => "There's no speaker to send audio to. Make sure one is on.",
       switchesNotYet: (p) =>
         `There's no device called “${p.name}”. Home switches aren't in Tandem yet.`,
       unknownSwitch: (p) => `There's no switch or device called “${p.name}”.`,

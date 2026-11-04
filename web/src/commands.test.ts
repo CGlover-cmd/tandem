@@ -78,13 +78,14 @@ describe("outcomeText", () => {
       "help", "notUnderstood", "tooLong", "badVolume", "unknownDevice", "ambiguousDevice",
       "whichDevice", "noDevice", "notConnected", "cantDoThat", "noVolumeLevel", "noVolume",
       "unknownApp", "audioNotYet", "switchesNotYet", "unknownSwitch", "noResponse", "noCommands",
+      "notStreaming", "noSpeaker",
     ];
     for (const code of problems) {
       expect(outcomeText(outcome({ status: "notAvailable", code }))).not.toBe(strings.commands.somethingWrong);
     }
     const actions = [
       "play", "pause", "next", "previous", "volumeSet", "volumeUp", "volumeDown", "openApp",
-      "powerOn", "powerOff", "switchOn", "switchOff",
+      "powerOn", "powerOff", "switchOn", "switchOff", "sendAudio", "stopStreaming",
     ];
     for (const code of actions) {
       expect(outcomeText(outcome({ status: "ready", code }))).not.toBe(strings.commands.somethingWrong);

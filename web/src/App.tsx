@@ -3,13 +3,15 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
 import { isCommandShortcut } from "./commands";
+import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { MusicPanel, NowPlayingBar } from "./components/Music";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
+import { SendSheet } from "./components/SendSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
-import { GearIcon, LogoMark, SearchIcon } from "./icons";
+import { GearIcon, LogoMark, SearchIcon, WavesIcon } from "./icons";
 import { problemText, strings } from "./strings";
 import { applyTheme, backgroundCss, findBackground, type Mode } from "./theme";
 import type { ThemeChoice } from "./types";
@@ -38,6 +40,10 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [sendId, setSendId] = useState<string | null>(null);
+  const sendDevice = state?.devices.find((d) => d.id === sendId) ?? null;
+  const streaming = state?.audio.streaming ?? 0;
   const [view, setView] = useState<View>("devices");
   const music = state?.music ?? null;
   const showBar = music !== null && view !== "music";
@@ -117,6 +123,21 @@ export function App() {
             )}
             <Button
               variant="tertiary"
+              aria-label={streaming > 0 ? `${strings.audio.open}, ${strings.audio.badge(streaming)}` : strings.audio.open}
+              onPress={() => setAudioOpen(true)}
+              className="command-button"
+              data-streaming={streaming > 0 || undefined}
+            >
+              <WavesIcon size={18} />
+              <span>{strings.audio.open}</span>
+              {streaming > 0 && (
+                <Chip size="sm" variant="soft" color="success">
+                  {strings.audio.badge(streaming)}
+                </Chip>
+              )}
+            </Button>
+            <Button
+              variant="tertiary"
               aria-label={strings.commands.open}
               aria-keyshortcuts="Control+K"
               onPress={() => setCommandsOpen(true)}
@@ -146,6 +167,7 @@ export function App() {
                     device={device}
                     onActivate={() => send({ type: "activate", id: device.id })}
                     onOpenControls={() => setRemoteId(device.id)}
+                    onOpenSend={() => setSendId(device.id)}
                   />
                 </li>
               ))}
@@ -196,6 +218,16 @@ export function App() {
         />
       )}
       <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
+      {state && (
+        <AudioSheet isOpen={audioOpen} onClose={() => setAudioOpen(false)} audio={state.audio} send={send} />
+      )}
+      <SendSheet
+        device={sendDevice}
+        canPickFiles={state?.audio.canPickFiles ?? false}
+        picking={state?.audio.picking ?? false}
+        onClose={() => setSendId(null)}
+        send={send}
+      />
       {state && (
         <SettingsSheet
           isOpen={settingsOpen}
