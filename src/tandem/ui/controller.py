@@ -39,6 +39,7 @@ from tandem.ui.backend import (
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
+    HomeUpdated,
     KeyAction,
     LinkState,
     MediaCommand,
@@ -349,6 +350,7 @@ class AppController:
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
 
     # Observing
@@ -379,6 +381,16 @@ class AppController:
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
+            "home": {
+                "enabled": self.home.enabled,
+                "running": self.home.running,
+                "paired": self.home.paired,
+                "setupCode": self.home.setup_code,
+                "failed": self.home.failed,
+                "switches": [
+                    {"id": sid, "name": name, "on": on} for sid, name, on in self.home.switches
+                ],
+            },
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
             "commands": self.commands.snapshot(),
@@ -405,6 +417,7 @@ class AppController:
             if controls is not None:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
+        self.home = self._backend.home()
         self._changed()
         await self._backend.start()
 
@@ -582,6 +595,8 @@ class AppController:
                 and isinstance(onboarded, bool)
             ):
                 self.set_appearance(theme, background, app_icons, onboarded)
+        elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
+            self.runner.run(self._backend.set_home_bridge(command["on"]))
         elif isinstance(kind, str) and self.audio.handle(kind, command):
             pass
         else:
@@ -616,6 +631,8 @@ class AppController:
                 self._refresh_icons()
             case AudioChanged(audio=audio):
                 self.audio.audio = audio
+            case HomeUpdated(home=home):
+                self.home = home
             case SendChanged(device_id=device_id, send=send):
                 if send is None:
                     self.audio.sends.pop(device_id, None)

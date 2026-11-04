@@ -187,12 +187,24 @@ export interface Music {
   artwork: number | null;
 }
 
+/** Tandem in the Home app. Switch names are Tandem's own ("Tandem Audio"). */
+export interface HomeBridge {
+  enabled: boolean;
+  running: boolean;
+  paired: boolean;
+  /** The code to type into the Home app, until it has added Tandem. */
+  setupCode: string | null;
+  failed: boolean;
+  switches: { id: string; name: string; on: boolean }[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
   pairing: Pairing;
   commands: CommandBarState;
   audio: AudioPanel;
+  home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
   demo: boolean;
@@ -220,6 +232,7 @@ export type Command =
   | { type: "setOutputDelay"; id: string; ms: number }
   | { type: "setAudioSource"; source: AudioSource }
   | { type: "allOutputsOff" }
+  | { type: "setHomeBridge"; on: boolean }
   | { type: "sendMedia"; id: string; location: string }
   | { type: "pickMedia" | "stopMedia"; id: string }
   | { type: "music"; command: MusicCommand }

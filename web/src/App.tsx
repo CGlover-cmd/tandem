@@ -256,6 +256,7 @@ export function App() {
             setGuideOpen(true);
           }}
           appearance={state.appearance}
+          home={state.home}
           mode={mode}
           send={send}
         />

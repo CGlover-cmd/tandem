@@ -17,6 +17,13 @@ classifiers = [
 dependencies = [
     # pyatv minor releases can change behaviour; move the pin deliberately (ADR-0001).
     "pyatv>=0.18,<0.19",
+    # The Home bridge (Phase 10b, ADR-0016). Apache-2.0.
+    "HAP-python>=5.0,<6",
+    # What the PC is playing, from Windows' media controls (Phase 6, ADR-0013).
+    "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

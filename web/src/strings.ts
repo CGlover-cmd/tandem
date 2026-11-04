@@ -178,6 +178,19 @@ export const strings = {
     badge: (count: number) => (count === 1 ? "1 playing" : `${count} playing`),
   },
 
+  home: {
+    title: "Home app",
+    toggle: "Show Tandem in the Home app",
+    detail:
+      "Adds three switches to the Home app: Tandem Audio, Tandem Music and Tandem TV. Then Siri on a HomePod and your Home automations can control Tandem.",
+    addSteps: "In the Home app, choose Add Accessory, then More Options, pick Tandem and type this code:",
+    added: "Tandem is in your Home app.",
+    starting: "Starting…",
+    failed: "Tandem couldn't start its Home bridge. Check that Windows allows Tandem on private networks.",
+    switchOn: (name: string) => `${name}: on`,
+    switchOff: (name: string) => `${name}: off`,
+  },
+
   onboarding: {
     title: "Getting started",
     subtitle: "Three quick steps. This list ticks itself off as you go.",

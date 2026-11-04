@@ -325,8 +325,27 @@ class MusicChanged:
     """None when no app on the PC is playing media."""
 
 
+@dataclass(frozen=True, slots=True)
+class HomeSnapshot:
+    """Tandem in the Home app (ADR-0016). Switch names are Tandem's own, not personal."""
+
+    enabled: bool = False
+    running: bool = False
+    paired: bool = False
+    setup_code: str | None = None
+    """Shown in Settings until the Home app has added Tandem."""
+    failed: bool = False
+    switches: tuple[tuple[str, str, bool], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class HomeUpdated:
+    home: HomeSnapshot
+
+
 BackendEvent = (
-    DeviceUpdated
+    HomeUpdated
+    | DeviceUpdated
     | DeviceRemoved
     | DiscoveryChanged
     | AppearanceChanged
@@ -341,6 +360,10 @@ Unsubscribe = Callable[[], None]
 
 class BackendError(Exception):
     """A command didn't work. `str(error)` is safe to show the user; it holds no private data."""
+
+
+class HomeError(BackendError):
+    """The Home bridge couldn't be turned on."""
 
 
 class MediaError(BackendError):
@@ -489,3 +512,11 @@ class Backend(Protocol):
         ...
 
     async def stop_media(self, device_id: str) -> None: ...
+
+    # Tandem in the Home app
+
+    def home(self) -> HomeSnapshot: ...
+
+    async def set_home_bridge(self, on: bool) -> None:
+        """Turn the Home bridge on or off; the choice is saved."""
+        ...
