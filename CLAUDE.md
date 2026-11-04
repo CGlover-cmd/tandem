@@ -27,7 +27,11 @@ Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 - Build order follows dependencies and risk, not feature preference.
 - No timelines or duration estimates in the docs.
 - Test only on the reference devices in ROADMAP; other AirPlay devices on the network are excluded.
-- Phase 9 targets: smart plugs, smart lamps and TV power on/off.
+- Phase 10 targets: smart plugs, smart lamps and TV power on/off.
+- Music (Phase 6, ADR-0012): Tandem is a remote for Spotify and Apple Music and its router
+  carries their sound; it never plays Spotify streams itself (no Web Playback SDK, no
+  librespot). Spotify is Web API only, each user brings their own Client ID. Apple Music needs
+  the maintainer's MusicKit key, which stays in `local/`.
 
 ## Non-negotiable: privacy first
 The GitHub repo is PUBLIC. Follow docs/PRIVACY.md without exception:
@@ -95,6 +99,14 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `tandem.ui.app` runs asyncio on a second thread and pystray on a third.
 - A second clone of the repo needs its own venv: the shared `tandem-dev` venv has an editable
   install pointing at the OneDrive checkout, so tests in another clone would import that copy.
+- Media sessions (Music spike 1): pywinrt `winrt-Windows.Media.Control` (+ Foundation,
+  Foundation.Collections, Storage.Streams) loads under Smart App Control. Its events fire on a
+  WinRT thread; hop to asyncio with `call_soon_threadsafe`. Spike output prints flags, never
+  titles or artists.
+- WebView2 here is Evergreen and ships Widevine (software level); PlayReady hardware works only
+  outside pywebview's `private_mode`. pywebview handles every new-window request itself (opens
+  the system browser), so `window.open` returns null; popups that must talk back need our own
+  `NewWindowRequested` handling (Music spike 2).
 - GitHub CLI: if `gh` isn't on PATH yet, use `C:\Program Files\GitHub CLI\gh.exe`. Signed in.
 - Windows PowerShell 5.1 quirks: it can't pipe here-strings to `git commit -F -` and adds a BOM
   when piping JSON to `gh api --input -`. Use bash, or write the message to `.git/` first. Git

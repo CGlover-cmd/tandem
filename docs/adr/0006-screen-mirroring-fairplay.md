@@ -4,7 +4,7 @@
 - Date: 2026-10-21
 
 ## Context
-Phase 7 is whole-screen, then single-window, screen mirroring to an AirPlay receiver. The
+Phase 8 is whole-screen, then single-window, screen mirroring to an AirPlay receiver. The
 roadmap always marked it "feasibility-gated", and the risk register rated "FairPlay encryption
 blocks mirroring" as high likelihood. Spike D checked it
 ([findings](../spikes/spike-d-mirroring.md)).
@@ -31,7 +31,7 @@ reverse-engineering Apple's content protection. The spike did not attempt this.
    clearly cover redistributing the result), it clashes with the project's stated values, and it
    depends on recovered secrets that break on Apple updates. We decline this route whether or
    not a decompiler makes it easier.
-2. **Shelve mirroring.** Treat Phase 7 as no-go for now. Keep every FairPlay-free feature
+2. **Shelve mirroring.** Treat Phase 8 as no-go for now. Keep every FairPlay-free feature
    (control, audio out, multi-output, sending media files and URLs) that makes up the alpha and
    most of the value.
 3. **Wait for a legitimate path.** Keep the door open for a sanctioned route if one appears:
@@ -39,12 +39,12 @@ reverse-engineering Apple's content protection. The spike did not attempt this.
    extend-the-desktop route via a signed virtual-display driver feeding a non-AirPlay path.
 
 ## Decision
-Options 2 + 3: **do not implement or bypass FairPlay; shelve Phase 7 mirroring, and revisit
+Options 2 + 3: **do not implement or bypass FairPlay; shelve Phase 8 mirroring, and revisit
 only if a legitimate path appears.** We will not add a reverse-engineered FairPlay sender to a
 public project.
 
 Concretely:
-- Phase 7 is parked. The roadmap keeps it listed but marked blocked by this ADR.
+- Phase 8 is parked. The roadmap keeps it listed but marked blocked by this ADR.
 - Spike E (NVENC H.264 encode latency) is still worth doing on its own: the encode pipeline is
   reusable work and independent of this decision.
 - The alpha and v1.0 scope lose nothing else; every other feature is FairPlay-free.
