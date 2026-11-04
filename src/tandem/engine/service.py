@@ -12,18 +12,30 @@ import dataclasses
 import time
 from collections.abc import Callable, Sequence
 from contextlib import suppress
+from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
 from tandem.engine import diagnostics, pairing
-from tandem.engine.audio import AudioSink, AudioStats, PcmCapture
-from tandem.engine.audio_hub import AudioHub
+from tandem.engine.audio import AudioError, AudioSink, AudioStats, PcmCapture, StreamState
+from tandem.engine.audio_hub import AudioHub, is_local
 from tandem.engine.control import Controller, DeviceControls
 from tandem.engine.control_hub import ControlHub
 from tandem.engine.discovery import Discovery, Sleep
 from tandem.engine.events import EventBus
-from tandem.engine.models import Device, Service
+from tandem.engine.media_send import (
+    MediaError,
+    MediaSender,
+    MediaSends,
+    MediaServer,
+    is_link,
+    local_address_towards,
+    title_for,
+)
+from tandem.engine.models import Device, LocalOutput, Service
 from tandem.engine.pairing import PairingError, PairingFactory, PinProvider
+from tandem.engine.pc_media import MediaSessions, PcMediaWatcher
+from tandem.engine.player import DecodedStream, Player, Track
 from tandem.engine.redact import Redactor
 from tandem.engine.registry import DeviceRegistry
 from tandem.engine.session import ConnectionSession, Connector, Link
@@ -61,6 +73,33 @@ class Backend(Protocol):
         """A fresh capture of the PC's own audio."""
         ...
 
+    def local_outputs(self) -> Sequence[LocalOutput]:
+        """The PC's own sound outputs (speakers, headphones)."""
+        ...
+
+    def local_sink(self, output_id: str) -> AudioSink | None:
+        """Plays to one of the PC's sound outputs; None if it's gone."""
+        ...
+
+    def media_sender(self, link: Link) -> MediaSender | None:
+        """Plays a URL on the device on an open link; None if it can't play video."""
+        ...
+
+    def open_track(self, track: Track) -> DecodedStream:
+        """Decode a music file or a radio stream for the player."""
+        ...
+
+    def media_sessions(self) -> MediaSessions:
+        """Windows' media controls: what the PC's apps are playing."""
+        ...
+
+
+class AudioSource(Enum):
+    SYSTEM = "system"
+    """The PC's own audio (loopback of the default output)."""
+    PLAYER = "player"
+    """Tandem's player: local files and internet radio."""
+
 
 class UnknownDeviceError(LookupError):
     """No device with that id has been discovered."""
@@ -95,7 +134,18 @@ class Engine:
         )
         self._sessions: dict[str, ConnectionSession] = {}
         self._controls = ControlHub(self.bus, backend.controller, self._live_link)
-        self._audio = AudioHub(self.bus, backend.capture, backend.audio_sink, self._live_link)
+        self.player = Player(self.bus, backend.open_track)
+        self.audio_source = AudioSource.SYSTEM
+        self._audio = AudioHub(
+            self.bus,
+            backend.capture,
+            backend.audio_sink,
+            self._live_link,
+            local_sink=backend.local_sink,
+        )
+        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions())
+        self._media_server: MediaServer | None = None
+        self._sends = MediaSends(self.bus.publish)
 
     def _live_link(self, device_id: str) -> Link | None:
         session = self._sessions.get(device_id)
@@ -112,6 +162,11 @@ class Engine:
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
         await self.discovery.stop()
+        await self._sends.close()
+        if self._media_server is not None:
+            await self._media_server.stop()
+        await self.pc_media.stop()
+        await self.player.close()
         await self._audio.close()
         for device_id in list(self._sessions):
             await self.disconnect(device_id)
@@ -259,3 +314,82 @@ class Engine:
 
     def streaming_audio(self, device_id: str) -> bool:
         return self._audio.streaming(device_id)
+
+    # --- Outputs and sources (Phases 5 and 6) -------------------------------------------
+
+    def local_outputs(self) -> list[LocalOutput]:
+        """The PC's sound outputs that can be used now. While the source is the PC's own audio,
+        the default output is left out: playing to it would feed the sound back in."""
+        outputs = list(self._backend.local_outputs())
+        if self.audio_source is AudioSource.SYSTEM:
+            outputs = [o for o in outputs if not o.default]
+        return outputs
+
+    def outputs_on(self) -> dict[str, tuple[StreamState, float | None, int]]:
+        """Every output that is on: its stream state, volume and extra delay (ms)."""
+        return self._audio.active()
+
+    async def start_output(
+        self, output_id: str, *, volume: float | None = None, delay_ms: int = 0
+    ) -> None:
+        """Turn an output on: an AirPlay device (connecting it if needed) or a PC output."""
+        if is_local(output_id):
+            if output_id not in {o.id for o in self.local_outputs()}:
+                raise AudioError("that sound output isn't available")
+            self._audio.start(output_id, volume=volume, delay_ms=delay_ms)
+            return
+        await self.start_audio(output_id, volume=volume)
+        if delay_ms:
+            self._audio.set_delay(output_id, delay_ms)
+
+    async def stop_output(self, output_id: str) -> None:
+        await self._audio.stop(output_id)
+
+    async def set_output_volume(self, output_id: str, level: float) -> None:
+        await self._audio.set_volume(output_id, level)
+
+    def set_output_delay(self, output_id: str, delay_ms: int) -> None:
+        self._audio.set_delay(output_id, delay_ms)
+
+    async def set_audio_source(self, source: AudioSource) -> None:
+        """Switch between the PC's own audio and the player; outputs keep streaming."""
+        if source is self.audio_source:
+            return
+        self.audio_source = source
+        if source is AudioSource.SYSTEM:
+            # The default output would now feed back into the capture: turn it off.
+            for output in self._backend.local_outputs():
+                if output.default and self._audio.streaming(output.id):
+                    await self._audio.stop(output.id)
+            self._audio.set_capture(self._backend.capture)
+        else:
+            self._audio.set_capture(self.player.capture)
+
+    # --- Send media to an Apple TV (Phase 7) --------------------------------------------
+
+    async def play_media(self, device_id: str, location: str, *, timeout: float = 30.0) -> None:
+        """Play a link or a file on this PC on the device. Replaces what it was sent before."""
+        location = location.strip()
+        device = self.device(device_id)
+        link = await self.connect(device_id, timeout=timeout)
+        sender = self._backend.media_sender(link)
+        if sender is None:
+            raise MediaError("This device can't play videos or links.")
+        if is_link(location):
+            url = location
+        else:
+            path = Path(location)
+            if not await asyncio.to_thread(path.is_file):
+                raise MediaError("That file isn't there any more.")
+            if self._media_server is None:
+                self._media_server = MediaServer()
+            await self._media_server.start()
+            host = local_address_towards(device.address)
+            url = f"http://{host}:{self._media_server.port}{self._media_server.share(path)}"
+        await self._sends.start(device_id, sender, url, title_for(location))
+
+    async def stop_media(self, device_id: str) -> None:
+        await self._sends.stop(device_id)
+
+    def sending_media(self, device_id: str) -> bool:
+        return self._sends.playing(device_id)

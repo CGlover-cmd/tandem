@@ -7,17 +7,22 @@ import copy
 from collections.abc import Sequence
 
 import pyatv
-from pyatv.const import DeviceModel, PairingRequirement, Protocol
+from pyatv.const import DeviceModel, FeatureName, FeatureState, PairingRequirement, Protocol
 from pyatv.interface import AppleTV, BaseConfig, DeviceListener, PairingHandler
 from pyatv.storage import AbstractStorage
 
+from tandem.engine.adapters import decoders, local_audio
 from tandem.engine.adapters.loopback import LoopbackCapture
+from tandem.engine.adapters.media_sessions import media_sessions as windows_media_sessions
 from tandem.engine.adapters.pyatv_audio import PyatvAudioSink
 from tandem.engine.adapters.pyatv_control import PyatvController
 from tandem.engine.audio import AudioSink, PcmCapture
 from tandem.engine.control import Controller
-from tandem.engine.models import Device, DeviceKind, Service
+from tandem.engine.media_send import MediaSender
+from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
 from tandem.engine.pairing import PairingFactory, PairingHandle
+from tandem.engine.pc_media import MediaSessions
+from tandem.engine.player import DecodedStream, Track
 from tandem.engine.service import UnknownDeviceError
 from tandem.engine.session import Connector, Link, LostCallback
 
@@ -228,3 +233,32 @@ class PyatvBackend:
 
     def capture(self) -> PcmCapture:
         return LoopbackCapture()
+
+    def local_outputs(self) -> Sequence[LocalOutput]:  # pragma: no cover - sound hardware
+        return local_audio.list_outputs()
+
+    def local_sink(self, output_id: str) -> AudioSink | None:  # pragma: no cover
+        return local_audio.LocalPlaybackSink(output_id)
+
+    def media_sender(self, link: Link) -> MediaSender | None:
+        if isinstance(link, PyatvLink) and link.atv.features.in_state(
+            FeatureState.Available, FeatureName.PlayUrl
+        ):
+            return PyatvMediaSender(link.atv)
+        return None
+
+    def open_track(self, track: Track) -> DecodedStream:  # pragma: no cover - real files
+        return decoders.open_track(track)
+
+    def media_sessions(self) -> MediaSessions:  # pragma: no cover - depends on the PC
+        return windows_media_sessions()
+
+
+class PyatvMediaSender:
+    """AirPlay's "play this URL" (Phase 7). pyatv returns once playback has finished."""
+
+    def __init__(self, atv: AppleTV) -> None:
+        self._atv = atv
+
+    async def play_url(self, url: str) -> None:
+        await self._atv.stream.play_url(url)

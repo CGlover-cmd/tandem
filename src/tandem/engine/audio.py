@@ -9,6 +9,8 @@ buffer to one connected device.
 
 from __future__ import annotations
 
+import array
+import sys
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -104,9 +106,32 @@ class PcmBuffer:
                 self._head = 0
         return bytes(out)
 
+    @property
+    def delay_seconds(self) -> float:
+        """The cushion the buffer builds before it sends: its share of the output's delay."""
+        return self._prime_frames / SAMPLE_RATE
+
+    def set_delay(self, prime_seconds: float) -> None:
+        """Change the cushion while streaming (to line this output up with the others).
+
+        A longer cushion takes effect after a short gap of silence while it builds up; a
+        shorter one skips the extra audio straight away."""
+        if prime_seconds < 0:
+            raise ValueError("delay can't be negative")
+        with self._lock:
+            self._prime_frames = int(prime_seconds * SAMPLE_RATE)
+            self._max_bytes = max(
+                self._max_bytes, int((prime_seconds + 1.0) * SAMPLE_RATE) * FRAME_BYTES
+            )
+            self._primed = False
+
     async def read(self, frames: int) -> bytes:
         """Exactly `frames` frames, at once: audio when enough is buffered, else silence.
         Returns b"" once closed and empty."""
+        return self.read_now(frames)
+
+    def read_now(self, frames: int) -> bytes:
+        """`read` for callers on a thread (a sound card's callback). Never blocks for long."""
         nbytes = frames * FRAME_BYTES
         with self._lock:
             available = (self._size - self._head) // FRAME_BYTES
@@ -133,6 +158,24 @@ class PcmBuffer:
                 return tail + bytes(nbytes - len(tail))
             self.silent_frames += frames
             return bytes(nbytes)
+
+
+def apply_gain(pcm: bytes, level: float) -> bytes:
+    """Scale 16-bit little-endian PCM by `level` (0 to 100). 100 returns it unchanged."""
+    if level >= 100:
+        return pcm
+    if level <= 0:
+        return bytes(len(pcm))
+    samples = array.array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder != "little":  # pragma: no cover - Windows is little-endian
+        samples.byteswap()
+    # A gentle curve: the slider's middle sounds like half as loud, not a tenth.
+    gain = (level / 100) ** 2
+    scaled = array.array("h", [int(sample * gain) for sample in samples])
+    if sys.byteorder != "little":  # pragma: no cover
+        scaled.byteswap()
+    return scaled.tobytes()
 
 
 class PcmCapture(Protocol):

@@ -25,7 +25,9 @@ from tandem.engine.control import (
     RemoteKey,
     VolumeControl,
 )
-from tandem.engine.models import Device, DeviceKind, Service
+from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
+from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying
+from tandem.engine.player import Track
 
 
 def make_device(**overrides: Any) -> Device:
@@ -174,6 +176,16 @@ class FakeBackend:
         self.captures: list[FakeCapture] = []
         self.audio_enabled = True
         self.controller_options: dict[str, Any] = {}
+        self.local: list[LocalOutput] = [
+            LocalOutput("local:speakers", "Speakers", default=True),
+            LocalOutput("local:headphones", "Headphones"),
+        ]
+        self.local_sinks: dict[str, list[FakeSink]] = {}
+        self.media_enabled = True
+        self.senders: dict[str, FakeSender] = {}
+        self.tracks: dict[str, bytes] = {}
+        """PCM that each track location decodes to; a missing location fails to open."""
+        self.sessions = FakeSessions()
 
     async def load(self) -> None:
         self.loaded = True
@@ -252,6 +264,77 @@ class FakeBackend:
         capture = FakeCapture()
         self.captures.append(capture)
         return capture
+
+    def local_outputs(self) -> Sequence[LocalOutput]:
+        return list(self.local)
+
+    def local_sink(self, output_id: str) -> FakeSink | None:
+        if output_id not in {o.id for o in self.local}:
+            return None
+        sink = FakeSink()
+        self.local_sinks.setdefault(output_id, []).append(sink)
+        return sink
+
+    def media_sender(self, link: Any) -> FakeSender | None:
+        if not self.media_enabled or not isinstance(link, FakeLink):
+            return None
+        return self.senders.setdefault(link.device_id, FakeSender())
+
+    def open_track(self, track: Track) -> FakeStream:
+        if track.location not in self.tracks:
+            raise FileNotFoundError(track.location)
+        return FakeStream(self.tracks[track.location])
+
+    def media_sessions(self) -> FakeSessions:
+        return self.sessions
+
+
+class FakeSender:
+    def __init__(self) -> None:
+        self.urls: list[str] = []
+        self.fail: BaseException | None = None
+        self.release = asyncio.Event()
+
+    async def play_url(self, url: str) -> None:
+        self.urls.append(url)
+        if self.fail is not None:
+            raise self.fail
+        await self.release.wait()
+
+
+class FakeStream:
+    def __init__(self, pcm: bytes) -> None:
+        self._pcm = pcm
+        self.closed = False
+
+    @property
+    def duration(self) -> float | None:
+        return len(self._pcm) / 4 / 44_100
+
+    def read(self, frames: int) -> bytes:
+        chunk, self._pcm = self._pcm[: frames * 4], self._pcm[frames * 4 :]
+        return chunk
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeSessions:
+    def __init__(self) -> None:
+        self.now: PcNowPlaying | None = None
+        self.commands: list[PcMediaCommand] = []
+        self.fail: BaseException | None = None
+
+    async def current(self) -> PcNowPlaying | None:
+        if self.fail is not None:
+            raise self.fail
+        return self.now
+
+    async def command(self, command: PcMediaCommand) -> bool:
+        if self.fail is not None:
+            raise self.fail
+        self.commands.append(command)
+        return self.now is not None
 
 
 ALL_CAPABILITIES = frozenset(Capability)
