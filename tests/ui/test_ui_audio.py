@@ -186,3 +186,11 @@ async def test_home_bridge_toggle_in_the_demo(backend: DemoBackend) -> None:
     controller.handle({"type": "setHomeBridge", "on": False})
     await controller.runner.drain()
     assert controller.snapshot()["home"]["running"] is False
+
+
+def test_single_instance_claim() -> None:
+    from tandem.ui.platform import claim_single_instance
+
+    name = r"Local\TandemTestInstance"
+    assert claim_single_instance(name)
+    assert not claim_single_instance(name)  # a second copy is told to exit

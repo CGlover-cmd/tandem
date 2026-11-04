@@ -1,46 +1,64 @@
 # Tandem
 
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
-and other AirPlay 2 speakers and TVs, with smart-home control planned later.
+and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
-> **Status: pre-alpha. Phase 0 research is done ([go/no-go summary](docs/spikes/phase-0-summary.md)).**
-> Nothing to install yet. Pairing and remote
-> control of Apple TV, streaming audio to HomePod mini and an AirPlay 2 soundbar, and capturing
-> the PC's own audio are proven in spikes, as is fast hardware video encoding on NVIDIA GPUs.
-> An open-source test receiver on a Raspberry Pi lets audio be checked automatically.
-> Screen mirroring was investigated and shelved: it is
-> gated by Apple's FairPlay content protection, with no legitimate open-source way to send it
-> ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
-> A typed command bar (Ctrl+K) runs commands like "pause" or "volume 30 on the loft".
-> Tandem can't talk to Siri (there's no supported way from Windows), but Siri on a HomePod
-> will be able to drive Tandem through the Home app
-> ([ADR-0014](docs/adr/0014-commands-no-siri.md)).
-> The core engine (Phase 1) is done: discovery, pairing, connection handling, settings,
-> redacted logs and diagnostics, and an encrypted credential store, with a developer
-> command-line tool that pairs with and connects to Apple TV, HomePod mini and an AirPlay 2
-> soundbar.
-> Music (Phase 6): the window's **Music** tab shows what any app on the PC is playing (Spotify,
-> Apple Music, a browser), with artwork and play/pause, skip and seek, plus a now-playing bar
-> and tray controls.
-> See the [roadmap](docs/ROADMAP.md).
+> **Status: 1.0.0, a pre-release.** Every feature below is built and tested in code, but some
+> haven't been checked on real speakers yet; the [release notes](docs/release-notes.md) list
+> which. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
 
-## Goals
+## What it does
 
-- Discover and pair with Apple TV, HomePod and AirPlay 2 receivers on your network
-- Apple TV remote control from your PC
-- Stream system audio to any mix of AirPlay speakers and your PC's own speakers, in sync
-- Send videos and links to Apple TV
-- A Music tab: see and control what any music app is playing, browse Spotify, and play your
-  own files and internet radio to your speakers (Apple Music browsing is on hold: it needs a
-  paid Apple developer membership; Apple Music still works through now playing)
-  ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)). Tandem is a remote for the
-  streaming apps; their sound reaches your speakers through Tandem's audio router
-- A clean, Apple-inspired interface that's accessible and works from the system tray
-- Commands: type (later, say) what you want, such as "pause" or "open Music on the TV"
-- Works with the Home app: Siri on a HomePod and Home automations can drive Tandem
+- **Finds your devices** on the network: Apple TV, HomePod and AirPlay 2 speakers, soundbars
+  and TVs. A short **Getting started** checklist walks you through the first steps.
+- **Apple TV remote:** a touch pad, Back and Home, play and pause, what's playing, volume,
+  power, your TV's apps, and a keyboard for its search boxes.
+- **Audio:** sends whatever the PC plays to any mix of speakers at once, plus the PC's own
+  outputs (headphones, a second sound card), each with its own volume and a delay to line
+  them up by ear.
+- **Send to TV:** plays a video file from the PC, or a link to a video, on the Apple TV.
+- **Music:** shows and controls what any app on the PC is playing (Spotify, Apple Music, a
+  browser), with a now-playing bar and tray controls. Tandem is a remote for the streaming
+  apps; their sound reaches your speakers through Tandem's audio
+  ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)).
+- **Commands:** press Ctrl+K and type "pause", "volume 30 on the loft", "send audio to the
+  patio" or "open Music on the TV".
+- **Home app:** turn on "Show Tandem in the Home app" in Settings and Tandem appears there as
+  three switches (Tandem Audio, Tandem Music, Tandem TV), so Siri on a HomePod and your Home
+  automations can drive it ([ADR-0016](docs/adr/0016-home-bridge.md)). Tandem can't talk to
+  Siri directly; there's no supported way from Windows
+  ([ADR-0014](docs/adr/0014-commands-no-siri.md)).
 
-Screen mirroring is **not** planned: it is gated by Apple's FairPlay content protection, with no
-legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
+Screen mirroring is **not** included: it is gated by Apple's FairPlay content protection, with
+no legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
+Nothing is collected or sent anywhere except to your own devices (and, if you leave app icons
+on, an App Store icon lookup).
+
+## Install
+
+Tandem runs on Windows 11 and Windows 10 22H2 or later (64-bit).
+
+1. Download `Tandem-<version>-setup.exe` from the
+   [latest release](https://github.com/CGlover-cmd/tandem/releases).
+2. Run it. Windows may warn that the publisher is unknown: Tandem isn't code-signed yet. Choose
+   **More info**, then **Run anyway**. The installer adds a Windows Firewall rule so your
+   speakers and TV can reach Tandem on private networks, and installs Microsoft's WebView2 if
+   your PC doesn't have it.
+3. Open **Tandem** from the Start menu.
+
+**Smart App Control:** if it's on, Windows blocks unsigned installers outright, including
+Tandem's, and Windows won't let you allow one. Until Tandem is signed, install it with Python
+instead: get Python 3.11 or later from python.org, then run
+`py -m pip install "tandem[ui] @ <link to the .whl file on the release page>"` and start it with
+`pyw -m tandem.ui`.
+
+A portable zip (no installer, no firewall rule) is on the release page too: unzip it and run
+`python\pythonw.exe -m tandem.ui` from the folder.
+
+**For in-sync PC speakers:** while Tandem sends the PC's own sound, it can't also play it on
+the speakers it's capturing (that would echo). Install a virtual audio cable such as
+[VB-CABLE](https://vb-audio.com/Cable/), set it as Windows' default output, then turn your real
+speakers on in Tandem's Audio panel ([ADR-0005](docs/adr/0005-multi-output-audio-routing.md)).
 
 ## Contributing
 

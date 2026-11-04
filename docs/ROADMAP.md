@@ -14,23 +14,21 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
-- **Current state (2026-11-04):** Phases 0 and 1 are complete (see the
-  [go/no-go table](spikes/phase-0-summary.md)). Phases 2–4 and 10a are built, with some hardware
-  checks open (see each phase). The engine side of Phases 5, 6 and 7 is built and unit-tested,
-  but has no UI and no hardware checks yet ([ADR-0015](adr/0015-local-outputs-and-media-send.md)):
-  - Phase 5: PC sound devices as outputs next to AirPlay, with per-output volume and delay.
-  - Phase 6: Tandem's own player (local files, internet radio) and reading and controlling
-    what the PC plays through Windows' media controls. Now playing is in the window too: a
-    **Music** tab, a now-playing bar on the other tabs, and play/pause and next in the tray
-    menu, following any app's track changes without polling.
-  - Phase 7: send a video file or link to the Apple TV.
-- **2026-11-04 later:** the window now has an **Audio** panel (outputs, volume, delay, source) and **Send** on a connected Apple TV (file picker or link), checked in the demo window; the command bar sends and stops audio. An `onboarded` flag is in settings for the first-run checklist, whose sheet isn't built yet.
-- **Next:** the onboarding checklist sheet; the Home bridge; the installer and release workflow; then wire anything left of Phases 5–7 into the window; fix the HomePod mini's ~5 s lag (needed for
-  Phase 5 sync); then the open hardware checks, and a v0.1 alpha release with the untested
-  items listed in its notes.
-- **Repo note:** work happens on `claude/project-thread-y59f3u`, which merges PRs #8, #10 and #11.
-  A crash on 2026-10-27 corrupted this branch's git files; it was repaired and pushed on
-  2026-11-04 with no work lost.
+- **Current state (2026-11-04): 1.0.0 is built, as a pre-release.** Every phase except the
+  shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
+  and CI builds, installs and smoke-tests the Windows installer
+  ([ADR-0017](adr/0017-installer-embedded-python.md)). The maintainer handed the finish to
+  Claude without hands-on tests, so the hardware checks still open are listed in
+  [release-notes.md](release-notes.md). Built since the last hardware session: the Audio panel
+  (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
+  picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
+  checklist, the Home bridge (ADR-0016), one window per user, and the installer.
+- **Next:** the maintainer runs the release notes' checklist on the reference devices and
+  reports bugs; then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
+  signing (SignPath), and 10c voice input.
+- **Repo note:** the release work is PR #12 from `claude/project-thread-y59f3u`, which folds in
+  PRs #11 (command bar) and #13 (Music tab). The Raspberry Pi test receiver was retired on
+  2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
@@ -252,6 +250,11 @@ Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod min
 Pick any combination of outputs: AirPlay devices **and** the PC's own speakers. Local output is
 delayed to match the AirPlay buffer so everything plays in sync. Per-output volume, saved groups.
 **Exit:** HomePods, soundbar and PC speakers stay within ~20 ms of each other for 30 minutes.
+- [x] PC sound devices as outputs next to AirPlay, per-output volume and delay, saved per output
+  (ADR-0015)
+- [x] Audio panel in the window; command-bar "send audio" and "stop streaming"
+- [ ] Exit check on the reference devices (lined up by ear with the delay sliders; no automatic
+  sync yet)
 
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries
@@ -297,6 +300,9 @@ one.)
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
+- [x] Engine: a file shared on a random path, or a link, played with AirPlay's play-URL (ADR-0015)
+- [x] Send sheet on a connected Apple TV: file picker, link, what's playing, stop
+- [ ] Hardware check: an MP4 from the PC and a direct link on the Apple TV
 
 ### Phase 8 · Screen mirroring — SHELVED (blocked by FairPlay; ADR-0006)
 Spike D found no legitimate open-source path to send AirPlay screen mirroring: the video is
@@ -309,6 +315,11 @@ unaffected and needs no FairPlay.)
 ### Phase 9 · Hardening and v1.0
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
+- [x] Installer around Python's embeddable runtime, with firewall rule and WebView2 (ADR-0017)
+- [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
+- [x] One window per user; Getting started checklist on first run
+- [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
+- [ ] Auto-update (for now the releases page)
 
 ### Phase 10 · Smart home and commands
 Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer
@@ -324,6 +335,8 @@ its own PR with its own gate.
   few switches; Siri on a HomePod flips them, and Home automations on them let Tandem control
   Home devices. Off by default; pairing keys in the encrypted vault.
   **Gate:** a Home automation turns a lamp off from Tandem, and the hands-on Siri test passes.
+  - [x] Bridge with Tandem Audio, Music and TV switches, DPAPI-encrypted keys (ADR-0016)
+  - [ ] Gate on the reference devices
 - **10c · Offline voice input.** A push-to-talk microphone button and hotkey for the command
   bar, using Windows' on-device recognizer with a phrase list. Microphone off by default
   (opt-in in Settings), no audio saved or sent; never the WebView2 browser speech API (it is

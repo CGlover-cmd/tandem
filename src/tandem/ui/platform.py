@@ -42,3 +42,26 @@ def ui_data_dir() -> Path:
     if local:
         return Path(local) / "Tandem" / "ui"
     return Path.home() / ".tandem" / "ui"
+
+
+_ERROR_ALREADY_EXISTS = 183
+_held: list[int] = []
+
+
+def claim_single_instance(name: str = r"Local\TandemApp") -> bool:
+    """True if this is the only Tandem window running (for this Windows user).
+
+    A second copy would open its own connection to the Apple TV, which makes the TV drop the
+    first one, and both would want the Home bridge's port. The mutex is held until exit.
+    """
+    if sys.platform != "win32":
+        return True
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, name)
+    if not handle:
+        return True  # can't tell: don't block the user
+    if kernel32.GetLastError() == _ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(handle)
+        return False
+    _held.append(handle)
+    return True

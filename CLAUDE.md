@@ -58,7 +58,7 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
+- Test receivers (retired 2026-10-27: the Pi was reformatted; details kept for a rebuild): Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
   nqptp 1.2.9 built from source in `~/src` (Spike F; Debian's package lacks AirPlay 2), all on
   demand, not at boot; only one at a time (both use port 7000). Use shairport-sync in
   `--service-type=classic`: pyatv's AirPlay 2 sender uses NTP timing, which its AirPlay 2 mode
@@ -125,6 +125,16 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Write source files with the Write tool, not `cat <<EOF`.
 - pyright doesn't find the venv on its own: run
   `python -m pyright --pythonpath <venv python.exe>` (CI does the same).
+- Smart App Control started blocking zeroconf's compiled `_cache.pyd` (2026-10-27). Reinstall it
+  as pure Python: `SKIP_CYTHON=1 python -m pip install --force-reinstall --no-deps --no-binary
+  zeroconf zeroconf==<version>`. Any upgrade that pulls a zeroconf wheel brings the block back.
+- Our own installer can't run here (unsigned, Smart App Control). Build the app folder outside
+  OneDrive (`%USERPROFILE%\.tandem-build`) with `packaging/build_bundle.py`: its python.exe is
+  python.org's signed one, so `--smoke` and opening the window work locally. The installer is
+  built, installed and tested in CI only (`.github/workflows/release.yml`).
+- HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
+  Bridge's `setup_message` is overridden (it is). Its state file is
+  `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
@@ -172,6 +182,15 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Without `--demo` the window shows real device names, so never screenshot it; check it through
   the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
+- Panels added after ADR-0008 keep their bridge and demo code in their own modules, mixed into
+  `EngineBackend` / `DemoBackend`: `tandem.bridge_audio` + `ui/demo_audio.py` (Audio, Send),
+  `tandem.bridge_home` (Home bridge), with the controller side in `ui/audio_panel.py`.
+- Packaging (ADR-0017): `packaging/build_bundle.py` (embeddable Python app folder) and
+  `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
+  `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
+  GitHub pre-release: only with the maintainer's OK.
+- HeroUI's `Switch` renders its input only inside `Switch.Content`: put `Switch.Control` (and a
+  label, or an `sr-only` span) inside it, or the switch has no accessible control.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring

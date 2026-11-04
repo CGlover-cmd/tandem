@@ -113,8 +113,12 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
     import webview  # pyright: ignore[reportMissingTypeStubs]
 
     from tandem.ui.icon import write_ico
+    from tandem.ui.platform import claim_single_instance
     from tandem.ui.tray import Tray
 
+    if not args.demo and not claim_single_instance():
+        _LOGGER.info("Tandem is already running; this copy exits")
+        return 0
     wv: Any = webview
     loop = asyncio.new_event_loop()
     picker = WindowFilePicker()
