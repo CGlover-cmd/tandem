@@ -6,6 +6,7 @@ import { isCommandShortcut } from "./commands";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
+import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
 import { SendSheet } from "./components/SendSheet";
@@ -38,6 +39,16 @@ export function App() {
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [audioOpen, setAudioOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const onboarded = state?.appearance.onboarded ?? true;
+  // The checklist opens by itself until it has been closed once.
+  useEffect(() => {
+    if (!onboarded) setGuideOpen(true);
+  }, [onboarded]);
+  const closeGuide = () => {
+    setGuideOpen(false);
+    if (!onboarded) send({ type: "setAppearance", onboarded: true });
+  };
   const [sendId, setSendId] = useState<string | null>(null);
   const sendDevice = state?.devices.find((d) => d.id === sendId) ?? null;
   const streaming = state?.audio.streaming ?? 0;
@@ -185,6 +196,14 @@ export function App() {
       )}
       <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
       {state && (
+        <OnboardingSheet
+          isOpen={guideOpen && !audioOpen}
+          state={state}
+          onClose={closeGuide}
+          onOpenAudio={() => setAudioOpen(true)}
+        />
+      )}
+      {state && (
         <AudioSheet isOpen={audioOpen} onClose={() => setAudioOpen(false)} audio={state.audio} send={send} />
       )}
       <SendSheet
@@ -198,6 +217,10 @@ export function App() {
         <SettingsSheet
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
+          onOpenGuide={() => {
+            setSettingsOpen(false);
+            setGuideOpen(true);
+          }}
           appearance={state.appearance}
           mode={mode}
           send={send}

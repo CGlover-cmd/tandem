@@ -151,6 +151,32 @@ export const strings = {
     badge: (count: number) => (count === 1 ? "1 playing" : `${count} playing`),
   },
 
+  onboarding: {
+    title: "Getting started",
+    subtitle: "Three quick steps. This list ticks itself off as you go.",
+    findTitle: "Find your devices",
+    findDetail:
+      "Make sure your speakers and TV are on and on the same Wi-Fi as this PC. If Windows asks about network access for Tandem, allow private networks.",
+    findDone: (count: number) => (count === 1 ? "Tandem found 1 device." : `Tandem found ${count} devices.`),
+    pairTitle: "Pair your Apple TV",
+    pairDetail: "Choose Pair on its card and type the PIN the TV shows. It asks twice: remote control, then AirPlay.",
+    pairDone: "Your Apple TV is paired.",
+    playTitle: "Play the PC's sound on a speaker",
+    playDetail: "Open Audio and turn on a speaker. Then play something on the PC.",
+    playDone: "Sound is going to a speaker.",
+    openAudio: "Open Audio",
+    done: "done",
+    helpTitle: "If something doesn't work",
+    tips: [
+      "A HomePod or speaker won't connect: in the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+      "The speakers lag behind the PC: open Audio and raise the delay on the faster outputs until they play together.",
+      "No sound on the speaker: Tandem sends what Windows plays, at Windows' volume. Check the PC isn't muted.",
+    ],
+    later: "Not now",
+    finish: "Done",
+    reopen: "Getting started",
+  },
+
   sendSheet: {
     open: "Send",
     title: (name: string) => `Send to ${name}`,

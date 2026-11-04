@@ -136,6 +136,8 @@ export interface Appearance {
   background: string;
   /** Look up real app icons on the App Store for the launcher. */
   appIcons: boolean;
+  /** The first-run checklist has been closed. */
+  onboarded: boolean;
 }
 
 export type CommandStatus =
@@ -182,7 +184,7 @@ export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" }
-  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean }
+  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean; onboarded?: boolean }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }

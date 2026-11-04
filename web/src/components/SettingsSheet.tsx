@@ -9,6 +9,7 @@ import type { Appearance, Command, ThemeChoice } from "../types";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onOpenGuide: () => void;
   appearance: Appearance;
   mode: Mode;
   send: (command: Command) => void;
@@ -43,7 +44,7 @@ function Swatch({ background, mode }: { background: Background; mode: Mode }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, appearance, mode, send }: Props) {
+export function SettingsSheet({ isOpen, onClose, onOpenGuide, appearance, mode, send }: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
 
@@ -128,6 +129,9 @@ export function SettingsSheet({ isOpen, onClose, appearance, mode, send }: Props
             </Switch>
           </Modal.Body>
           <Modal.Footer>
+            <Button variant="secondary" onPress={onOpenGuide}>
+              {strings.onboarding.reopen}
+            </Button>
             <Button variant="primary" onPress={onClose}>
               {strings.settingsSheet.done}
             </Button>
