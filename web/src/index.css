@@ -474,3 +474,21 @@ h2 {
     display: none;
   }
 }
+
+/* Audio panel: one rounded row per output. */
+.output-row {
+  list-style: none;
+  border-radius: 18px;
+  padding: 12px 14px;
+  transition: box-shadow 200ms var(--tandem-spring);
+}
+
+.output-row[data-on] {
+  box-shadow: inset 0 0 0 1.5px var(--tandem-accent-text);
+}
+
+/* Send to TV: what's playing now. */
+.send-status {
+  border-radius: 16px;
+  padding: 10px 14px;
+}

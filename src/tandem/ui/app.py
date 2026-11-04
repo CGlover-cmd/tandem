@@ -21,6 +21,7 @@ from tandem.ui.app_icons import AiohttpHttp, AppIconStore
 from tandem.ui.backend import Backend
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
+from tandem.ui.file_picker import WindowFilePicker
 from tandem.ui.platform import reduce_motion, store_country, ui_data_dir
 from tandem.ui.server import UiServer
 
@@ -55,7 +56,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
+def build(
+    args: argparse.Namespace, picker: WindowFilePicker | None = None
+) -> tuple[AppController, UiServer]:
     backend: Backend
     icons: AppIconStore | None = None
     if args.demo:  # invented apps: nothing to look up
@@ -70,7 +73,7 @@ def build(args: argparse.Namespace) -> tuple[AppController, UiServer]:
         backend = create_engine_backend()
         icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
     controller = AppController(
-        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons
+        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons, picker=picker
     )
     server = UiServer(
         controller,
@@ -114,7 +117,8 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
 
     wv: Any = webview
     loop = asyncio.new_event_loop()
-    controller, server = build(args)
+    picker = WindowFilePicker()
+    controller, server = build(args, picker)
     ready = threading.Event()
     stopped = threading.Event()
     failed: list[BaseException] = []
@@ -154,6 +158,7 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
         min_size=MIN_SIZE,
         background_color="#F5F5F7",
     )
+    picker.attach(window)
 
     def show_window() -> None:
         window.show()

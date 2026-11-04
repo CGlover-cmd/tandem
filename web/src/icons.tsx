@@ -262,3 +262,31 @@ export function ComputerIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function WavesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+    </Svg>
+  );
+}
+
+export function SendIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M9 20h6M12 16v4" />
+      <path d="M10.5 8l3 2-3 2Z" />
+    </Svg>
+  );
+}
+
+export function HeadphonesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+      <rect x="3.5" y="14" width="4" height="6" rx="1.5" />
+      <rect x="16.5" y="14" width="4" height="6" rx="1.5" />
+    </Svg>
+  );
+}

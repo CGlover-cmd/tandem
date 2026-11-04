@@ -156,3 +156,10 @@ async def test_latest_sends_only_the_newest_value() -> None:
 
 async def test_output_states_cover_the_failed_case(backend: DemoBackend) -> None:
     assert OutputState("failed") is OutputState.FAILED
+
+
+async def test_window_picker_without_a_window_returns_nothing() -> None:
+    from tandem.ui.file_picker import WindowFilePicker
+
+    picker = WindowFilePicker()
+    assert await picker.pick_video() is None

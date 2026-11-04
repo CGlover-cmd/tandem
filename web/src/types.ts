@@ -75,6 +75,44 @@ export interface Device {
   controls: Controls | null;
   /** The device's apps, after the launcher asked for them; cleared on disconnect. */
   apps: AppList | null;
+  /** What was last sent to this Apple TV (a link or a video file), while it plays. */
+  send: SendState | null;
+}
+
+/** A video or link sent to an Apple TV. `title` is a file name or link host: never log it. */
+export interface SendState {
+  state: "starting" | "playing" | "ended" | "failed";
+  title: string | null;
+}
+
+export type OutputKind = "airplay" | "pc";
+export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed";
+export type AudioSource = "system" | "player";
+
+/** One place the sound can go: an AirPlay device or one of the PC's own sound outputs. */
+export interface AudioOutput {
+  id: string;
+  name: string;
+  kind: OutputKind;
+  state: OutputState;
+  /** 0 to 100; null until the user sets it (the device keeps its own volume). */
+  volume: number | null;
+  /** Extra delay for this output, to line it up with the others by ear. */
+  delayMs: number;
+  deviceKind: DeviceKind | null;
+  needsPairing: boolean;
+}
+
+export interface AudioPanel {
+  source: AudioSource;
+  /** The PC's default output is hidden while its own sound is the source (it would echo). */
+  pcOutputsHidden: boolean;
+  outputs: AudioOutput[];
+  /** How many outputs are on. */
+  streaming: number;
+  /** The window can open a file picker (it can't in the browser preview). */
+  canPickFiles: boolean;
+  picking: boolean;
 }
 
 /** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
@@ -133,6 +171,7 @@ export interface AppState {
   discovering: boolean;
   pairing: Pairing;
   commands: CommandBarState;
+  audio: AudioPanel;
   message: Problem | null;
   appearance: Appearance;
   demo: boolean;
@@ -152,4 +191,11 @@ export type Command =
   | { type: "launchApp"; id: string; appId: string }
   | { type: "setText"; id: string; text: string }
   | { type: "previewCommand" | "runCommand"; text: string }
-  | { type: "clearCommand" };
+  | { type: "clearCommand" }
+  | { type: "setOutput"; id: string; on: boolean }
+  | { type: "setOutputVolume"; id: string; level: number }
+  | { type: "setOutputDelay"; id: string; ms: number }
+  | { type: "setAudioSource"; source: AudioSource }
+  | { type: "allOutputsOff" }
+  | { type: "sendMedia"; id: string; location: string }
+  | { type: "pickMedia" | "stopMedia"; id: string };

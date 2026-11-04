@@ -13,6 +13,7 @@ const speaker: Device = {
   needsPairing: false,
   retryIn: null,
   apps: null,
+  send: null,
   controls: null,
 };
 
