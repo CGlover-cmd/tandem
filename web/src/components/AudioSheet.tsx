@@ -84,14 +84,16 @@ function OutputRow({ output, send }: { output: AudioOutput; send: (command: Comm
           </p>
         </div>
         <Switch
-          aria-label={strings.audio.turnOn(output.name)}
           isSelected={live}
           isDisabled={output.needsPairing}
           onChange={(on) => send({ type: "setOutput", id: output.id, on })}
         >
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
+          <Switch.Content>
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <span className="sr-only">{strings.audio.turnOn(output.name)}</span>
+          </Switch.Content>
         </Switch>
       </div>
       {live && (

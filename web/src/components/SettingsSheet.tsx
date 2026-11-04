@@ -116,12 +116,14 @@ export function SettingsSheet({ isOpen, onClose, appearance, mode, send }: Props
               onChange={(appIcons) => send({ type: "setAppearance", appIcons })}
               className="items-start gap-3"
             >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Switch.Content className="flex flex-col gap-1">
-                <span className="section-title">{strings.settingsSheet.appIcons}</span>
-                <span className="text-[12px] text-[var(--muted)]">{strings.settingsSheet.appIconsDetail}</span>
+              <Switch.Content className="flex items-start gap-3">
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <span className="flex flex-col gap-1">
+                  <span className="section-title">{strings.settingsSheet.appIcons}</span>
+                  <span className="text-[12px] text-[var(--muted)]">{strings.settingsSheet.appIconsDetail}</span>
+                </span>
               </Switch.Content>
             </Switch>
           </Modal.Body>
