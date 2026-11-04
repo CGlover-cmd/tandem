@@ -35,6 +35,7 @@ from tandem.engine.home_bridge import BridgeServer
 from tandem.engine.models import Device, Service
 from tandem.engine.models import DeviceKind as EngineKind
 from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
@@ -66,6 +67,15 @@ NOT_CONNECTED = "This device isn't connected."
 CANT_DO_THAT = "This device can't do that right now."
 NO_RESPONSE = "The device didn't respond. Try again."
 NO_TEXT_FIELD = "Select a search box or text field on the TV first, then type."
+NOTHING_PLAYING = "Nothing is playing on this PC."
+APP_CANT = "The app that's playing doesn't allow that right now."
+APP_DIDNT_RESPOND = "The app didn't respond. Try again, or use the app itself."
+
+_PC_MEDIA = {
+    ui.MusicCommand.PLAY_PAUSE: PcMediaCommand.PLAY_PAUSE,
+    ui.MusicCommand.NEXT: PcMediaCommand.NEXT,
+    ui.MusicCommand.PREVIOUS: PcMediaCommand.PREVIOUS,
+}
 
 _MEDIA = {
     ui.MediaCommand.NEXT: ec.MediaCommand.NEXT,
@@ -120,6 +130,7 @@ class EngineBackend(EngineAudio, EngineHome):
             bus.subscribe(ConnectionStateChanged, self._on_connection),
             bus.subscribe(SettingsChanged, self._on_settings),
             bus.subscribe(ec.ControlEvent, self._on_control),
+            bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
         self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
         self._unsubscribe += self._init_home(home_server)
@@ -156,10 +167,18 @@ class EngineBackend(EngineAudio, EngineHome):
         status = self._status.get(device_id)
         return None if status is None else _controls(status)
 
+    def music(self) -> ui.MusicSnapshot | None:
+        return _music(self._engine.pc_media.now_playing)
+
+    def music_artwork(self) -> ui.MusicArtwork | None:
+        art = self._engine.pc_media.artwork()
+        return None if art is None else ui.MusicArtwork(art.data, art.mimetype)
+
     # Lifecycle
 
     async def start(self) -> None:
         await self._engine.open()
+        self._engine.pc_media.start()  # what the PC's apps are playing (Phase 6)
         self._publish(ui.DiscoveryChanged(active=True))
         try:
             await self._engine.scan()
@@ -233,6 +252,24 @@ class EngineBackend(EngineAudio, EngineHome):
     async def set_text(self, device_id: str, text: str) -> None:
         await _control(self._engine.controls(device_id).set_text(text[: ui.MAX_TEXT]))
 
+    async def music_command(self, command: ui.MusicCommand) -> None:
+        music = self.music()
+        if music is None:
+            raise ui.ControlError(NOTHING_PLAYING)
+        if command not in music.commands:
+            raise ui.ControlError(APP_CANT)
+        if not await self._engine.pc_media.command(_PC_MEDIA[command]):
+            raise ui.ControlError(APP_DIDNT_RESPOND)
+
+    async def music_seek(self, position: float) -> None:
+        music = self.music()
+        if music is None:
+            raise ui.ControlError(NOTHING_PLAYING)
+        if not music.can_seek or position < 0:
+            raise ui.ControlError(APP_CANT)
+        if not await self._engine.pc_media.seek(position):
+            raise ui.ControlError(APP_DIDNT_RESPOND)
+
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
         self._settings.update(
@@ -265,6 +302,9 @@ class EngineBackend(EngineAudio, EngineHome):
 
     def _on_settings(self, event: SettingsChanged) -> None:
         self._publish(ui.AppearanceChanged(self.appearance()))
+
+    def _on_pc_media(self, event: PcNowPlayingChanged) -> None:
+        self._publish(ui.MusicChanged(_music(event.now_playing)))
 
     def _on_control(self, event: ec.ControlEvent) -> None:
         device_id = event.device_id
@@ -454,6 +494,29 @@ def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
         apps=ec.Capability.APPS in caps,
         text_entry=ec.Capability.TEXT_ENTRY in caps,
         keyboard=status.keyboard and ec.Capability.TEXT_ENTRY in caps,
+    )
+
+
+def _music(playing: PcNowPlaying | None) -> ui.MusicSnapshot | None:
+    if playing is None:
+        return None
+    allowed = {
+        ui.MusicCommand.PLAY_PAUSE: playing.can_play_pause,
+        ui.MusicCommand.NEXT: playing.can_next,
+        ui.MusicCommand.PREVIOUS: playing.can_previous,
+    }
+    return ui.MusicSnapshot(
+        app=playing.app,
+        state=playing.state,
+        title=playing.title,
+        artist=playing.artist,
+        album=playing.album,
+        position=playing.position,
+        duration=playing.duration,
+        position_at=playing.position_at,
+        commands=frozenset(command for command, on in allowed.items() if on),
+        can_seek=playing.can_seek,
+        artwork=playing.artwork_id,
     )
 
 

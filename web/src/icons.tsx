@@ -263,6 +263,16 @@ export function ComputerIcon(props: IconProps) {
   );
 }
 
+export function MusicIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9 17.5V6.5l10-2v11" />
+      <circle cx="6.5" cy="17.5" r="2.5" />
+      <circle cx="16.5" cy="15.5" r="2.5" />
+    </Svg>
+  );
+}
+
 export function WavesIcon(props: IconProps) {
   return (
     <Svg {...props}>

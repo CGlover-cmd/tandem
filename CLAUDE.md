@@ -102,10 +102,17 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `tandem.ui.app` runs asyncio on a second thread and pystray on a third.
 - A second clone of the repo needs its own venv: the shared `tandem-dev` venv has an editable
   install pointing at the OneDrive checkout, so tests in another clone would import that copy.
-- Media sessions (Music spike 1): pywinrt `winrt-Windows.Media.Control` (+ Foundation,
-  Foundation.Collections, Storage.Streams) loads under Smart App Control. Its events fire on a
-  WinRT thread; hop to asyncio with `call_soon_threadsafe`. Spike output prints flags, never
-  titles or artists.
+- Media sessions (Phase 6, `engine/pc_media.py` + `engine/adapters/media_sessions.py`): pywinrt
+  `winrt-Windows.Media.Control` (+ Foundation, Foundation.Collections, Storage.Streams; in the
+  `ui` extra) loads under Smart App Control and works from the engine's asyncio thread while
+  pywebview owns an STA main thread. Events fire on a WinRT thread; hop to asyncio with
+  `call_soon_threadsafe`. Browsers re-make their session (same app id, new object) or drop it
+  for a moment on a track change, so re-hook on every session event and don't report "nothing
+  playing" at once. An app can "accept" a command and do nothing: confirm by the new state.
+  Titles, artists and artwork go to the window only (artwork via the token-gated `/artwork`
+  route, from memory); never log or print them. `spikes/now_playing_latency.py --page` times
+  the bar against Windows' events. A fresh Edge profile auto-opens a sync sign-in dialog and
+  holds back media in its hidden tab: don't use Edge for tests; the built-in browser pane works.
 - WebView2 here is Evergreen and ships Widevine (software level); PlayReady hardware works only
   outside pywebview's `private_mode`. pywebview handles every new-window request itself (opens
   the system browser), so `window.open` returns null; popups that must talk back need our own

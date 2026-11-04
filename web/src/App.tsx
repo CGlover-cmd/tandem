@@ -1,4 +1,4 @@
-import { Button, Chip, Kbd, Spinner, Toast, toast } from "@heroui/react";
+import { Button, Chip, Kbd, Spinner, Tabs, Toast, toast } from "@heroui/react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
@@ -6,6 +6,7 @@ import { isCommandShortcut } from "./commands";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
+import { MusicPanel, NowPlayingBar } from "./components/Music";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
@@ -33,6 +34,8 @@ function resolveMode(choice: ThemeChoice, system: Mode): Mode {
   return choice === "system" ? system : choice;
 }
 
+type View = "devices" | "music";
+
 export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -52,6 +55,9 @@ export function App() {
   const [sendId, setSendId] = useState<string | null>(null);
   const sendDevice = state?.devices.find((d) => d.id === sendId) ?? null;
   const streaming = state?.audio.streaming ?? 0;
+  const [view, setView] = useState<View>("devices");
+  const music = state?.music ?? null;
+  const showBar = music !== null && view !== "music";
   const remoteDevice = state?.devices.find((d) => d.id === remoteId) ?? null;
   const system = useSystemMode();
   const mode = resolveMode(state?.appearance.theme ?? "system", system);
@@ -86,17 +92,34 @@ export function App() {
   return (
     <div className="app-backdrop" style={{ background: backdrop }}>
       <Toast.Provider placement="bottom" />
-      <div className="app-shell">
+      <Tabs
+        className="app-shell"
+        data-bar={showBar ? "" : undefined}
+        selectedKey={view}
+        onSelectionChange={(key) => setView(key === "music" ? "music" : "devices")}
+      >
         <header className="app-header">
           <div className="flex items-center gap-3">
             <LogoMark size={30} />
             <div>
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
-                {strings.devicesTitle}
+                {view === "music" ? strings.music.title : strings.devicesTitle}
               </h1>
-              <p className="text-[13px] text-[var(--muted)]">{strings.devicesSubtitle}</p>
+              <p className="text-[13px] text-[var(--muted)]">
+                {view === "music" ? strings.music.subtitle : strings.devicesSubtitle}
+              </p>
             </div>
           </div>
+          <Tabs.List aria-label={strings.tabs.label} className="app-tabs">
+            <Tabs.Tab id="devices">
+              {strings.tabs.devices}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+            <Tabs.Tab id="music">
+              {strings.tabs.music}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          </Tabs.List>
           <div className="flex items-center gap-3">
             {state?.discovering && (
               <span className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
@@ -146,7 +169,7 @@ export function App() {
           </div>
         </header>
 
-        <main>
+        <Tabs.Panel id="devices">
           {state && state.devices.length > 0 ? (
             <ul className="device-grid" aria-label={strings.devicesTitle}>
               {state.devices.map((device) => (
@@ -175,8 +198,19 @@ export function App() {
               )}
             </div>
           )}
-        </main>
-      </div>
+        </Tabs.Panel>
+        <Tabs.Panel id="music">
+          {state === null ? (
+            <div className="empty-state glass">
+              <Spinner color="accent" />
+            </div>
+          ) : (
+            <MusicPanel music={music} send={send} />
+          )}
+        </Tabs.Panel>
+      </Tabs>
+
+      {showBar && <NowPlayingBar music={music} send={send} onOpen={() => setView("music")} />}
 
       {status === "lost" && (
         <div className="link-lost" role="status">

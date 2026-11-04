@@ -61,10 +61,17 @@ output is safe to paste.
   same Windows media controls, so the Apple Music result is taken to cover it. If the now-playing
   bar misbehaves with Spotify later, rerun this spike against it:
 
+A browser was checked with the now-playing bar (`spikes/now_playing_latency.py --page`, a
+Chromium-based browser tab playing quiet test tones): titles and change events arrive, and two
+quirks showed up. On a track change a browser can drop its session for a moment, or re-make
+it with the same app id as a new object whose events are the only ones that fire. Tandem now
+waits a second before saying nothing plays and re-hooks on every session event. Still to try,
+with something playing in a browser:
+
 ```
 python spikes/spike_music_media_sessions.py list
 python spikes/spike_music_media_sessions.py watch --seconds 30
 python spikes/spike_music_media_sessions.py control --app Spotify --action next
 ```
 
-- **A browser tab:** checked as part of the now-playing bar's own exit test instead of here.
+- Play, pause and skip on a browser tab.

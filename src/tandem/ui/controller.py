@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any, Protocol, TypeVar
@@ -42,6 +43,10 @@ from tandem.ui.backend import (
     KeyAction,
     LinkState,
     MediaCommand,
+    MusicArtwork,
+    MusicChanged,
+    MusicCommand,
+    MusicSnapshot,
     PairingError,
     PairingFlow,
     RemoteKey,
@@ -322,9 +327,12 @@ class AppController:
         reduce_motion: bool = False,
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
+        self._clock = clock
+        self.music: MusicSnapshot | None = None
         self.demo_mode = demo_mode
         self.reduce_motion = reduce_motion
         self.discovering = False
@@ -395,12 +403,14 @@ class AppController:
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
+            "music": _music_json(self.music, self._clock()),
         }
 
     # Lifecycle
 
     async def start(self) -> None:
         self._unsubscribe = self._backend.subscribe(self._on_event)
+        self.music = self._backend.music()
         for device in self._backend.devices():
             self._devices[device.id] = device
             controls = self._backend.controls(device.id)
@@ -460,6 +470,17 @@ class AppController:
 
     def set_volume(self, device_id: str, level: float) -> None:
         self.runner.run(self._backend.set_volume(device_id, level))
+
+    def music_command(self, command: MusicCommand) -> None:
+        """Play/pause, next or previous in the app that's playing on the PC."""
+        self.runner.run(self._backend.music_command(command))
+
+    def music_seek(self, position: float) -> None:
+        self.runner.run(self._backend.music_seek(position))
+
+    def music_artwork(self) -> MusicArtwork | None:
+        """The artwork for what's playing, for the window only."""
+        return self._backend.music_artwork() if self.music is not None else None
 
     def set_power(self, device_id: str, on: bool) -> None:
         self.runner.run(self._backend.set_power(device_id, on))
@@ -548,6 +569,18 @@ class AppController:
             self.commands.preview(command["text"])
         elif kind == "runCommand" and isinstance(command.get("text"), str):
             self.commands.run(command["text"])
+        elif kind == "music":
+            music = _enum(MusicCommand, command.get("command"))
+            if music is not None:
+                self.music_command(music)
+        elif kind == "musicSeek":
+            position = command.get("position")
+            if (
+                isinstance(position, int | float)
+                and not isinstance(position, bool)
+                and position >= 0
+            ):
+                self.music_seek(float(position))
         elif kind == "clearCommand":
             self.commands.clear()
         elif kind == "setAppearance":
@@ -591,6 +624,8 @@ class AppController:
                     self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
+            case MusicChanged(music=music):
+                self.music = music
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
                 self._refresh_icons()
@@ -708,6 +743,29 @@ def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
             "position": playing.position,
             "totalTime": playing.total_time,
         },
+    }
+
+
+def _music_json(music: MusicSnapshot | None, now: float) -> dict[str, Any] | None:
+    """What the PC is playing, with the position as of `now` so the page can count on."""
+    if music is None:
+        return None
+    position = music.position
+    if position is not None and music.state == "playing":
+        position += max(0.0, now - music.position_at)
+    if position is not None and music.duration is not None:
+        position = min(position, music.duration)
+    return {
+        "app": music.app,
+        "state": music.state,
+        "title": music.title,
+        "artist": music.artist,
+        "album": music.album,
+        "position": None if position is None else round(position, 2),
+        "duration": music.duration,
+        "commands": sorted(command.value for command in music.commands),
+        "canSeek": music.can_seek,
+        "artwork": music.artwork,
     }
 
 
