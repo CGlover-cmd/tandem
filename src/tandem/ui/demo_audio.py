@@ -18,6 +18,8 @@ from tandem.ui.backend import (
     BackendEvent,
     DeviceKind,
     DeviceSnapshot,
+    HomeSnapshot,
+    HomeUpdated,
     LinkState,
     MediaError,
     OutputKind,
@@ -35,6 +37,12 @@ PAIR_FIRST = "Pair this device first."
 NOT_A_TV = "Only an Apple TV can play videos and links."
 CONNECT_FIRST = "Connect the TV first."
 EMPTY = "Paste a link or choose a file first."
+DEMO_SETUP_CODE = "123-45-678"
+DEMO_SWITCHES = (
+    ("audio", "Tandem Audio", False),
+    ("music", "Tandem Music", False),
+    ("tv", "Tandem TV", False),
+)
 
 
 class DemoAudio:
@@ -45,6 +53,7 @@ class DemoAudio:
     def devices(self) -> list[DeviceSnapshot]: ...
 
     def _init_audio(self) -> None:
+        self._home = HomeSnapshot()
         self._source = AudioSourceChoice.SYSTEM
         self._outputs: dict[str, OutputSnapshot] = {}
         self._sends: dict[str, SendSnapshot] = {}
@@ -118,6 +127,18 @@ class DemoAudio:
     async def stop_media(self, device_id: str) -> None:
         if self._sends.pop(device_id, None) is not None:
             self._publish(SendChanged(device_id, None))
+
+    # The Home bridge, pretend: a fixed setup code, "added" once a switch is flipped.
+
+    def home(self) -> HomeSnapshot:
+        return self._home
+
+    async def set_home_bridge(self, on: bool) -> None:
+        if on:
+            self._home = HomeSnapshot(True, True, False, DEMO_SETUP_CODE, False, DEMO_SWITCHES)
+        else:
+            self._home = HomeSnapshot()
+        self._publish(HomeUpdated(self._home))
 
     def _find(self, output_id: str) -> OutputSnapshot:
         output = next((o for o in self.audio().outputs if o.id == output_id), None)

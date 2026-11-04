@@ -4,13 +4,14 @@ import { Label, Radio, RadioGroup } from "react-aria-components";
 import { CheckIcon } from "../icons";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, type Background, type Mode } from "../theme";
-import type { Appearance, Command, ThemeChoice } from "../types";
+import type { Appearance, Command, HomeBridge, ThemeChoice } from "../types";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onOpenGuide: () => void;
   appearance: Appearance;
+  home: HomeBridge;
   mode: Mode;
   send: (command: Command) => void;
 }
@@ -44,7 +45,7 @@ function Swatch({ background, mode }: { background: Background; mode: Mode }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, onOpenGuide, appearance, mode, send }: Props) {
+export function SettingsSheet({ isOpen, onClose, onOpenGuide, appearance, home, mode, send }: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
 
@@ -127,6 +128,45 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, appearance, mode, 
                 </span>
               </Switch.Content>
             </Switch>
+
+            <Separator />
+
+            <section className="flex flex-col gap-2" aria-labelledby="home-label">
+              <h3 id="home-label" className="section-title">
+                {strings.home.title}
+              </h3>
+              <Switch
+                isSelected={home.enabled}
+                onChange={(on) => send({ type: "setHomeBridge", on })}
+                className="items-start gap-3"
+              >
+                <Switch.Content className="flex items-start gap-3">
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  <span className="flex flex-col gap-1">
+                    <span className="text-[14px] font-medium">{strings.home.toggle}</span>
+                    <span className="text-[12px] text-[var(--muted)]">{strings.home.detail}</span>
+                  </span>
+                </Switch.Content>
+              </Switch>
+              {home.enabled && home.failed && (
+                <p className="text-[12px] text-[var(--danger)]" role="status">
+                  {strings.home.failed}
+                </p>
+              )}
+              {home.running && home.paired && (
+                <p className="text-[12px] text-[var(--success)]" role="status">
+                  {strings.home.added}
+                </p>
+              )}
+              {home.running && !home.paired && home.setupCode && (
+                <div className="glass send-status flex flex-col gap-1" role="status">
+                  <span className="text-[12px] text-[var(--muted)]">{strings.home.addSteps}</span>
+                  <span className="text-[22px] font-semibold tabular-nums tracking-wider">{home.setupCode}</span>
+                </div>
+              )}
+            </section>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onPress={onOpenGuide}>

@@ -55,6 +55,8 @@ class EngineAudio:
         self._prefs = prefs
         self._failed: set[str] = set()
         self._sends: dict[str, ui.SendSnapshot] = {}
+        self.last_outputs: list[str] = []
+        """Outputs turned on most recently, for the Home app's audio switch."""
         bus = self._engine.bus
         return [
             bus.subscribe(AudioStreamChanged, self._on_stream),
@@ -118,6 +120,9 @@ class EngineAudio:
             self._failed.add(output_id)
             self._audio_changed()
             raise ui.AudioError(NO_AUDIO) from None
+        if output_id in self.last_outputs:
+            self.last_outputs.remove(output_id)
+        self.last_outputs = [output_id, *self.last_outputs][:8]
         self._audio_changed()
 
     async def set_output_volume(self, output_id: str, level: float) -> None:

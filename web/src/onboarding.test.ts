@@ -40,6 +40,7 @@ function state(over: Partial<AppState> = {}): AppState {
       canPickFiles: false,
       picking: false,
     },
+    home: { enabled: false, running: false, paired: false, setupCode: null, failed: false, switches: [] },
     message: null,
     appearance: { theme: "system", background: "mist", appIcons: true, onboarded: false },
     demo: true,

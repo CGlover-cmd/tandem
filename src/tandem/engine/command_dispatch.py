@@ -37,6 +37,7 @@ from tandem.engine.commands import (
     match_name,
     parse,
 )
+from tandem.engine.home_bridge import HomeBridge
 from tandem.engine.service import Engine
 
 _LOGGER = logging.getLogger(__name__)
@@ -493,9 +494,11 @@ class EngineCommandServices:
         engine: Engine,
         *,
         start_output: Callable[[str], Awaitable[None]] | None = None,
+        home: HomeBridge | None = None,
     ) -> None:
         self._engine = engine
         self._start_output = start_output
+        self._home = home
         self._last: tuple[str, ...] = ()
 
     def audio_targets(self) -> frozenset[str]:
@@ -542,7 +545,13 @@ class EngineCommandServices:
         return states
 
     def switches(self) -> list[SwitchState]:
-        return []  # The Home bridge (Phase 10b) adds these.
+        home = self._home
+        if home is None or not home.running:
+            return []
+        return [
+            SwitchState(SwitchTarget(switch_id, name), on)
+            for switch_id, name, on in home.status().switches
+        ]
 
     async def media(self, device_id: str, action: MediaAction) -> None:
         controls = self._engine.controls(device_id)
@@ -573,7 +582,12 @@ class EngineCommandServices:
         await _act(self._engine.controls(device_id).launch(app_id))
 
     async def set_switch(self, switch_id: str, on: bool) -> None:
-        raise ActionError(Code.CANT_DO_THAT)
+        if self._home is None or not self._home.running:
+            raise ActionError(Code.CANT_DO_THAT)
+        try:
+            await self._home.set_switch(switch_id, on)
+        except Exception as error:
+            raise _audio_error(error) from None
 
 
 def abilities(status: ec.ControlStatus) -> frozenset[Ability]:

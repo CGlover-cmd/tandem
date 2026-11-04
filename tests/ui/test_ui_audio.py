@@ -173,3 +173,16 @@ async def test_closing_the_checklist_is_remembered(backend: DemoBackend) -> None
     await controller.runner.drain()
     assert controller.snapshot()["appearance"]["onboarded"] is True
     assert controller.snapshot()["appearance"]["background"] == "mist"  # kept
+
+
+async def test_home_bridge_toggle_in_the_demo(backend: DemoBackend) -> None:
+    controller = await _started(backend)
+    assert controller.snapshot()["home"]["enabled"] is False
+    controller.handle({"type": "setHomeBridge", "on": True})
+    await controller.runner.drain()
+    home = controller.snapshot()["home"]
+    assert (home["running"], home["setupCode"]) == (True, "123-45-678")
+    assert next(s["name"] for s in home["switches"]) == "Tandem Audio"
+    controller.handle({"type": "setHomeBridge", "on": False})
+    await controller.runner.drain()
+    assert controller.snapshot()["home"]["running"] is False
