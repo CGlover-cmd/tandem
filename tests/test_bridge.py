@@ -273,7 +273,7 @@ async def test_appearance_is_saved_in_engine_settings(harness: Harness, tmp_path
 
 async def test_unknown_saved_background_falls_back(harness: Harness) -> None:
     harness.settings.update(background="plaid")
-    assert harness.backend.appearance().background == "mist"
+    assert harness.backend.appearance().background == "sky"
 
 
 # Remote, media, volume and power

@@ -39,7 +39,9 @@ async def test_outputs_turn_on_and_off(backend: DemoBackend) -> None:
     audio = controller.snapshot()["audio"]
     assert audio["source"] == "system"
     assert audio["pcOutputsHidden"]
-    assert DEMO_DEFAULT_PC_OUTPUT not in [o["id"] for o in audio["outputs"]]
+    # Windows plays to its default output itself: shown as on, and not counted as playing.
+    assert _output(controller, DEMO_DEFAULT_PC_OUTPUT)["state"] == "direct"
+    assert audio["streaming"] == 0
     assert not audio["canPickFiles"]
 
     controller.handle({"type": "setOutput", "id": "demo-speaker-1", "on": True})
@@ -75,14 +77,12 @@ async def test_source_switch_shows_and_hides_the_default_pc_output(backend: Demo
     controller.handle({"type": "setAudioSource", "source": "player"})
     controller.handle({"type": "setAudioSource", "source": "radio"})  # unknown: ignored
     await controller.runner.drain()
-    ids = [o["id"] for o in controller.snapshot()["audio"]["outputs"]]
-    assert DEMO_DEFAULT_PC_OUTPUT in ids
+    assert _output(controller, DEMO_DEFAULT_PC_OUTPUT)["state"] == "off"
     controller.handle({"type": "setOutput", "id": DEMO_DEFAULT_PC_OUTPUT, "on": True})
     await controller.runner.drain()
     await backend.set_audio_source(AudioSourceChoice.SYSTEM)
     await controller.runner.drain()
-    ids = [o["id"] for o in controller.snapshot()["audio"]["outputs"]]
-    assert DEMO_DEFAULT_PC_OUTPUT not in ids
+    assert _output(controller, DEMO_DEFAULT_PC_OUTPUT)["state"] == "direct"
 
 
 async def test_send_a_link_to_the_tv(backend: DemoBackend) -> None:
@@ -172,7 +172,7 @@ async def test_closing_the_checklist_is_remembered(backend: DemoBackend) -> None
     controller.handle({"type": "setAppearance", "onboarded": "yes"})  # bad: ignored
     await controller.runner.drain()
     assert controller.snapshot()["appearance"]["onboarded"] is True
-    assert controller.snapshot()["appearance"]["background"] == "mist"  # kept
+    assert controller.snapshot()["appearance"]["background"] == "sky"  # kept
 
 
 async def test_home_bridge_toggle_in_the_demo(backend: DemoBackend) -> None:

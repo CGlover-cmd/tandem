@@ -19,6 +19,7 @@ from typing import Any
 
 from tandem.ui.app_icons import AiohttpHttp, AppIconStore
 from tandem.ui.backend import Backend
+from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.file_picker import WindowFilePicker
@@ -72,8 +73,14 @@ def build(
 
         backend = create_engine_backend()
         icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
+    photo = BackgroundPhoto(ui_data_dir() / ("demo-photo" if args.demo else "photo"))
     controller = AppController(
-        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons, picker=picker
+        backend,
+        demo_mode=args.demo,
+        reduce_motion=reduce_motion(),
+        icons=icons,
+        picker=picker,
+        photo=photo,
     )
     server = UiServer(
         controller,

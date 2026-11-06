@@ -17,6 +17,9 @@ classifiers = [
 dependencies = [
     # pyatv minor releases can change behaviour; move the pin deliberately (ADR-0001).
     "pyatv>=0.18,<0.19",
+    # pyatv doesn't cap srptools, and srptools 2.0 changed the API pyatv's pairing and AirPlay 2
+    # handshakes use (it broke 1.0.0). packaging/constraints.txt pins the tested set.
+    "srptools>=1,<2",
     # The Home bridge (Phase 10b, ADR-0016). Apache-2.0.
     "HAP-python>=5.0,<6",
     # What the PC is playing, from Windows' media controls (Phase 6, ADR-0013).

@@ -263,3 +263,20 @@ def test_odd_capture_blocks_are_trimmed_to_whole_frames(backend: FakeBackend) ->
     hub._fan_out(frames(10) + b"\x01\x02")  # pyright: ignore[reportPrivateUsage]
     assert buffer.buffered_frames == 10
     assert SAMPLE_RATE == 44_100
+
+
+async def test_a_speaker_that_never_connects_is_not_retried_forever(
+    backend: FakeBackend, manual_sleep: ManualSleep
+) -> None:
+    # 1.0.0 kept reconnecting in the background after the Audio panel gave up on a speaker.
+    engine = Engine(backend, sleep=manual_sleep)
+    backend.connect_failures[SPEAKER.id] = [OSError("refused") for _ in range(20)]
+    with pytest.raises(TimeoutError):
+        await engine.start_audio(SPEAKER.id, timeout=0.05)
+    left = len(backend.connect_failures[SPEAKER.id])
+    for _ in range(5):
+        manual_sleep.release()
+        await asyncio.sleep(0)
+    assert len(backend.connect_failures[SPEAKER.id]) == left
+    assert not engine.streaming_audio(SPEAKER.id)
+    await engine.close()

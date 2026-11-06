@@ -28,6 +28,7 @@ from tandem.ui.backend import (
     SendChanged,
     SendSnapshot,
     SendState,
+    output_order,
 )
 
 # Invented PC outputs. The first is the "Windows default", which echoes with system audio.
@@ -74,11 +75,13 @@ class DemoAudio:
             )
         for output_id, name in DEMO_PC_OUTPUTS:
             if self._source is AudioSourceChoice.SYSTEM and output_id == DEMO_DEFAULT_PC_OUTPUT:
+                # Windows plays there itself: shown as always on.
+                outputs.append(OutputSnapshot(output_id, name, OutputKind.PC, OutputState.DIRECT))
                 continue
             outputs.append(
                 self._outputs.get(output_id) or OutputSnapshot(output_id, name, OutputKind.PC)
             )
-        outputs.sort(key=lambda o: (o.kind is OutputKind.PC, o.name.casefold(), o.id))
+        outputs.sort(key=output_order)
         return AudioSnapshot(self._source, tuple(outputs), self._source is AudioSourceChoice.SYSTEM)
 
     def send(self, device_id: str) -> SendSnapshot | None:
@@ -91,6 +94,8 @@ class DemoAudio:
             return
         if output.needs_pairing:
             raise AudioError(PAIR_FIRST)
+        if output.state is OutputState.DIRECT:
+            return
         self._store(replace(output, state=OutputState.STARTING))
         await self._sleep(self._delay / 2)
         if self._find(output_id).state is OutputState.STARTING:
@@ -147,6 +152,8 @@ class DemoAudio:
         return output
 
     def _store(self, output: OutputSnapshot) -> None:
+        if output.state is OutputState.DIRECT:
+            return
         self._outputs[output.id] = output
         self._publish(AudioChanged(self.audio()))
 
