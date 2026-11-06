@@ -3,9 +3,9 @@
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
-> **Status: 1.0.0, a pre-release.** Every feature below is built and tested in code, but some
+> **Status: 1.1.0, a pre-release.** Every feature below is built and tested in code, but some
 > haven't been checked on real speakers yet; the [release notes](docs/release-notes.md) list
-> which. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
+> which. 1.1.0 fixes Apple TV pairing and HomePod and soundbar audio, which 1.0.0 broke. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
 
 ## What it does
 
@@ -13,9 +13,10 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
   and TVs. A short **Getting started** checklist walks you through the first steps.
 - **Apple TV remote:** a touch pad, Back and Home, play and pause, what's playing, volume,
   power, your TV's apps, and a keyboard for its search boxes.
-- **Audio:** sends whatever the PC plays to any mix of speakers at once, plus the PC's own
-  outputs (headphones, a second sound card), each with its own volume and a delay to line
-  them up by ear.
+- **Audio:** turn a speaker on in the Audio panel and whatever the PC plays goes there right
+  away. Any mix of speakers at once, plus the PC's own outputs (headphones, a second sound
+  card), each with its own volume. A delay per speaker, to line them up by ear, is in
+  Settings, Advanced settings.
 - **Send to TV:** plays a video file from the PC, or a link to a video, on the Apple TV.
 - **Music:** shows and controls what any app on the PC is playing (Spotify, Apple Music, a
   browser), with a now-playing bar and tray controls. Tandem is a remote for the streaming
@@ -23,7 +24,7 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
   ([ADR-0013](docs/adr/0013-music-integration-boundaries.md)).
 - **Commands:** press Ctrl+K and type "pause", "volume 30 on the loft", "send audio to the
   patio" or "open Music on the TV".
-- **Home app:** turn on "Show Tandem in the Home app" in Settings and Tandem appears there as
+- **Home app:** turn on "Show Tandem in the Home app" in Advanced settings and Tandem appears there as
   three switches (Tandem Audio, Tandem Music, Tandem TV), so Siri on a HomePod and your Home
   automations can drive it ([ADR-0016](docs/adr/0016-home-bridge.md)). Tandem can't talk to
   Siri directly; there's no supported way from Windows
@@ -162,7 +163,7 @@ help
 
 Device names can be partial ("loft", "liv") and forgive small typos. When a command could
 mean more than one device, Tandem asks which and lists the choices; pick one with the arrow
-keys and Enter. "send audio to ..." and "stop streaming" will work once audio streaming lands.
+keys and Enter.
 
 The **Music** tab shows what any app on this PC is playing (Spotify, Apple Music, a browser
 tab), with its artwork, and lets you play, pause, skip and, where the app allows, seek. On the
@@ -171,8 +172,9 @@ is a remote here: the app plays the music, and Tandem's audio streaming sends th
 your speakers.
 
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
-Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear
-button at the top right.
+Pick a theme and a window background (gradients, neutral tones, or a photo of your own) under
+**Settings**, the gear button at the top right. **Advanced settings** there holds the speaker
+delays, the App Store icon lookup and the Home app bridge.
 
 To work on the interface with hot reload, run the app without its window, start the Vite dev
 server, and open the dev-server address the app prints:

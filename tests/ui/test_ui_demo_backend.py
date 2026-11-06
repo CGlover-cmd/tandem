@@ -7,6 +7,7 @@ import pytest
 
 from tandem.ui.backend import (
     BACKGROUNDS,
+    PHOTO_BACKGROUND,
     Appearance,
     AppearanceChanged,
     BackendEvent,
@@ -148,7 +149,7 @@ def test_front_end_offers_the_same_backgrounds() -> None:
     theme = Path(__file__).parents[2] / "web" / "src" / "theme.ts"
     ids = re.findall(r'^\s+id: "([a-z]+)",$', theme.read_text(encoding="utf-8"), re.MULTILINE)
 
-    assert tuple(ids) == BACKGROUNDS
+    assert (*ids, PHOTO_BACKGROUND) == BACKGROUNDS
 
 
 async def test_demo_controls_follow_the_connection(backend: DemoBackend) -> None:

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
 import { isCommandShortcut } from "./commands";
+import { AdvancedSheet } from "./components/AdvancedSheet";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
@@ -14,7 +15,7 @@ import { SendSheet } from "./components/SendSheet";
 import { SettingsSheet } from "./components/SettingsSheet";
 import { GearIcon, LogoMark, SearchIcon, WavesIcon } from "./icons";
 import { problemText, strings } from "./strings";
-import { applyTheme, backgroundCss, findBackground, type Mode } from "./theme";
+import { applyTheme, DEFAULT_BACKGROUND, PHOTO_BACKGROUND, windowBackground, type Mode } from "./theme";
 import type { ThemeChoice } from "./types";
 
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -39,6 +40,7 @@ type View = "devices" | "music";
 export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [audioOpen, setAudioOpen] = useState(false);
@@ -61,7 +63,9 @@ export function App() {
   const remoteDevice = state?.devices.find((d) => d.id === remoteId) ?? null;
   const system = useSystemMode();
   const mode = resolveMode(state?.appearance.theme ?? "system", system);
-  const background = findBackground(state?.appearance.background ?? "mist");
+  const backgroundId = state?.appearance.background ?? DEFAULT_BACKGROUND;
+  const photo = state?.appearance.photo ?? null;
+  const onPhoto = backgroundId === PHOTO_BACKGROUND && photo !== null;
 
   useEffect(() => applyTheme(mode), [mode]);
   useEffect(() => {
@@ -87,10 +91,10 @@ export function App() {
     send({ type: "dismissMessage" });
   }, [message, send]);
 
-  const backdrop = useMemo(() => backgroundCss(background, mode), [background, mode]);
+  const backdrop = useMemo(() => windowBackground(backgroundId, photo, mode), [backgroundId, photo, mode]);
 
   return (
-    <div className="app-backdrop" style={{ background: backdrop }}>
+    <div className="app-backdrop" style={{ background: backdrop }} data-photo={onPhoto || undefined}>
       <Toast.Provider placement="bottom" />
       <Tabs
         className="app-shell"
@@ -231,10 +235,11 @@ export function App() {
       <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
       {state && (
         <OnboardingSheet
-          isOpen={guideOpen && !audioOpen}
+          isOpen={guideOpen && !audioOpen && state.pairing.state === "closed"}
           state={state}
           onClose={closeGuide}
           onOpenAudio={() => setAudioOpen(true)}
+          onPair={(id) => send({ type: "pair", id })}
         />
       )}
       {state && (
@@ -255,9 +260,26 @@ export function App() {
             setSettingsOpen(false);
             setGuideOpen(true);
           }}
+          onOpenAdvanced={() => {
+            setSettingsOpen(false);
+            setAdvancedOpen(true);
+          }}
           appearance={state.appearance}
-          home={state.home}
           mode={mode}
+          send={send}
+        />
+      )}
+      {state && (
+        <AdvancedSheet
+          isOpen={advancedOpen}
+          onClose={() => setAdvancedOpen(false)}
+          onBack={() => {
+            setAdvancedOpen(false);
+            setSettingsOpen(true);
+          }}
+          appearance={state.appearance}
+          audio={state.audio}
+          home={state.home}
           send={send}
         />
       )}

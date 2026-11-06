@@ -185,7 +185,7 @@ export const strings = {
     title: "Home app",
     toggle: "Show Tandem in the Home app",
     detail:
-      "Adds three switches to the Home app: Tandem Audio, Tandem Music and Tandem TV. Then Siri on a HomePod and your Home automations can control Tandem.",
+      "Adds three switches to the Home app: Tandem Audio (your last speakers on or off), Tandem Music (play or pause) and Tandem TV (power). Siri on a HomePod and Home automations can then flip them. Choosing speakers, volume and the remote stay in Tandem.",
     addSteps: "In the Home app, choose Add Accessory, then More Options, pick Tandem and type this code:",
     added: "Tandem is in your Home app.",
     starting: "Starting…",
@@ -213,7 +213,7 @@ export const strings = {
     helpTitle: "If something doesn't work",
     tips: [
       "A HomePod or speaker won't connect: in the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
-      "The speakers lag behind the PC: open Audio and raise the delay on the faster outputs until they play together.",
+      "Speakers play out of step: in Settings, open Advanced settings and delay the faster ones until they play together.",
       "No sound on the speaker: Tandem sends what Windows plays, at Windows' volume. Check the PC isn't muted.",
     ],
     later: "Not now",

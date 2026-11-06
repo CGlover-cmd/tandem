@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { contrast, over, parseColour } from "./contrast";
-import { backgroundCss, backgrounds, findBackground, palettes, type Mode } from "./theme";
+import { backgroundCss, backgrounds, findBackground, palettes, PHOTO_SCRIM, windowBackground, type Mode } from "./theme";
 
 const MODES: Mode[] = ["light", "dark"];
 const AA_TEXT = 4.5;
 const AA_UI = 3; // dots, rings and other non-text marks
 
-// Python's list in tandem.ui.backend.BACKGROUNDS.
+// Python's presets in tandem.ui.backend.BACKGROUNDS (which also has "photo").
 const PYTHON_BACKGROUNDS = ["mist", "sand", "slate", "sky", "dusk", "meadow", "sunrise", "aurora"];
 
 describe("backgrounds", () => {
@@ -20,8 +20,18 @@ describe("backgrounds", () => {
     expect(backgrounds.filter((b) => b.group === "gradient").length).toBeGreaterThanOrEqual(3);
   });
 
-  it("fall back to the first preset for an unknown id", () => {
-    expect(findBackground("plaid").id).toBe("mist");
+  it("fall back to the sky gradient for an unknown id", () => {
+    expect(findBackground("plaid").id).toBe("sky");
+  });
+
+  it("show the user's photo under a scrim, with the launch token", () => {
+    const css = windowBackground("photo", 42, "dark", "?token=abc");
+    expect(css).toContain('url("/background?token=abc&v=42")');
+    expect(css).toContain(PHOTO_SCRIM.dark);
+  });
+
+  it("fall back to the sky gradient when the photo is missing", () => {
+    expect(windowBackground("photo", null, "light")).toBe(backgroundCss(findBackground("sky"), "light"));
   });
 
   it("render as CSS that uses every stop", () => {
@@ -31,6 +41,18 @@ describe("backgrounds", () => {
         for (const stop of background.stops[mode]) expect(css).toContain(stop);
       }
     }
+  });
+});
+
+describe.each(MODES)("%s mode contrast over a photo (WCAG AA)", (mode) => {
+  const p = palettes[mode];
+  // Over a photo, all text sits on glass (the header gets a glass bar too), and the scrim
+  // keeps that readable over any picture: try a black and a white pixel.
+  it.each(["#000000", "#FFFFFF"])("text on glass over the scrim on %s", (pixel) => {
+    const ground = over(parseColour(PHOTO_SCRIM[mode]), parseColour(pixel));
+    const glass = over(parseColour(p.glass), ground);
+    expect(contrast(parseColour(p.foreground), glass)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrast(parseColour(p.muted), glass)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 });
 

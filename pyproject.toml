@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tandem"
-version = "1.0.0"
+version = "1.1.0"
 description = "Send audio and video from Windows to Apple TV, HomePod and AirPlay 2 receivers."
 readme = "README.md"
 license = "GPL-3.0-or-later"

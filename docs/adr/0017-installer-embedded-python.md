@@ -32,3 +32,14 @@ Foundation) needs the maintainer to apply and isn't in place.
   place, the README gives a pip install path for those PCs.
 - No auto-update yet: the README and release notes point at the releases page.
 - The install is about 80 MB, mostly pythonnet, PIL, cryptography and the Python runtime.
+
+## Addendum (1.1.0): pinned library versions
+1.0.0's app folder was built with `pip install` and no version pins, so it picked up srptools
+2.0, released after testing. Its new API broke pyatv's SRP handshake: every Apple TV pairing
+failed as a "wrong PIN", and HomePods and AirPlay 2 speakers couldn't connect. The tests
+missed it because they fake pyatv. Now:
+- `packaging/constraints.txt` lists the exact tested version of every runtime library. The app
+  folder, the release workflow and CI all install with `-c packaging/constraints.txt`, so CI
+  tests what ships. `pyproject.toml` also caps srptools below 2 for pip installs.
+- `tests/test_dependencies.py` runs pyatv's real SRP code against srptools' server side.
+- Moving a pin is a deliberate change: update the file, run the tests, check on hardware.

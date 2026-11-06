@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { canSend, delayLabel, groupOutputs, isLink, outputLive, outputVolume, sendText } from "./audio";
+import {
+  canSend,
+  delayLabel,
+  delayOutputs,
+  groupOutputs,
+  isLink,
+  outputDirect,
+  outputLive,
+  outputVolume,
+  sendText,
+} from "./audio";
 import type { AudioOutput, Device } from "./types";
 
 const output = (over: Partial<AudioOutput> = {}): AudioOutput => ({
@@ -69,5 +79,22 @@ describe("send to TV", () => {
     expect(isLink("C:/Videos/clip.mp4")).toBe(false);
     expect(isLink("file:///C:/clip.mp4")).toBe(false);
     expect(isLink("not a link")).toBe(false);
+  });
+});
+
+describe("the PC's default output", () => {
+  it("is on but not something Tandem sends to", () => {
+    const direct = output({ id: "demo-pc-speakers", kind: "pc", state: "direct" });
+    expect(outputDirect(direct)).toBe(true);
+    expect(outputLive(direct)).toBe(false);
+  });
+
+  it("has no delay to set, nor does a device that needs pairing", () => {
+    const outputs = [
+      output(),
+      output({ id: "demo-pc-speakers", kind: "pc", state: "direct" }),
+      output({ id: "demo-tv", needsPairing: true }),
+    ];
+    expect(delayOutputs(outputs).map((o) => o.id)).toEqual(["demo-speaker-1"]);
   });
 });
