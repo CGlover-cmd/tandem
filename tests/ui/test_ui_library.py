@@ -227,3 +227,38 @@ async def test_album_art_needs_the_token(controller: AppController, tmp_path: Pa
                 assert none.status == 404
     finally:
         await server.stop()
+
+
+async def test_apple_music_catalog(controller: AppController, tmp_path: Path) -> None:
+    state = await run(controller, {"type": "searchCatalog", "text": "harbour lights"})
+    catalog = state["catalog"]
+    assert [s["title"] for s in catalog["songs"]] == ["Harbour Lights", "Harbour Lights (Live)"]
+    assert [a["title"] for a in catalog["albums"]] == ["Coastline"]
+    assert catalog["songs"][0] == {
+        "id": "demo-cat-s1",
+        "title": "Harbour Lights",
+        "artist": "Sample Singer",
+        "album": "Coastline",
+        "duration": 201.0,
+        "hasArt": True,
+    }
+    await run(controller, {"type": "openInAppleMusic", "id": "demo-cat-s1"})
+    await run(controller, {"type": "openInAppleMusic", "id": "nope"})
+    assert controller.message is not None
+    await run(controller, {"type": "searchCatalog", "text": 3})
+
+    (tmp_path / "index.html").write_text("<!doctype html>", "utf-8")
+    server = UiServer(controller, static_dir=tmp_path)
+    await server.start()
+    try:
+        async with aiohttp.ClientSession() as http:
+            art_url = f"{server.origin}/catalog-art/demo-cat-s1?token={server.token}"
+            async with http.get(art_url) as art:
+                assert art.status == 200
+                assert art.headers["Content-Type"] == "image/svg+xml"
+            async with http.get(f"{server.origin}/catalog-art/demo-cat-s1") as refused:
+                assert refused.status == 403
+            async with http.get(f"{server.origin}/apple-music-badge?token={server.token}") as badge:
+                assert badge.status == 404  # the demo has no badge: the page shows text
+    finally:
+        await server.stop()

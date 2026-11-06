@@ -270,6 +270,32 @@ export interface Player {
   queue: QueueItem[];
 }
 
+/** A result from Apple Music's catalog (Apple's public search; no account). */
+export interface CatalogSong {
+  id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  hasArt: boolean;
+}
+
+export interface CatalogAlbum {
+  id: string;
+  title: string;
+  artist: string;
+  year: number | null;
+  hasArt: boolean;
+}
+
+export interface Catalog {
+  query: string;
+  searching: boolean;
+  error: "unavailable" | "busy" | null;
+  songs: CatalogSong[];
+  albums: CatalogAlbum[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -286,6 +312,7 @@ export interface AppState {
   library: Library;
   radio: Radio;
   player: Player;
+  catalog: Catalog;
 }
 
 export type Command =
@@ -315,7 +342,8 @@ export type Command =
   | { type: "addMusicFolder" | "rescanLibrary" | "closeAlbum" | "clearQueue" }
   | { type: "removeMusicFolder"; folder: string }
   | { type: "openAlbum"; id: string }
-  | { type: "searchLibrary" | "searchRadio"; text: string }
+  | { type: "searchLibrary" | "searchRadio" | "searchCatalog"; text: string }
+  | { type: "openInAppleMusic"; id: string }
   | { type: "playAlbum"; id: string; songId?: string }
   | { type: "queueAlbum" | "queueSong"; id: string; next: boolean }
   | { type: "playSong" | "playStation" | "saveStation" | "removeStation"; id: string }

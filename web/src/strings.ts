@@ -101,6 +101,26 @@ export const strings = {
     toSpeakers: (n: number) => `Playing on ${n} ${n === 1 ? "speaker" : "speakers"}`,
     live: "Live radio",
   },
+
+  appleMusic: {
+    source: "Apple Music",
+    search: "Search the Apple Music catalog",
+    songs: "Songs",
+    albums: "Albums",
+    // TODO(link test): whether a song link starts playing or only opens its page in the Apple
+    // Music app is still to check; until then the words stay neutral.
+    open: (title: string) => `Open ${title} in Apple Music`,
+    openShort: "Open in Apple Music",
+    about:
+      "Search Apple Music's catalog and open a song or album in the Apple Music app on this PC. The app plays it; to hear it on your speakers, send the PC's audio to them in Audio.",
+    credit: "Results, artwork and badge from Apple. Apple Music is a trademark of Apple Inc.",
+    searching: "Searching…",
+    noMatch: (text: string) => `Nothing in Apple Music matches "${text}".`,
+    unavailable: "Apple Music's catalog couldn't be reached. Check the internet connection and try again.",
+    busy: "Apple allows about 20 searches a minute. Wait a moment, then search again.",
+    noLibrary:
+      "Your own Apple Music library and playlists aren't available: that needs an Apple developer membership.",
+  },
   dismiss: "Dismiss",
 
   kind: {

@@ -107,6 +107,8 @@ class UiServer:
         app.router.add_get(URL_PREFIX + "{name}", self._icon)
         app.router.add_get("/artwork", self._artwork)
         app.router.add_get("/library-art/{album}", self._library_art)
+        app.router.add_get("/catalog-art/{item}", self._catalog_art)
+        app.router.add_get("/apple-music-badge", self._badge)
         return app
 
     async def start(self) -> None:
@@ -183,6 +185,28 @@ class UiServer:
             content_type=art.mimetype,
             headers={"Cache-Control": "private, max-age=3600"},
         )
+
+    def _require_token(self, request: web.Request) -> None:
+        token = request.query.get("token", "")
+        if not hmac.compare_digest(token.encode(), self.token.encode()):
+            raise web.HTTPForbidden()
+
+    async def _catalog_art(self, request: web.Request) -> web.StreamResponse:
+        """A catalog result's artwork, fetched from Apple through Tandem (the page may load
+        images only from Tandem itself). It reveals a search, so it needs the token."""
+        self._require_token(request)
+        art = await self._controller.catalog_art(request.match_info["item"])
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return web.Response(body=art.data, content_type=art.mimetype)
+
+    async def _badge(self, request: web.Request) -> web.StreamResponse:
+        """Apple's "Listen on Apple Music" badge, as Apple serves it (never stored in Tandem)."""
+        self._require_token(request)
+        art = await self._controller.apple_music_badge()
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return web.Response(body=art.data, content_type=art.mimetype)
 
     async def _index(self, _request: web.Request) -> web.StreamResponse:
         index = self._static_dir / "index.html"
