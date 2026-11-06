@@ -184,7 +184,16 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
 - Panels added after ADR-0008 keep their bridge and demo code in their own modules, mixed into
   `EngineBackend` / `DemoBackend`: `tandem.bridge_audio` + `ui/demo_audio.py` (Audio, Send),
-  `tandem.bridge_home` (Home bridge), with the controller side in `ui/audio_panel.py`.
+  `tandem.bridge_home` (Home bridge), `tandem.bridge_library` + `ui/demo_library.py` (music
+  library, radio, queue), with the controller side in `ui/audio_panel.py` and
+  `ui/library_panel.py`.
+- Music library and radio (Phase 6): `engine/library.py` (folders, tags cached in
+  `library.json`, albums) and `engine/radio.py` (Radio Browser search, saved stations in
+  `radio.json`), with file and HTTP access in `adapters/library_files.py` (tinytag) and
+  `adapters/radio_browser.py`. The state sends albums without their songs; an album's songs and
+  a song search go only while the page shows them, so state messages stay small. miniaudio's
+  stream generator returns the first chunk when primed: keep it (`adapters/decoders.py`), or
+  every track loses its first 23 ms.
 - Packaging (ADR-0017): `packaging/build_bundle.py` (embeddable Python app folder) and
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a

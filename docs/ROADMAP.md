@@ -99,9 +99,11 @@ _Update this section at the end of every working session._
   Tandem to stop pywebview sending new windows to the browser
   ([findings](spikes/music-webview2-drm.md)). Now playing is built: Music tab, bar and tray
   controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
-  (needs a paid Apple Developer membership; resumes if the maintainer joins). **Next for Music:** the now-playing bar's
-  Apple Music check (the app was closed during the browser check), then the local player
-  and radio in the window.
+  (needs a paid Apple Developer membership; resumes if the maintainer joins). The now-playing
+  bar passed its exit test with the Apple Music app and a browser. The local player and radio
+  are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
+  still to run. **Next for Music:** that speaker check, then Apple Music catalog search
+  (Apple's keyless search, opening results in the Apple Music app).
 
 ## Scope
 
@@ -270,7 +272,7 @@ one.)
   separately: it uses the same media controls, so the maintainer chose to take the Apple Music
   result as covering it. A browser tab is checked in the now-playing bar's exit test (titles and change
   events passed; its controls are still to try).
-- [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
+- [x] Now-playing bar on the Music tab and in the tray menu, for any app.
   **Exit:** it updates within a second of a track change, with the Apple Music app and with a
   browser tab. Built: a **Music** tab (artwork, title, artist and album, a position slider
   when the app allows seeking, previous / play-pause / next), a compact bar on the other tabs
@@ -279,12 +281,22 @@ one.)
   change reached the window within Windows' clock resolution (about 16 ms)
   (`spikes/now_playing_latency.py`). That check found and fixed two browser quirks: a session
   briefly vanishing on a track change (now a 1 s grace instead of the bar blinking out) and a
-  session re-made with the same app id (now re-hooked every time). **Apple Music: to run**;
-  the app was closed, and Tandem doesn't start it (it would play from the maintainer's
-  account).
+  session re-made with the same app id (now re-hooked every time). **Apple Music: passed**
+  (2026-11-06, while the maintainer played songs): 5 track changes (skips sent through
+  Windows' media controls, each confirmed by a new track), max 16 ms, mean 6 ms, with artwork
+  each time; playback was left running.
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
+  Built: the Music tab has **This PC** (music folders, an album grid with artwork, artists,
+  song search, an album page with play / play next / add to queue), **Radio** (search of the
+  public Radio Browser directory, MP3 and Ogg stations, saved stations) and **Queue**, with a
+  player strip on top that shows where the sound goes. Tags come from tinytag and are cached in
+  `library.json`; artwork is read from the files into memory. Tracks join without a gap: one
+  player thread and one real-time clock across tracks. Checked on this PC without speakers: a
+  scan of test files, gapless decoding (6.00 s of 6.0 s of audio, no pauses, after fixing a
+  decoder bug that dropped each track's first 23 ms) and a live radio search. **To run:** an
+  album to the soundbar and a HomePod mini, and a station for an hour.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.

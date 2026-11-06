@@ -1,4 +1,5 @@
-"""The window's file picker for Send to TV, through pywebview's native dialog.
+"""The window's file and folder pickers (Send to TV, the music library), through
+pywebview's native dialogs.
 
 The web page can't see file paths, so the controller asks this picker instead. The window
 exists only after the controller is built, so `attach` hands it over later; until then (and
@@ -26,6 +27,13 @@ class WindowFilePicker:
             return None
         return await asyncio.to_thread(_open_dialog, window)
 
+    async def pick_folder(self) -> str | None:
+        """A music folder for the library; None if cancelled or there's no window."""
+        window = self._window
+        if window is None:
+            return None
+        return await asyncio.to_thread(_folder_dialog, window)
+
 
 def _open_dialog(window: Any) -> str | None:  # pragma: no cover - needs a desktop
     import webview  # pyright: ignore[reportMissingTypeStubs]
@@ -33,6 +41,20 @@ def _open_dialog(window: Any) -> str | None:  # pragma: no cover - needs a deskt
     wv: Any = webview
     dialog = wv.FileDialog.OPEN if hasattr(wv, "FileDialog") else wv.OPEN_DIALOG
     chosen: Any = window.create_file_dialog(dialog, allow_multiple=False, file_types=VIDEO_FILTER)
+    if not chosen:
+        return None
+    if isinstance(chosen, str):
+        return chosen
+    items: list[Any] = list(chosen)
+    return str(items[0]) if items else None
+
+
+def _folder_dialog(window: Any) -> str | None:  # pragma: no cover - needs a desktop
+    import webview  # pyright: ignore[reportMissingTypeStubs]
+
+    wv: Any = webview
+    dialog = wv.FileDialog.FOLDER if hasattr(wv, "FileDialog") else wv.FOLDER_DIALOG
+    chosen: Any = window.create_file_dialog(dialog)
     if not chosen:
         return None
     if isinstance(chosen, str):

@@ -6,7 +6,8 @@ import { isCommandShortcut } from "./commands";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
-import { MusicPanel, NowPlayingBar } from "./components/Music";
+import { NowPlayingBar } from "./components/Music";
+import { MusicTab } from "./components/MusicTab";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
@@ -205,7 +206,7 @@ export function App() {
               <Spinner color="accent" />
             </div>
           ) : (
-            <MusicPanel music={music} send={send} />
+            <MusicTab state={state} send={send} onOpenAudio={() => setAudioOpen(true)} />
           )}
         </Tabs.Panel>
       </Tabs>

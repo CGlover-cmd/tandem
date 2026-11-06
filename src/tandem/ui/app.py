@@ -73,7 +73,12 @@ def build(
         backend = create_engine_backend()
         icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
     controller = AppController(
-        backend, demo_mode=args.demo, reduce_motion=reduce_motion(), icons=icons, picker=picker
+        backend,
+        demo_mode=args.demo,
+        reduce_motion=reduce_motion(),
+        icons=icons,
+        picker=picker,
+        folder_picker=picker,
     )
     server = UiServer(
         controller,

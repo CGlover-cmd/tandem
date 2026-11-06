@@ -198,6 +198,78 @@ export interface HomeBridge {
   switches: { id: string; name: string; on: boolean }[];
 }
 
+/** An album in the music library. Titles and artists are shown on screen only. */
+export interface LibraryAlbum {
+  id: string;
+  title: string;
+  artist: string | null;
+  year: number | null;
+  trackCount: number;
+  hasArt: boolean;
+}
+
+export interface LibrarySong {
+  id: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  albumId: string | null;
+  number: number | null;
+  duration: number | null;
+}
+
+export interface Library {
+  folders: string[];
+  scanning: boolean;
+  scanned: number;
+  songCount: number;
+  albums: LibraryAlbum[];
+  /** The album the page asked to open, with its songs. */
+  openAlbum: { id: string; songs: LibrarySong[] } | null;
+  search: { text: string; songs: LibrarySong[] };
+  canPickFolders: boolean;
+  picking: boolean;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  codec: string;
+  bitrate: number;
+  country: string;
+  tags: string;
+}
+
+export interface Radio {
+  query: string;
+  searching: boolean;
+  results: Station[];
+  saved: Station[];
+  error: "unavailable" | null;
+}
+
+export interface QueueItem {
+  id: string;
+  title: string;
+  kind: "file" | "radio";
+  artist: string | null;
+  album: string | null;
+  /** The library album whose artwork goes with it. */
+  art: string | null;
+}
+
+export type PlayerCommand = "play_pause" | "next" | "previous" | "stop";
+
+/** Tandem's own player: local files and radio, sent to the outputs in the Audio panel. */
+export interface Player {
+  state: "stopped" | "loading" | "playing" | "paused";
+  index: number | null;
+  position: number;
+  duration: number | null;
+  error: boolean;
+  queue: QueueItem[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -211,6 +283,9 @@ export interface AppState {
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
   music: Music | null;
+  library: Library;
+  radio: Radio;
+  player: Player;
 }
 
 export type Command =
@@ -236,4 +311,13 @@ export type Command =
   | { type: "sendMedia"; id: string; location: string }
   | { type: "pickMedia" | "stopMedia"; id: string }
   | { type: "music"; command: MusicCommand }
-  | { type: "musicSeek"; position: number };
+  | { type: "musicSeek"; position: number }
+  | { type: "addMusicFolder" | "rescanLibrary" | "closeAlbum" | "clearQueue" }
+  | { type: "removeMusicFolder"; folder: string }
+  | { type: "openAlbum"; id: string }
+  | { type: "searchLibrary" | "searchRadio"; text: string }
+  | { type: "playAlbum"; id: string; songId?: string }
+  | { type: "queueAlbum" | "queueSong"; id: string; next: boolean }
+  | { type: "playSong" | "playStation" | "saveStation" | "removeStation"; id: string }
+  | { type: "player"; command: PlayerCommand }
+  | { type: "playQueueItem" | "removeQueueItem"; id: string };
