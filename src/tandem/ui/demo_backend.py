@@ -60,6 +60,7 @@ from tandem.ui.backend import (
     WrongPinError,
 )
 from tandem.ui.demo_audio import DemoAudio
+from tandem.ui.demo_library import DemoLibrary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ def _demo_artwork(colours: tuple[str, str]) -> bytes:
     ).encode()
 
 
-class DemoBackend(DemoAudio):
+class DemoBackend(DemoAudio, DemoLibrary):
     def __init__(
         self,
         *,
@@ -186,6 +187,7 @@ class DemoBackend(DemoAudio):
         self.launched: list[tuple[str, str]] = []
         self.texts: list[tuple[str, str]] = []
         self._init_audio()
+        self._init_library(clock)
 
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)

@@ -106,6 +106,7 @@ class UiServer:
             app.router.add_static("/assets", assets)
         app.router.add_get(URL_PREFIX + "{name}", self._icon)
         app.router.add_get("/artwork", self._artwork)
+        app.router.add_get("/library-art/{album}", self._library_art)
         return app
 
     async def start(self) -> None:
@@ -167,6 +168,21 @@ class UiServer:
         if art is None or art.mimetype not in _ARTWORK_TYPES:
             raise web.HTTPNotFound()
         return web.Response(body=art.data, content_type=art.mimetype)
+
+    async def _library_art(self, request: web.Request) -> web.StreamResponse:
+        """An album's artwork from the music library. Like `/artwork`, it shows what someone
+        listens to, so it needs this launch's token."""
+        token = request.query.get("token", "")
+        if not hmac.compare_digest(token.encode(), self.token.encode()):
+            raise web.HTTPForbidden()
+        art = await asyncio.to_thread(self._controller.library_art, request.match_info["album"])
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return web.Response(
+            body=art.data,
+            content_type=art.mimetype,
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
 
     async def _index(self, _request: web.Request) -> web.StreamResponse:
         index = self._static_dir / "index.html"

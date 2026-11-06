@@ -364,7 +364,9 @@ async def test_unknown_appearance_is_ignored(
 async def test_malformed_commands_are_ignored(
     backend: DemoBackend, command: dict[str, Any]
 ) -> None:
-    controller = await _started(backend)
+    # A fixed clock: the demo music plays on, and its position would count on between reads.
+    controller = AppController(backend, demo_mode=True, clock=lambda: 1000.0)
+    await controller.start()
     before = controller.snapshot()
 
     controller.handle(command)

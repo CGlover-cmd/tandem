@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
+from tandem.bridge_library import EngineLibrary
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.command_dispatch import (
@@ -32,10 +33,12 @@ from tandem.engine.command_dispatch import (
 from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
 from tandem.engine.home_bridge import BridgeServer
+from tandem.engine.library import MusicLibrary
 from tandem.engine.models import Device, Service
 from tandem.engine.models import DeviceKind as EngineKind
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
+from tandem.engine.radio import Radio
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
@@ -106,7 +109,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend(EngineAudio, EngineHome):
+class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
     def __init__(
         self,
         engine: Engine,
@@ -116,6 +119,8 @@ class EngineBackend(EngineAudio, EngineHome):
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
         output_prefs: OutputPrefsStore | None = None,
         home_server: Callable[[], BridgeServer] | None = None,
+        library: MusicLibrary | None = None,
+        radio: Radio | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -134,6 +139,7 @@ class EngineBackend(EngineAudio, EngineHome):
         ]
         self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
         self._unsubscribe += self._init_home(home_server)
+        self._unsubscribe += self._init_library(library, radio)
         self._commands = CommandDispatcher(
             EngineCommandServices(
                 engine, start_output=self._start_from_command, home=self.home_bridge
@@ -188,9 +194,11 @@ class EngineBackend(EngineAudio, EngineHome):
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
         await self._start_home()
+        await self._start_library()
 
     async def stop(self) -> None:
         await self._stop_home()
+        await self._stop_library()
         for unsubscribe in self._unsubscribe:
             unsubscribe()
         self._unsubscribe = []
@@ -696,4 +704,17 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
 
         return HapBridgeServer(paths.data_dir() / "home-bridge.state")
 
-    return EngineBackend(engine, store, output_prefs=prefs, home_server=home_server)
+    from tandem.engine.adapters.library_files import list_files, read_art, read_tags
+    from tandem.engine.adapters.radio_browser import search_stations
+
+    library = MusicLibrary(
+        bus,
+        store=paths.data_dir() / "library.json",
+        list_files=list_files,
+        read_tags=read_tags,
+        read_art=read_art,
+    )
+    radio = Radio(bus, search_stations, store=paths.data_dir() / "radio.json")
+    return EngineBackend(
+        engine, store, output_prefs=prefs, home_server=home_server, library=library, radio=radio
+    )

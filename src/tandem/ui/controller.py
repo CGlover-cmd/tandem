@@ -41,6 +41,7 @@ from tandem.ui.backend import (
     DiscoveryChanged,
     HomeUpdated,
     KeyAction,
+    LibraryChanged,
     LinkState,
     MediaCommand,
     MusicArtwork,
@@ -49,11 +50,14 @@ from tandem.ui.backend import (
     MusicSnapshot,
     PairingError,
     PairingFlow,
+    PlayerChanged,
+    RadioChanged,
     RemoteKey,
     SendChanged,
     Theme,
     WrongPinError,
 )
+from tandem.ui.library_panel import FolderPicker, LibraryPanel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -327,6 +331,7 @@ class AppController:
         reduce_motion: bool = False,
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
+        folder_picker: FolderPicker | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
@@ -350,6 +355,9 @@ class AppController:
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.library = LibraryPanel(
+            backend, self.runner.run, on_change=self._changed, picker=folder_picker
+        )
         self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
 
@@ -381,6 +389,7 @@ class AppController:
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
+            **self.library.snapshot(),
             "home": {
                 "enabled": self.home.enabled,
                 "running": self.home.running,
@@ -417,6 +426,7 @@ class AppController:
             if controls is not None:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
+        self.library.load()
         self.home = self._backend.home()
         self._changed()
         await self._backend.start()
@@ -477,6 +487,10 @@ class AppController:
 
     def music_seek(self, position: float) -> None:
         self.runner.run(self._backend.music_seek(position))
+
+    def library_art(self, album_id: str) -> MusicArtwork | None:
+        """An album's artwork from the music library, for the window only."""
+        return self._backend.library_art(album_id)
 
     def music_artwork(self) -> MusicArtwork | None:
         """The artwork for what's playing, for the window only."""
@@ -597,7 +611,9 @@ class AppController:
                 self.set_appearance(theme, background, app_icons, onboarded)
         elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
             self.runner.run(self._backend.set_home_bridge(command["on"]))
-        elif isinstance(kind, str) and self.audio.handle(kind, command):
+        elif isinstance(kind, str) and (
+            self.library.handle(kind, command) or self.audio.handle(kind, command)
+        ):
             pass
         else:
             _LOGGER.debug("Ignoring an unknown command")
@@ -624,6 +640,12 @@ class AppController:
                     self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
+            case LibraryChanged(library=library):
+                self.library.library_changed(library)
+            case RadioChanged(radio=radio):
+                self.library.radio = radio
+            case PlayerChanged(player=player):
+                self.library.player = player
             case MusicChanged(music=music):
                 self.music = music
             case AppearanceChanged(appearance=appearance):
