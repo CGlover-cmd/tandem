@@ -14,7 +14,17 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
-- **Current state (2026-11-04): 1.0.0 is built, as a pre-release.** Every phase except the
+- **Current state (2026-11-06): 1.1.0, a pre-release, fixes the maintainer's 1.0.0 test.**
+  The 1.0.0 installer shipped srptools 2.0, which broke every Apple handshake (pairing showed
+  "wrong PIN"; HomePods and the soundbar failed). Library versions are now pinned
+  (`packaging/constraints.txt`, ADR-0017 addendum) and audio to a HomePod mini and the soundbar
+  was checked from a locally built app folder. Also in 1.1.0: instant feedback on the Audio
+  panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
+  settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
+  default background and a photo background. Still open from the test: a second firewall
+  prompt on networks Windows marks Public (the rule covers private networks; widening it
+  needs the maintainer's OK).
+- **1.0.0 (2026-11-04)** was built as a pre-release. Every phase except the
   shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
   and CI builds, installs and smoke-tests the Windows installer
   ([ADR-0017](adr/0017-installer-embedded-python.md)). The maintainer handed the finish to
@@ -23,11 +33,10 @@ _Update this section at the end of every working session._
   (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
   picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
   checklist, the Home bridge (ADR-0016), one window per user, and the installer.
-- **Next:** the maintainer runs the release notes' checklist on the reference devices and
-  reports bugs; then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
+- **Next:** the maintainer installs 1.1.0 and reruns the release notes' checklist (pairing
+  first); then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
   signing (SignPath), and 10c voice input.
-- **Repo note:** the release work is PR #12 from `claude/project-thread-y59f3u`, which folds in
-  PRs #11 (command bar) and #13 (Music tab). The Raspberry Pi test receiver was retired on
+- **Repo note:** 1.0.0 was PR #12 (merged); 1.1.0 is on `claude/project-thread-o66qn3`. The Raspberry Pi test receiver was retired on
   2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
@@ -318,6 +327,7 @@ Foundation, free for open source), docs site, contributor docs, reproducible bui
 - [x] Installer around Python's embeddable runtime, with firewall rule and WebView2 (ADR-0017)
 - [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
 - [x] One window per user; Getting started checklist on first run
+- [x] Pinned, tested library versions in every build (1.1.0, after 1.0.0 shipped a breaking one)
 - [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
 - [ ] Auto-update (for now the releases page)
 

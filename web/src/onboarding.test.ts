@@ -42,7 +42,7 @@ function state(over: Partial<AppState> = {}): AppState {
     },
     home: { enabled: false, running: false, paired: false, setupCode: null, failed: false, switches: [] },
     message: null,
-    appearance: { theme: "system", background: "mist", appIcons: true, onboarded: false },
+    appearance: { theme: "system", background: "sky", appIcons: true, onboarded: false, photo: null },
     music: null,
     demo: true,
     reduceMotion: false,
@@ -73,5 +73,16 @@ describe("getting started", () => {
     expect(after.map((s) => s.state)).toEqual(["done", "done", "done"]);
     expect(allDone(after)).toBe(true);
     expect(after[0]?.detail).toBe("Tandem found 2 devices.");
+  });
+
+  it("names the Apple TV its Pair button pairs, and waits while the PIN sheet is open", () => {
+    const pair = onboardingSteps(state({ devices: [speaker, tv] })).find((s) => s.id === "pair");
+    expect(pair?.deviceId).toBe(tv.id);
+    expect(pair?.state).toBe("todo");
+    const open = state({
+      devices: [speaker, tv],
+      pairing: { state: "enterPin", deviceId: tv.id, deviceName: tv.name, error: null, step: 1, steps: 2 },
+    });
+    expect(onboardingSteps(open).find((s) => s.id === "pair")?.state).toBe("waiting");
   });
 });

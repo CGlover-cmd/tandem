@@ -1,66 +1,69 @@
-# Tandem 1.0.0 (pre-release)
+# Tandem 1.1.0 (pre-release)
 
-The first full version of Tandem: a Windows app that sends sound and video to Apple TV,
-HomePod and AirPlay 2 speakers, and controls them from your PC. It's a **pre-release**: every
-feature is built and covered by automated tests, and the installer is built and installed on a
-clean Windows machine in CI, but several features haven't been tried on real speakers yet.
-Those are listed below. Please [report what you find](https://github.com/CGlover-cmd/tandem/issues).
-To attach details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it
-writes a zip of logs with names, addresses and identifiers replaced.
+A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
+controls them from your PC. 1.1.0 fixes what the first hands-on test of 1.0.0 found. It's still
+a **pre-release**: some features haven't been tried on real speakers yet (listed below).
+Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To attach
+details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
+of logs with names, addresses and identifiers replaced.
 
-## What's in it
+## Fixed
 
-- **Devices:** finds Apple TVs, HomePods and AirPlay 2 speakers; pairs an Apple TV with its two
-  PINs; reconnects after Wi-Fi drops.
-- **Apple TV remote:** touch pad and arrow keys, Back, Home, play/pause, now playing, volume,
-  power, the TV's apps (with real icons), and a keyboard for its text fields.
-- **Audio:** the PC's sound to any mix of speakers and the PC's own outputs, each with volume
-  and a delay slider to line them up. Or Tandem's own player as the source.
-- **Send to TV:** a video file from the PC (MP4 or MOV) or a direct link, with stop.
-- **Music:** what any app on the PC is playing, with artwork, controls, a now-playing bar and
-  tray controls.
-- **Commands (Ctrl+K):** play, pause, next, volume, open an app, turn the TV on or off, send
-  audio to speakers, stop streaming.
-- **Home app:** optional bridge with Tandem Audio, Tandem Music and Tandem TV switches, for Siri
-  on a HomePod and Home automations.
-- **Getting started** checklist on first run; light and dark themes; tray menu.
+- **Apple TV pairing said "That PIN didn't match" even with the right PIN.** The 1.0.0
+  installer picked up a newer version of a library (srptools 2.0) that broke the handshake
+  Apple devices use. The installer now ships the exact library versions Tandem was tested
+  with, and a test checks that handshake on every change.
+- **HomePods wouldn't connect and the soundbar kept reconnecting.** Same cause. Checked after
+  the fix: the PC's sound streamed to a HomePod mini and the soundbar with no errors.
+- **A speaker that couldn't be reached was retried forever** in the background. Tandem now
+  gives up after 15 seconds, says so, and stops trying.
+- **"2 playing" when only the PC was playing.** A speaker that failed was counted. The count
+  now shows only the speakers Tandem is sending to.
 
-## Checked on real hardware before this release
+## Changed
 
-- Discovery of the Apple TV 4K, two HomePod minis and an AirPlay 2 soundbar.
-- Apple TV pairing (both PINs), remote keys, play/pause, now playing, apps and typing.
-- The PC's audio to an open-source AirPlay receiver for an hour, bit-exact, with no dropouts.
-- Windows' media controls with the Apple Music app (now playing, artwork, play/pause, skip).
-- The installed app's window opening on Windows 11 with Smart App Control on (from the app
-  folder, not the installer).
+- **Audio panel:** a spinner shows next to a speaker's switch the moment you turn it on. The
+  panel says what the switch does: the PC's sound plays there right away, nothing else to
+  press. Windows' own output (your laptop speakers, say) is listed as on, since Windows keeps
+  playing there.
+- **One source:** the "This PC / Tandem's player" choice is gone. Tandem sends everything the
+  PC plays.
+- **Advanced settings** (Settings, then Advanced settings): the speaker delays, the App Store
+  icon lookup and the Home app bridge moved here.
+- **Getting started:** the Apple TV step has a **Pair** button.
+- **Backgrounds:** Sky is the new default, and you can use a photo of your own (Settings,
+  Background, Choose a photo). Tandem keeps a resized copy, without the photo's location and
+  camera details.
+- Setup shows Tandem's name and version in Windows, and always opens Tandem as you, not as
+  administrator.
 
 ## Not yet checked on real hardware (please try these)
 
-1. **Audio to a HomePod mini and the soundbar** from the Audio panel: sound arrives, volume works,
-   it survives switching Wi-Fi off and on. A HomePod mini was measured about 5 seconds behind;
-   use its delay slider (or raise the others) to line speakers up.
-2. **Several speakers at once** staying together for a while, and the delay sliders lining up a
-   HomePod with the soundbar.
-3. **PC outputs:** with a virtual audio cable as Windows' default, turn on the real speakers in
-   the Audio panel and line them up with a HomePod.
-4. **Tandem's player** as the source (the Audio panel's "Tandem's player"): a music file and an
-   internet radio stream.
-5. **Send to TV:** an MP4 from the PC, and a direct video link. Windows may ask to let Tandem
-   through the firewall if you used the portable zip.
-6. **Home app:** Settings, then "Show Tandem in the Home app", add it in the Home app with the
-   code shown, then flip each switch and ask Siri "turn on Tandem Audio".
-7. **Commands:** "send audio to <speaker>", "stop streaming", "turn on Tandem Audio".
-8. **The installer** on your PC: Start menu shortcut, the firewall rule, the optional startup
-   shortcut, and uninstalling.
-9. **Wrong PIN** while pairing the Apple TV shows a new PIN and lets you try again.
+1. **Apple TV pairing** with both PINs, and a wrong PIN (it should show a new PIN to try).
+2. **Audio to both HomePod minis and the soundbar** from the Audio panel: sound arrives,
+   volume works, it survives switching Wi-Fi off and on. A HomePod mini was measured about 5
+   seconds behind; use its delay in Advanced settings (or delay the others) to line them up.
+3. **Several speakers at once** staying together for a while.
+4. **Send to TV:** an MP4 from the PC, and a direct video link.
+5. **Home app:** Advanced settings, then "Show Tandem in the Home app", add it in the Home app
+   with the code shown, then flip each switch and ask Siri "turn on Tandem Audio".
+6. **Commands:** "send audio to <speaker>", "stop streaming", "turn on Tandem Audio".
+7. **Your own background photo.**
 
 ## Known limits
 
 - **Not code-signed yet.** Windows SmartScreen warns about the installer (choose More info, then
   Run anyway). With **Smart App Control** on, Windows blocks it outright; install with Python
   instead (see the README).
+- **If Windows calls your Wi-Fi a Public network**, it asks whether to let Python (Tandem's
+  runtime) through the firewall the first time Tandem opens. Allow it, or set the network to
+  Private in Windows' Wi-Fi settings. Tandem's own firewall rule covers private networks only.
 - No screen mirroring (FairPlay; see ADR-0006). No Spotify or Apple Music browsing inside
   Tandem yet: use their apps, and Tandem sends their sound and shows what's playing.
-- Windows' volume and mute also affect what Tandem sends (it captures what Windows plays).
-- Several speakers are lined up by ear with the delay sliders; there's no automatic sync yet.
+- Windows' volume and mute also affect what Tandem sends (it captures what Windows plays), and
+  Windows keeps playing on its own output too. To hear only your speakers, set a virtual audio
+  cable as Windows' default output.
+- The Home app gets three switches, not all of Tandem: choosing speakers, volume and the remote
+  stay in Tandem's window.
+- Speakers are lined up by ear with the delays; there's no automatic sync yet.
 - No automatic updates: check the [releases page](https://github.com/CGlover-cmd/tandem/releases).

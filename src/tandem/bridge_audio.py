@@ -19,6 +19,7 @@ from tandem.engine.media_send import SendState as EngineSendState
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.registry import DeviceEvent
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
+from tandem.engine.session import ConnectionFailedError
 from tandem.ui import backend as ui
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +55,8 @@ class EngineAudio:
     def _init_audio(self, prefs: OutputPrefsStore) -> list[Callable[[], None]]:
         self._prefs = prefs
         self._failed: set[str] = set()
+        self._starting: set[str] = set()
+        """Outputs being turned on: shown as starting at once, before the engine reports."""
         self._sends: dict[str, ui.SendSnapshot] = {}
         self.last_outputs: list[str] = []
         """Outputs turned on most recently, for the Home app's audio switch."""
@@ -82,10 +85,22 @@ class EngineAudio:
                     needs_pairing=bool(engine_pairing.services_to_pair(device)),
                 )
             )
-        available = self._engine.local_outputs()
-        for local in available:
+        direct = self._engine.direct_output()
+        if direct is not None:
+            prefs = self._prefs.get(direct.id)
+            outputs.append(
+                ui.OutputSnapshot(
+                    direct.id,
+                    direct.name,
+                    ui.OutputKind.PC,
+                    ui.OutputState.DIRECT,
+                    None,
+                    prefs.delay_ms,
+                )
+            )
+        for local in self._engine.local_outputs():
             outputs.append(self._output(local.id, local.name, ui.OutputKind.PC, on))
-        outputs.sort(key=lambda o: (o.kind is ui.OutputKind.PC, o.name.casefold(), o.id))
+        outputs.sort(key=ui.output_order)
         system = self._engine.audio_source is AudioSource.SYSTEM
         return ui.AudioSnapshot(
             source=ui.AudioSourceChoice.SYSTEM if system else ui.AudioSourceChoice.PLAYER,
@@ -101,6 +116,7 @@ class EngineAudio:
     async def set_output(self, output_id: str, on: bool) -> None:
         if not on:
             self._failed.discard(output_id)
+            self._starting.discard(output_id)
             await self._engine.stop_output(output_id)
             self._audio_changed()
             return
@@ -113,13 +129,17 @@ class EngineAudio:
                 raise ui.AudioError(PAIR_FIRST)
         prefs = self._prefs.get(output_id)
         self._failed.discard(output_id)
+        self._starting.add(output_id)
+        self._audio_changed()  # the switch shows a spinner at once, not after the connection
         try:
             await self._engine.start_output(output_id, volume=prefs.volume, delay_ms=prefs.delay_ms)
-        except (EngineAudioError, OSError, TimeoutError, ValueError) as exc:
+        except (EngineAudioError, ConnectionFailedError, OSError, TimeoutError, ValueError) as exc:
             _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
             self._failed.add(output_id)
             self._audio_changed()
             raise ui.AudioError(NO_AUDIO) from None
+        finally:
+            self._starting.discard(output_id)
         if output_id in self.last_outputs:
             self.last_outputs.remove(output_id)
         self.last_outputs = [output_id, *self.last_outputs][:8]
@@ -194,7 +214,12 @@ class EngineAudio:
             state = _STATE[live[0]]
             volume, delay = live[1], live[2]
         else:
-            state = ui.OutputState.FAILED if output_id in self._failed else ui.OutputState.OFF
+            if output_id in self._starting:
+                state = ui.OutputState.STARTING
+            elif output_id in self._failed:
+                state = ui.OutputState.FAILED
+            else:
+                state = ui.OutputState.OFF
             volume, delay = prefs.volume, prefs.delay_ms
         return ui.OutputSnapshot(
             output_id, name, kind, state, volume, delay, device_kind, needs_pairing
