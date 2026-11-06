@@ -100,8 +100,10 @@ _Update this section at the end of every working session._
   ([findings](spikes/music-webview2-drm.md)). Now playing is built: Music tab, bar and tray
   controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
   (needs a paid Apple Developer membership; resumes if the maintainer joins). The now-playing
-  bar passed its exit test with the Apple Music app and a browser. **Next for Music:** the
-  local player and radio in the window.
+  bar passed its exit test with the Apple Music app and a browser. The local player and radio
+  are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
+  still to run. **Next for Music:** that speaker check, then Apple Music catalog search
+  (Apple's keyless search, opening results in the Apple Music app).
 
 ## Scope
 
@@ -286,6 +288,15 @@ one.)
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
+  Built: the Music tab has **This PC** (music folders, an album grid with artwork, artists,
+  song search, an album page with play / play next / add to queue), **Radio** (search of the
+  public Radio Browser directory, MP3 and Ogg stations, saved stations) and **Queue**, with a
+  player strip on top that shows where the sound goes. Tags come from tinytag and are cached in
+  `library.json`; artwork is read from the files into memory. Tracks join without a gap: one
+  player thread and one real-time clock across tracks. Checked on this PC without speakers: a
+  scan of test files, gapless decoding (6.00 s of 6.0 s of audio, no pauses, after fixing a
+  decoder bug that dropped each track's first 23 ms) and a live radio search. **To run:** an
+  album to the soundbar and a HomePod mini, and a station for an hour.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.

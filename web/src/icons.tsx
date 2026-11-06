@@ -300,3 +300,73 @@ export function HeadphonesIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" />
+    </Svg>
+  );
+}
+
+export function RadioIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="8" width="18" height="12" rx="2.5" />
+      <path d="M7 8l10-4" />
+      <circle cx="15.5" cy="14" r="2.5" />
+      <path d="M6.5 12.5h4M6.5 15.5h4" />
+    </Svg>
+  );
+}
+
+export function QueueIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 6.5h12M4 11.5h12M4 16.5h7" />
+      <path d="M15.5 14.5v5l4-2.5Z" />
+    </Svg>
+  );
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  );
+}
+
+export function StopIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="6.5" y="6.5" width="11" height="11" rx="2" />
+    </Svg>
+  );
+}
+
+export function PlayNextIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 7.5h9M4 12h9M4 16.5h5" />
+      <path d="M15 7l5 3.5-5 3.5Z" />
+    </Svg>
+  );
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+      <path d="M19.5 4.5v4h-4" />
+    </Svg>
+  );
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Svg>
+  );
+}

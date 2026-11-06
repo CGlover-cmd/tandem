@@ -170,6 +170,12 @@ other tabs a small now-playing bar does the same; the tray menu has play/pause a
 is a remote here: the app plays the music, and Tandem's audio streaming sends the PC's sound to
 your speakers.
 
+Tandem also plays music itself. In the Music tab, **This PC** lists the albums in folders you
+add (MP3, FLAC, WAV and Ogg files), with artwork, artists and a song search; **Radio** searches
+the free [Radio Browser](https://www.radio-browser.info) directory and keeps the stations you
+save; **Queue** shows what plays next. Pick the speakers in **Audio**: Tandem's player plays
+straight to them, gaplessly. Only your search words go to the radio directory.
+
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (neutral tones or gradients) under **Settings**, the gear
 button at the top right.

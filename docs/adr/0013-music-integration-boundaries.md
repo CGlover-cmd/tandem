@@ -48,7 +48,11 @@ What we know:
   saying a session has gone (browsers drop theirs briefly on a track change), and confirms
   each command by the app's new state, since an app can accept a command and do nothing.
 - **Local files and internet radio** are decoded in the engine and sent straight to the
-  AirPlay sender, with no loopback capture.
+  AirPlay sender, with no loopback capture. Tags and artwork are read with tinytag (pure
+  Python, MIT) and cached in Tandem's data folder (`library.json`; artwork stays in memory).
+  Stations come from the public Radio Browser directory: only the search words are sent, with
+  a generic `Tandem/<version>` User-Agent; saved stations stay in `radio.json`. Only MP3 and
+  Ogg stations are listed, because those are what the player decodes.
 - **Apple Music:** the Apple Music API and MusicKit JS for browsing and sign-in. They need a
   MusicKit key owned by the maintainer; its private key stays in `local/` and is never
   committed, and the developer token is generated from it outside the repo. Playback is handed

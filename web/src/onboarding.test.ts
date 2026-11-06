@@ -46,6 +46,19 @@ function state(over: Partial<AppState> = {}): AppState {
     music: null,
     demo: true,
     reduceMotion: false,
+    library: {
+      folders: [],
+      scanning: false,
+      scanned: 0,
+      songCount: 0,
+      albums: [],
+      openAlbum: null,
+      search: { text: "", songs: [] },
+      canPickFolders: false,
+      picking: false,
+    },
+    radio: { query: "", searching: false, results: [], saved: [], error: null },
+    player: { state: "stopped", index: null, position: 0, duration: null, error: false, queue: [] },
     ...over,
   };
 }
