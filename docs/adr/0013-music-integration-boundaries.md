@@ -1,4 +1,4 @@
-# ADR-0012: Music integration boundaries
+# ADR-0013: Music integration boundaries
 
 - Status: Accepted (maintainer chose the "remote and router, plus Apple Music browsing" option)
 - Date: 2026-10-21
@@ -43,7 +43,10 @@ What we know:
   pastes its Client ID, because a shared development key is capped at 5 users. Spotify
   content is credited per its Developer Policy (logo and a link back to the track or album).
 - **Now playing for every app** comes from Windows' media controls (GSMTC), read through the
-  pywinrt packages in an engine adapter.
+  pywinrt packages in an engine adapter (`engine/pc_media.py`). It follows change events with
+  no polling, sends timeline changes on only when the position jumps, waits a moment before
+  saying a session has gone (browsers drop theirs briefly on a track change), and confirms
+  each command by the app's new state, since an app can accept a command and do nothing.
 - **Local files and internet radio** are decoded in the engine and sent straight to the
   AirPlay sender, with no loopback capture.
 - **Apple Music:** the Apple Music API and MusicKit JS for browsing and sign-in. They need a
@@ -70,3 +73,10 @@ What we know:
   branding.
 - If the token test shows full tracks play in the window, a follow-up ADR records it and the
   hand-off to the Apple Music app becomes optional.
+
+## Note (2026-11-04): Apple Music browsing on hold
+The maintainer has no Apple Developer membership, so there is no MusicKit key: the token test
+and Apple Music browsing (Phase 6) are on hold and resume only if the maintainer joins.
+Apple Music is supported the way every other app is: the Apple Music app plays, the Music
+tab shows and controls it through now playing, and the router carries its sound to the
+speakers. Borrowed keys, or the key inside Apple's own web player, are not an option.

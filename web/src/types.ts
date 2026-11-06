@@ -75,6 +75,44 @@ export interface Device {
   controls: Controls | null;
   /** The device's apps, after the launcher asked for them; cleared on disconnect. */
   apps: AppList | null;
+  /** What was last sent to this Apple TV (a link or a video file), while it plays. */
+  send: SendState | null;
+}
+
+/** A video or link sent to an Apple TV. `title` is a file name or link host: never log it. */
+export interface SendState {
+  state: "starting" | "playing" | "ended" | "failed";
+  title: string | null;
+}
+
+export type OutputKind = "airplay" | "pc";
+export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed";
+export type AudioSource = "system" | "player";
+
+/** One place the sound can go: an AirPlay device or one of the PC's own sound outputs. */
+export interface AudioOutput {
+  id: string;
+  name: string;
+  kind: OutputKind;
+  state: OutputState;
+  /** 0 to 100; null until the user sets it (the device keeps its own volume). */
+  volume: number | null;
+  /** Extra delay for this output, to line it up with the others by ear. */
+  delayMs: number;
+  deviceKind: DeviceKind | null;
+  needsPairing: boolean;
+}
+
+export interface AudioPanel {
+  source: AudioSource;
+  /** The PC's default output is hidden while its own sound is the source (it would echo). */
+  pcOutputsHidden: boolean;
+  outputs: AudioOutput[];
+  /** How many outputs are on. */
+  streaming: number;
+  /** The window can open a file picker (it can't in the browser preview). */
+  canPickFiles: boolean;
+  picking: boolean;
 }
 
 /** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
@@ -98,27 +136,104 @@ export interface Appearance {
   background: string;
   /** Look up real app icons on the App Store for the launcher. */
   appIcons: boolean;
+  /** The first-run checklist has been closed. */
+  onboarded: boolean;
+}
+
+export type CommandStatus =
+  | "ready"
+  | "done"
+  | "help"
+  | "needsInfo"
+  | "notUnderstood"
+  | "notAvailable"
+  | "failed";
+
+/** What a typed command did, or would do. Holds device names: show it, never log it. */
+export interface CommandOutcome {
+  status: CommandStatus;
+  /** What it is about ("pause", "whichDevice", ...); commands.ts holds the words. */
+  code: string;
+  params: Record<string, string>;
+  /** Whole commands to offer instead, or examples. */
+  suggestions: string[];
+}
+
+/** The command bar. The text box is ours; each preview and result names the text it is for. */
+export interface CommandBarState {
+  text: string;
+  preview: CommandOutcome | null;
+  running: boolean;
+  result: CommandOutcome | null;
+  resultFor: string;
+}
+
+export type MusicCommand = "play_pause" | "next" | "previous";
+
+/** What an app on this PC is playing (Phase 6). Shown on screen only; never log it. */
+export interface Music {
+  app: string | null;
+  state: "playing" | "paused" | "stopped" | "other";
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  /** Seconds in, as of when this state was sent; null for live streams. */
+  position: number | null;
+  duration: number | null;
+  /** What the app allows right now. */
+  commands: MusicCommand[];
+  canSeek: boolean;
+  /** Changes whenever the artwork does; null when there is none. */
+  artwork: number | null;
+}
+
+/** Tandem in the Home app. Switch names are Tandem's own ("Tandem Audio"). */
+export interface HomeBridge {
+  enabled: boolean;
+  running: boolean;
+  paired: boolean;
+  /** The code to type into the Home app, until it has added Tandem. */
+  setupCode: string | null;
+  failed: boolean;
+  switches: { id: string; name: string; on: boolean }[];
 }
 
 export interface AppState {
   devices: Device[];
   discovering: boolean;
   pairing: Pairing;
+  commands: CommandBarState;
+  audio: AudioPanel;
+  home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
   demo: boolean;
   reduceMotion: boolean;
+  /** What the PC is playing; null when nothing is. */
+  music: Music | null;
 }
 
 export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" }
-  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean }
+  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean; onboarded?: boolean }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }
   | { type: "setPower"; id: string; on: boolean }
   | { type: "loadApps"; id: string }
   | { type: "launchApp"; id: string; appId: string }
-  | { type: "setText"; id: string; text: string };
+  | { type: "setText"; id: string; text: string }
+  | { type: "previewCommand" | "runCommand"; text: string }
+  | { type: "clearCommand" }
+  | { type: "setOutput"; id: string; on: boolean }
+  | { type: "setOutputVolume"; id: string; level: number }
+  | { type: "setOutputDelay"; id: string; ms: number }
+  | { type: "setAudioSource"; source: AudioSource }
+  | { type: "allOutputsOff" }
+  | { type: "setHomeBridge"; on: boolean }
+  | { type: "sendMedia"; id: string; location: string }
+  | { type: "pickMedia" | "stopMedia"; id: string }
+  | { type: "music"; command: MusicCommand }
+  | { type: "musicSeek"; position: number };

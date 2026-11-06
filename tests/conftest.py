@@ -25,7 +25,9 @@ from tandem.engine.control import (
     RemoteKey,
     VolumeControl,
 )
-from tandem.engine.models import Device, DeviceKind, Service
+from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
+from tandem.engine.pc_media import ChangeKind, PcArtwork, PcMediaCommand, PcNowPlaying
+from tandem.engine.player import Track
 
 
 def make_device(**overrides: Any) -> Device:
@@ -174,6 +176,16 @@ class FakeBackend:
         self.captures: list[FakeCapture] = []
         self.audio_enabled = True
         self.controller_options: dict[str, Any] = {}
+        self.local: list[LocalOutput] = [
+            LocalOutput("local:speakers", "Speakers", default=True),
+            LocalOutput("local:headphones", "Headphones"),
+        ]
+        self.local_sinks: dict[str, list[FakeSink]] = {}
+        self.media_enabled = True
+        self.senders: dict[str, FakeSender] = {}
+        self.tracks: dict[str, bytes] = {}
+        """PCM that each track location decodes to; a missing location fails to open."""
+        self.sessions = FakeSessions()
 
     async def load(self) -> None:
         self.loaded = True
@@ -252,6 +264,130 @@ class FakeBackend:
         capture = FakeCapture()
         self.captures.append(capture)
         return capture
+
+    def local_outputs(self) -> Sequence[LocalOutput]:
+        return list(self.local)
+
+    def local_sink(self, output_id: str) -> FakeSink | None:
+        if output_id not in {o.id for o in self.local}:
+            return None
+        sink = FakeSink()
+        self.local_sinks.setdefault(output_id, []).append(sink)
+        return sink
+
+    def media_sender(self, link: Any) -> FakeSender | None:
+        if not self.media_enabled or not isinstance(link, FakeLink):
+            return None
+        return self.senders.setdefault(link.device_id, FakeSender())
+
+    def open_track(self, track: Track) -> FakeStream:
+        if track.location not in self.tracks:
+            raise FileNotFoundError(track.location)
+        return FakeStream(self.tracks[track.location])
+
+    def media_sessions(self) -> FakeSessions:
+        return self.sessions
+
+
+class FakeSender:
+    def __init__(self) -> None:
+        self.urls: list[str] = []
+        self.fail: BaseException | None = None
+        self.release = asyncio.Event()
+
+    async def play_url(self, url: str) -> None:
+        self.urls.append(url)
+        if self.fail is not None:
+            raise self.fail
+        await self.release.wait()
+
+
+class FakeStream:
+    def __init__(self, pcm: bytes) -> None:
+        self._pcm = pcm
+        self.closed = False
+
+    @property
+    def duration(self) -> float | None:
+        return len(self._pcm) / 4 / 44_100
+
+    def read(self, frames: int) -> bytes:
+        chunk, self._pcm = self._pcm[: frames * 4], self._pcm[frames * 4 :]
+        return chunk
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeSessions:
+    """Windows' media controls, as the engine sees them. Titles are invented.
+
+    With `react` on (the default), commands change `now` the way an app would: play/pause
+    flips the state, next and previous move to another invented track, seek moves the
+    position. With it off, the app "accepts" commands and does nothing.
+    """
+
+    def __init__(self) -> None:
+        self.now: PcNowPlaying | None = None
+        self.art: PcArtwork | None = None
+        self.commands: list[PcMediaCommand] = []
+        self.seeks: list[float] = []
+        self.fail: BaseException | None = None
+        self.watch_fail: BaseException | None = None
+        self.react = True
+        self.reads = 0
+        self.art_reads = 0
+        self.on_change: Callable[[ChangeKind], None] | None = None
+        self.unwatched = False
+
+    def change(self, kind: ChangeKind = ChangeKind.MEDIA) -> None:
+        """Say something changed, as Windows would."""
+        assert self.on_change is not None
+        self.on_change(kind)
+
+    async def watch(self, on_change: Callable[[ChangeKind], None]) -> None:
+        if self.watch_fail is not None:
+            raise self.watch_fail
+        self.on_change = on_change
+
+    async def unwatch(self) -> None:
+        self.unwatched = True
+
+    async def current(self) -> PcNowPlaying | None:
+        self.reads += 1
+        if self.fail is not None:
+            raise self.fail
+        return self.now
+
+    async def artwork(self) -> PcArtwork | None:
+        self.art_reads += 1
+        return self.art
+
+    async def command(self, command: PcMediaCommand) -> bool:
+        if self.fail is not None:
+            raise self.fail
+        self.commands.append(command)
+        if self.now is None:
+            return False
+        if self.react:
+            if command is PcMediaCommand.PLAY_PAUSE:
+                state = "paused" if self.now.state == "playing" else "playing"
+                self.now = dataclasses.replace(self.now, state=state)
+                self.change(ChangeKind.PLAYBACK)
+            else:
+                title = "Second Example Song" if command is PcMediaCommand.NEXT else "Opener"
+                self.now = dataclasses.replace(self.now, title=title, position=0.0)
+                self.change(ChangeKind.MEDIA)
+        return True
+
+    async def seek(self, position: float) -> bool:
+        self.seeks.append(position)
+        if self.now is None:
+            return False
+        if self.react:
+            self.now = dataclasses.replace(self.now, position=position)
+            self.change(ChangeKind.TIMELINE)
+        return True
 
 
 ALL_CAPABILITIES = frozenset(Capability)

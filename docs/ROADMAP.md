@@ -3,8 +3,9 @@
 An open-source Windows app that sends audio and video to AirPlay devices
 (Apple TV, HomePod, AirPlay 2 speakers and TVs), with a polished Apple-inspired interface.
 (Screen mirroring was investigated and shelved: it is FairPlay-gated with no legitimate
-open-source path — see ADR-0006.) Smart-home control (HomeKit / Matter) follows once the
-AirPlay core is solid.
+open-source path — see ADR-0006.) Smart-home control and typed commands follow (Phase 10);
+Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home app
+(ADR-0014).
 
 > Name: **Tandem**. Names and branding must not use Apple trademarks (AirPlay, Apple, HomePod,
 > HomeKit). We describe compatibility in plain words, e.g. "works with Apple TV and HomePod".
@@ -13,8 +14,21 @@ AirPlay core is solid.
 
 _Update this section at the end of every working session._
 
-- **Current phase:** 3, Apple TV control (engine side). Phase 0 is complete (see the
-  [go/no-go table](spikes/phase-0-summary.md)) and so is Phase 1.
+- **Current state (2026-11-04): 1.0.0 is built, as a pre-release.** Every phase except the
+  shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
+  and CI builds, installs and smoke-tests the Windows installer
+  ([ADR-0017](adr/0017-installer-embedded-python.md)). The maintainer handed the finish to
+  Claude without hands-on tests, so the hardware checks still open are listed in
+  [release-notes.md](release-notes.md). Built since the last hardware session: the Audio panel
+  (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
+  picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
+  checklist, the Home bridge (ADR-0016), one window per user, and the installer.
+- **Next:** the maintainer runs the release notes' checklist on the reference devices and
+  reports bugs; then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
+  signing (SignPath), and 10c voice input.
+- **Repo note:** the release work is PR #12 from `claude/project-thread-y59f3u`, which folds in
+  PRs #11 (command bar) and #13 (Music tab). The Raspberry Pi test receiver was retired on
+  2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
   keys, power and now-playing all work on the Apple TV ([findings](spikes/spike-a-apple-tv.md)).
@@ -58,8 +72,13 @@ _Update this section at the end of every working session._
   ([ADR-0012](adr/0012-app-icons-from-the-app-store.md)).
 - **Hardware check, Keyboard retry:** typing into the Apple TV's search box from the window
   works in real time.
-- **Next:** the maintainer checks the app icons on the Apple TV; then the onboarding checklist. The test Pi has UxPlay and
-  shairport-sync, both on demand.
+- **Phase 10a (typed command bar), built:** Ctrl+K (or **Commands** in the header) opens a
+  command bar. It understands play, pause, next, previous, volume (level or up/down), open an
+  app on the TV, and turn a device on or off, with device names matched loosely; it says what
+  Enter will do as you type and asks "which device?" when it can't tell. "Send audio" and
+  "stop streaming" answer "not available yet" until Phase 4 lands. No Siri: see
+  [ADR-0014](adr/0014-commands-no-siri.md). Checked in the demo window; the hardware gate (20
+  sample commands on the real devices) is still to run.
 - **In parallel, Phase 2 UI shell (started):** the interface is now HeroUI (React) in a
   WebView2 window, served by Tandem on loopback ([ADR-0010](adr/0010-heroui-web-front-end.md),
   replacing PySide6 + QML). Built so far: device grid, PIN pairing sheet, tray menu, and
@@ -72,16 +91,17 @@ _Update this section at the end of every working session._
   retry is still unchecked on hardware. Next for the UI: the onboarding checklist.
 - **In parallel, Phase 6 Music (started, docs and spikes only):** a new phase after the
   multi-output router; the phases after it moved down by one. Boundaries in
-  [ADR-0012](adr/0012-music-integration-boundaries.md). Music spike 1: Windows' media controls
+  [ADR-0013](adr/0013-music-integration-boundaries.md). Music spike 1: Windows' media controls
   read and control the Apple Music app (status, timeline, artwork, play and pause, with change
   events and no polling) ([findings](spikes/music-media-sessions.md)). Music spike 2: inside
   Tandem's WebView2 window, Widevine (software) and PlayReady load and build licence
   requests, so full-track MusicKit JS playback is possible in principle; sign-in popups need
   Tandem to stop pywebview sending new windows to the browser
-  ([findings](spikes/music-webview2-drm.md)). The Spotify app isn't tested separately
-  (maintainer's decision: the Apple Music result covers it). **Next for Music:** the
-  now-playing bar; a MusicKit JS test with a real developer token (needs the maintainer's
-  Apple Developer membership).
+  ([findings](spikes/music-webview2-drm.md)). Now playing is built: Music tab, bar and tray
+  controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
+  (needs a paid Apple Developer membership; resumes if the maintainer joins). **Next for Music:** the now-playing bar's
+  Apple Music check (the app was closed during the browser check), then the local player
+  and radio in the window.
 
 ## Scope
 
@@ -91,9 +111,11 @@ _Update this section at the end of every working session._
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
 - Music (Phase 6): now playing and remote control for any music app, Spotify through its Web
-  API, Apple Music browsing, and a player for local files and internet radio (ADR-0012)
+  API, and a player for local files and internet radio (ADR-0013). Apple Music browsing is on
+  hold until the maintainer has an Apple Developer membership
 - Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
-- Smart-home control of plugs, lamps and TV power (Phase 10)
+- Smart home and commands (Phase 10): a typed command bar, Tandem as a Home bridge, offline
+  voice input, and control of plugs, lamps and TV power
 - Apple-inspired, accessible UI with a system tray menu; English first, translation-ready
 
 **Out of scope** (revisit only after v1.0, if users ask)
@@ -228,11 +250,16 @@ Tested in order: shairport-sync on the Pi, then the soundbar, then a HomePod min
 Pick any combination of outputs: AirPlay devices **and** the PC's own speakers. Local output is
 delayed to match the AirPlay buffer so everything plays in sync. Per-output volume, saved groups.
 **Exit:** HomePods, soundbar and PC speakers stay within ~20 ms of each other for 30 minutes.
+- [x] PC sound devices as outputs next to AirPlay, per-output volume and delay, saved per output
+  (ADR-0015)
+- [x] Audio panel in the window; command-bar "send audio" and "stop streaming"
+- [ ] Exit check on the reference devices (lined up by ear with the delay sliders; no automatic
+  sync yet)
 
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries
 their sound, plus a player for local files and internet radio, plus Apple Music browsing.
-Boundaries in [ADR-0012](adr/0012-music-integration-boundaries.md): the official apps play
+Boundaries in [ADR-0013](adr/0013-music-integration-boundaries.md): the official apps play
 streamed music; Tandem never plays or records Spotify streams itself. Depends on Phase 4 and,
 for several speakers at once, Phase 5. (Added after Phase 5; the later phases moved down by
 one.)
@@ -241,25 +268,41 @@ one.)
   **Exit:** the Apple Music app shows the right title and artwork and obeys the controls.
   Passed ([findings](spikes/music-media-sessions.md)). The Spotify app isn't tested
   separately: it uses the same media controls, so the maintainer chose to take the Apple Music
-  result as covering it. A browser tab is checked in the now-playing bar's exit test.
+  result as covering it. A browser tab is checked in the now-playing bar's exit test (titles and change
+  events passed; its controls are still to try).
 - [ ] Now-playing bar on the Music tab and in the tray menu, for any app.
   **Exit:** it updates within a second of a track change, with the Apple Music app and with a
-  browser tab.
+  browser tab. Built: a **Music** tab (artwork, title, artist and album, a position slider
+  when the app allows seeking, previous / play-pause / next), a compact bar on the other tabs
+  and play/pause and next in the tray menu. Light and dark, checked with the demo's invented
+  music. **Browser: passed** with a quiet test-tone page changing track every 12 s: every
+  change reached the window within Windows' clock resolution (about 16 ms)
+  (`spikes/now_playing_latency.py`). That check found and fixed two browser quirks: a session
+  briefly vanishing on a track change (now a 1 s grace instead of the bar blinking out) and a
+  session re-made with the same app id (now re-hooked every time). **Apple Music: to run**;
+  the app was closed, and Tandem doesn't start it (it would play from the maintainer's
+  account).
 - [ ] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.
-- [ ] Spike: Apple Music in Tandem's window. Can MusicKit JS sign in and play full tracks in
-  WebView2? **Exit:** a go or no-go, recorded in an ADR. Started: the copy-protection check
-  passed and sign-in popups need a small host change; a test with a real developer token is
-  next ([findings](spikes/music-webview2-drm.md)).
-- [ ] Apple Music browsing (only on a go): catalog and library browsing; playback handed to the
-  Apple Music app unless the spike shows full tracks play in the window.
+- [ ] **On hold** (needs a paid Apple Developer membership; resumes if the maintainer joins). Spike: Apple Music in
+  Tandem's window. Can MusicKit JS sign in and play full tracks in WebView2? **Exit:** a go or
+  no-go, recorded in an ADR. Started: the copy-protection check passed and sign-in popups
+  need a small host change; a test with a real developer token is next
+  ([findings](spikes/music-webview2-drm.md)).
+- [ ] **On hold** (needs a paid Apple Developer membership; resumes if the maintainer joins). Apple Music browsing (only
+  on a go): catalog and library browsing; playback handed to the Apple Music app unless the
+  spike shows full tracks play in the window. Meanwhile Apple Music works through now playing
+  and the router, like any other app.
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
+- [x] Engine: a file shared on a random path, or a link, played with AirPlay's play-URL (ADR-0015)
+- [x] Send sheet on a connected Apple TV: file picker, link, what's playing, stop
+- [ ] Hardware check: an MP4 from the PC and a direct link on the Apple TV
 
 ### Phase 8 · Screen mirroring — SHELVED (blocked by FairPlay; ADR-0006)
 Spike D found no legitimate open-source path to send AirPlay screen mirroring: the video is
@@ -272,11 +315,35 @@ unaffected and needs no FairPlay.)
 ### Phase 9 · Hardening and v1.0
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
 Foundation, free for open source), docs site, contributor docs, reproducible builds.
+- [x] Installer around Python's embeddable runtime, with firewall rule and WebView2 (ADR-0017)
+- [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
+- [x] One window per user; Getting started checklist on first run
+- [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
+- [ ] Auto-update (for now the releases page)
 
-### Phase 10 · Smart-home control (feasibility spike first)
-Targets: smart plugs, lamps and TV power. Accessories already set up in Apple Home generally won't
-accept a second controller, so the paths are: Matter multi-admin, HomeKit (HAP) control through
-aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
+### Phase 10 · Smart home and commands
+Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer
+one (ADR-0014). Instead: Tandem's own command bar, and Tandem in the Home app so Siri on a
+HomePod can drive it. Targets for home control: smart plugs, lamps and TV power. Each step is
+its own PR with its own gate.
+- **10a · Typed command bar.** A command bar in the window (Ctrl+K), a local parser with a fixed
+  set of verbs, and device names from the registry. Needs nothing beyond Phases 3 to 5.
+  **Gate:** 20 sample commands run correctly on the reference devices.
+  - [x] Parser, dispatcher and command bar (demo-checked)
+  - [ ] Gate on the reference devices
+- **10b · Tandem as a Home bridge (spike).** Tandem shows in the Home app as a bridge with a
+  few switches; Siri on a HomePod flips them, and Home automations on them let Tandem control
+  Home devices. Off by default; pairing keys in the encrypted vault.
+  **Gate:** a Home automation turns a lamp off from Tandem, and the hands-on Siri test passes.
+  - [x] Bridge with Tandem Audio, Music and TV switches, DPAPI-encrypted keys (ADR-0016)
+  - [ ] Gate on the reference devices
+- **10c · Offline voice input.** A push-to-talk microphone button and hotkey for the command
+  bar, using Windows' on-device recognizer with a phrase list. Microphone off by default
+  (opt-in in Settings), no audio saved or sent; never the WebView2 browser speech API (it is
+  online). **Gate:** 18 of the 20 sample commands recognized by voice in a quiet room.
+- **10d · Direct device control (optional).** Devices not in Apple Home through aiohomekit
+  (HomeKit allows one controller per accessory), and a Matter multi-admin spike on Windows.
+  **Gate:** go or no-go after the spike, only if the maintainer has such devices.
 
 ## Quality strategy
 - **Unit tests** use recorded protocol exchanges (scrubbed of identifiers).
@@ -301,7 +368,7 @@ aiohomekit for accessories not set up in Apple Home, or a Home Assistant bridge.
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Smart App Control blocks a newly released native npm binary in the front-end toolchain | Medium | Pin the last version that loads (`overrides` in `web/package.json`); end users never run Node |
 | WebView2 runtime missing on an older Windows 10 PC | Low | Ships with Windows 11 and with Edge on Windows 10; the Phase 9 installer adds Microsoft's bootstrapper |
-| Spotify tightens developer access again (it did in Nov 2024, Mar 2025, Feb 2026) | Medium | Spotify is a remote only and each user brings their own key (ADR-0012); now playing, the local player and radio don't depend on it |
-| Apple Music full tracks won't play in Tandem's window | Medium | Music spike 2: Widevine works in WebView2 on this PC; a token test decides. Fallback: browse in Tandem, play in the Apple Music app (ADR-0012) |
+| Spotify tightens developer access again (it did in Nov 2024, Mar 2025, Feb 2026) | Medium | Spotify is a remote only and each user brings their own key (ADR-0013); now playing, the local player and radio don't depend on it |
+| Apple Music full tracks won't play in Tandem's window | Medium | Music spike 2: Widevine works in WebView2 on this PC; a token test decides. Fallback: browse in Tandem, play in the Apple Music app (ADR-0013) |
 | Contributor privacy leak in public repo | Medium | PRIVACY.md, pre-commit PII + secret scanning, redacted logs |
 | Trademark complaint | Low | Neutral name, plain compatibility wording |

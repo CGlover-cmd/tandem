@@ -51,3 +51,14 @@ class Device:
     @property
     def can_remote_control(self) -> bool:
         return Service.COMPANION in self.services or Service.MRP in self.services
+
+
+@dataclass(frozen=True, slots=True)
+class LocalOutput:
+    """One of the PC's own sound outputs (speakers, headphones). `name` is the hardware's own
+    description, shown in the window but not logged."""
+
+    id: str
+    name: str
+    default: bool = False
+    """Windows' current default output (the one loopback captures)."""

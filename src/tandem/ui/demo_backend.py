@@ -5,7 +5,12 @@ Behaviour worth seeing in the UI:
 - the TV needs PIN pairing first, with two PINs like a real Apple TV (remote control, then
   AirPlay); any 4 digits work except 0000, which is "wrong";
 - the soundbar's first connection attempt fails, so the retry state shows;
-- the TV lists apps, and opening Search brings up its on-screen keyboard (Back closes it).
+- the TV lists apps, and opening Search brings up its on-screen keyboard (Back closes it);
+- an invented music app on the PC plays invented tracks, with drawn artwork, for the Music
+  tab and the now-playing bar.
+
+Typed commands need the engine's parser, which the UI layer doesn't import, so `tandem.ui.app`
+plugs one in (`commands`, from `tandem.bridge.demo_commands`).
 
 The appearance setting is kept in memory, or in a small JSON file when `appearance_file` is
 given, so a background picked in Settings survives a restart.
@@ -16,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from pathlib import Path
@@ -26,6 +32,8 @@ from tandem.ui.backend import (
     AppearanceChanged,
     AppInfo,
     BackendEvent,
+    CommandOutcome,
+    CommandRunner,
     ControlError,
     ControlsChanged,
     ControlsSnapshot,
@@ -38,6 +46,10 @@ from tandem.ui.backend import (
     LinkState,
     Listener,
     MediaCommand,
+    MusicArtwork,
+    MusicChanged,
+    MusicCommand,
+    MusicSnapshot,
     NowPlayingSnapshot,
     PairingError,
     PairingFlow,
@@ -47,6 +59,7 @@ from tandem.ui.backend import (
     Volume,
     WrongPinError,
 )
+from tandem.ui.demo_audio import DemoAudio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,8 +133,30 @@ DEMO_APPS = (
 )
 SEARCH_APP = "com.apple.TVSearch"
 
+# Invented music on the PC (docs/PRIVACY.md): title, artist, album, length, artwork colours.
+DEMO_MUSIC_APP = "Demo Player"
+DEMO_TRACKS = (
+    ("Morning Light", "The Example Band", "Daybreak", 214.0, ("#5B8CFF", "#B36BFF")),
+    ("Paper Boats", "The Example Band", "Daybreak", 187.0, ("#FF8A5B", "#FFC85B")),
+    ("Night Bus", "Imaginary Orchestra", "City Hours", 242.0, ("#2BB673", "#2B7BB6")),
+)
+NOTHING_PLAYING = "Nothing is playing on this PC."
 
-class DemoBackend:
+
+def _demo_artwork(colours: tuple[str, str]) -> bytes:
+    """A gradient square with a note on it, standing in for album art."""
+    start, end = colours
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0" stop-color="{start}"/><stop offset="1" stop-color="{end}"/>'
+        '</linearGradient></defs><rect width="120" height="120" fill="url(#g)"/>'
+        '<path d="M52 82a10 10 0 1 1-6-9V38l32-7v40a10 10 0 1 1-6-9V44l-20 4z" '
+        'fill="white" fill-opacity="0.85"/></svg>'
+    ).encode()
+
+
+class DemoBackend(DemoAudio):
     def __init__(
         self,
         *,
@@ -129,7 +164,14 @@ class DemoBackend:
         delay: float = 0.6,
         retry_after: float = 2.0,
         appearance_file: Path | None = None,
+        commands: CommandRunner | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ):
+        self.commands = commands
+        self._clock = clock
+        self._track = 0
+        self._artwork_id = 1
+        self._music: MusicSnapshot | None = self._track_snapshot("playing", 42.0)
         self._sleep = sleep
         self._appearance_file = appearance_file
         self._appearance = _load_appearance(appearance_file)
@@ -143,6 +185,7 @@ class DemoBackend:
         self.presses: list[tuple[str, RemoteKey, KeyAction]] = []
         self.launched: list[tuple[str, str]] = []
         self.texts: list[tuple[str, str]] = []
+        self._init_audio()
 
     def subscribe(self, listener: Listener) -> Unsubscribe:
         self._listeners.append(listener)
@@ -345,6 +388,78 @@ class DemoBackend:
             raise ControlError(CANT_DO_THAT)
         self.texts.append((device_id, text[:MAX_TEXT]))
 
+    # What the PC is playing
+
+    def music(self) -> MusicSnapshot | None:
+        return self._music
+
+    def music_artwork(self) -> MusicArtwork | None:
+        if self._music is None:
+            return None
+        return MusicArtwork(_demo_artwork(DEMO_TRACKS[self._track][4]), "image/svg+xml")
+
+    async def music_command(self, command: MusicCommand) -> None:
+        music = self._music
+        if music is None:
+            raise ControlError(NOTHING_PLAYING)
+        if command is MusicCommand.PLAY_PAUSE:
+            state = "paused" if music.state == "playing" else "playing"
+            self._set_music(self._track_snapshot(state, self._position_now(music)))
+            return
+        step = 1 if command is MusicCommand.NEXT else -1
+        self._track = (self._track + step) % len(DEMO_TRACKS)
+        self._artwork_id += 1
+        self._set_music(self._track_snapshot(music.state, 0.0))
+
+    async def music_seek(self, position: float) -> None:
+        music = self._music
+        if music is None:
+            raise ControlError(NOTHING_PLAYING)
+        length = DEMO_TRACKS[self._track][3]
+        self._set_music(self._track_snapshot(music.state, min(max(0.0, position), length)))
+
+    def stop_music(self) -> None:
+        """The demo app closes, as if nothing played on the PC (used by tests)."""
+        self._set_music(None)
+
+    def _track_snapshot(self, state: str, position: float) -> MusicSnapshot:
+        title, artist, album, length, _colours = DEMO_TRACKS[self._track]
+        return MusicSnapshot(
+            app=DEMO_MUSIC_APP,
+            state=state,
+            title=title,
+            artist=artist,
+            album=album,
+            position=position,
+            duration=length,
+            position_at=self._clock(),
+            commands=frozenset(MusicCommand),
+            can_seek=True,
+            artwork=self._artwork_id,
+        )
+
+    def _position_now(self, music: MusicSnapshot) -> float:
+        position = music.position or 0.0
+        if music.state == "playing":
+            position += self._clock() - music.position_at
+        return min(position, music.duration or position)
+
+    def _set_music(self, music: MusicSnapshot | None) -> None:
+        self._music = music
+        self._publish(MusicChanged(music))
+
+    # Typed commands
+
+    def preview_command(self, text: str) -> CommandOutcome:
+        if self.commands is None:
+            return CommandOutcome("notAvailable", "noCommands")
+        return self.commands.preview_command(text)
+
+    async def run_command(self, text: str) -> CommandOutcome:
+        if self.commands is None:
+            return CommandOutcome("notAvailable", "noCommands")
+        return await self.commands.run_command(text)
+
     def remove(self, device_id: str) -> None:
         """Forget a device, as if it left the network (used by tests)."""
         if self._devices.pop(device_id, None) is not None:
@@ -361,7 +476,10 @@ def _load_appearance(path: Path | None) -> Appearance:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return Appearance(
-            Theme(data["theme"]), str(data["background"]), bool(data.get("appIcons", True))
+            Theme(data["theme"]),
+            str(data["background"]),
+            bool(data.get("appIcons", True)),
+            bool(data.get("onboarded", False)),
         )
     except (OSError, ValueError, KeyError, TypeError):
         _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
@@ -373,6 +491,7 @@ def _save_appearance(path: Path, appearance: Appearance) -> None:
         "theme": appearance.theme.value,
         "background": appearance.background,
         "appIcons": appearance.app_icons,
+        "onboarded": appearance.onboarded,
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

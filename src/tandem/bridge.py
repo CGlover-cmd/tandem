@@ -9,21 +9,42 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
+from tandem.bridge_audio import EngineAudio
+from tandem.bridge_home import EngineHome
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine.command_dispatch import (
+    Ability,
+    ActionError,
+    AppChoice,
+    Code,
+    CommandDispatcher,
+    CommandResult,
+    EngineCommandServices,
+    SwitchState,
+    TargetState,
+)
+from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
+from tandem.engine.home_bridge import BridgeServer
 from tandem.engine.models import Device, Service
+from tandem.engine.models import DeviceKind as EngineKind
+from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
 from tandem.engine.settings import SettingsChanged, SettingsStore
 from tandem.engine.settings import Theme as EngineTheme
 from tandem.ui import backend as ui
+
+if TYPE_CHECKING:
+    from tandem.ui.demo_backend import DemoBackend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +67,15 @@ NOT_CONNECTED = "This device isn't connected."
 CANT_DO_THAT = "This device can't do that right now."
 NO_RESPONSE = "The device didn't respond. Try again."
 NO_TEXT_FIELD = "Select a search box or text field on the TV first, then type."
+NOTHING_PLAYING = "Nothing is playing on this PC."
+APP_CANT = "The app that's playing doesn't allow that right now."
+APP_DIDNT_RESPOND = "The app didn't respond. Try again, or use the app itself."
+
+_PC_MEDIA = {
+    ui.MusicCommand.PLAY_PAUSE: PcMediaCommand.PLAY_PAUSE,
+    ui.MusicCommand.NEXT: PcMediaCommand.NEXT,
+    ui.MusicCommand.PREVIOUS: PcMediaCommand.PREVIOUS,
+}
 
 _MEDIA = {
     ui.MediaCommand.NEXT: ec.MediaCommand.NEXT,
@@ -76,7 +106,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend:
+class EngineBackend(EngineAudio, EngineHome):
     def __init__(
         self,
         engine: Engine,
@@ -84,6 +114,8 @@ class EngineBackend:
         *,
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
+        output_prefs: OutputPrefsStore | None = None,
+        home_server: Callable[[], BridgeServer] | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -98,7 +130,15 @@ class EngineBackend:
             bus.subscribe(ConnectionStateChanged, self._on_connection),
             bus.subscribe(SettingsChanged, self._on_settings),
             bus.subscribe(ec.ControlEvent, self._on_control),
+            bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
+        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
+        self._unsubscribe += self._init_home(home_server)
+        self._commands = CommandDispatcher(
+            EngineCommandServices(
+                engine, start_output=self._start_from_command, home=self.home_bridge
+            )
+        )
 
     # Observing
 
@@ -119,16 +159,26 @@ class EngineBackend:
         background = settings.background
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
-        return ui.Appearance(ui.Theme(settings.theme.value), background, settings.app_icons)
+        return ui.Appearance(
+            ui.Theme(settings.theme.value), background, settings.app_icons, settings.onboarded
+        )
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
         status = self._status.get(device_id)
         return None if status is None else _controls(status)
 
+    def music(self) -> ui.MusicSnapshot | None:
+        return _music(self._engine.pc_media.now_playing)
+
+    def music_artwork(self) -> ui.MusicArtwork | None:
+        art = self._engine.pc_media.artwork()
+        return None if art is None else ui.MusicArtwork(art.data, art.mimetype)
+
     # Lifecycle
 
     async def start(self) -> None:
         await self._engine.open()
+        self._engine.pc_media.start()  # what the PC's apps are playing (Phase 6)
         self._publish(ui.DiscoveryChanged(active=True))
         try:
             await self._engine.scan()
@@ -137,8 +187,10 @@ class EngineBackend:
         finally:
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
+        await self._start_home()
 
     async def stop(self) -> None:
+        await self._stop_home()
         for unsubscribe in self._unsubscribe:
             unsubscribe()
         self._unsubscribe = []
@@ -200,13 +252,41 @@ class EngineBackend:
     async def set_text(self, device_id: str, text: str) -> None:
         await _control(self._engine.controls(device_id).set_text(text[: ui.MAX_TEXT]))
 
+    async def music_command(self, command: ui.MusicCommand) -> None:
+        music = self.music()
+        if music is None:
+            raise ui.ControlError(NOTHING_PLAYING)
+        if command not in music.commands:
+            raise ui.ControlError(APP_CANT)
+        if not await self._engine.pc_media.command(_PC_MEDIA[command]):
+            raise ui.ControlError(APP_DIDNT_RESPOND)
+
+    async def music_seek(self, position: float) -> None:
+        music = self.music()
+        if music is None:
+            raise ui.ControlError(NOTHING_PLAYING)
+        if not music.can_seek or position < 0:
+            raise ui.ControlError(APP_CANT)
+        if not await self._engine.pc_media.seek(position):
+            raise ui.ControlError(APP_DIDNT_RESPOND)
+
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
         self._settings.update(
             theme=EngineTheme(appearance.theme.value),
             background=appearance.background,
             app_icons=appearance.app_icons,
+            onboarded=appearance.onboarded,
         )
+
+    def preview_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(self._commands.preview(text))
+
+    async def run_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(await self._commands.run(text))
+
+    async def _start_from_command(self, output_id: str) -> None:
+        await self.set_output(output_id, True)
 
     # Engine events
 
@@ -222,6 +302,9 @@ class EngineBackend:
 
     def _on_settings(self, event: SettingsChanged) -> None:
         self._publish(ui.AppearanceChanged(self.appearance()))
+
+    def _on_pc_media(self, event: PcNowPlayingChanged) -> None:
+        self._publish(ui.MusicChanged(_music(event.now_playing)))
 
     def _on_control(self, event: ec.ControlEvent) -> None:
         device_id = event.device_id
@@ -414,6 +497,174 @@ def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
     )
 
 
+def _music(playing: PcNowPlaying | None) -> ui.MusicSnapshot | None:
+    if playing is None:
+        return None
+    allowed = {
+        ui.MusicCommand.PLAY_PAUSE: playing.can_play_pause,
+        ui.MusicCommand.NEXT: playing.can_next,
+        ui.MusicCommand.PREVIOUS: playing.can_previous,
+    }
+    return ui.MusicSnapshot(
+        app=playing.app,
+        state=playing.state,
+        title=playing.title,
+        artist=playing.artist,
+        album=playing.album,
+        position=playing.position,
+        duration=playing.duration,
+        position_at=playing.position_at,
+        commands=frozenset(command for command, on in allowed.items() if on),
+        can_seek=playing.can_seek,
+        artwork=playing.artwork_id,
+    )
+
+
+def _outcome(result: CommandResult) -> ui.CommandOutcome:
+    return ui.CommandOutcome(
+        result.outcome.value, result.code, dict(result.params), result.suggestions
+    )
+
+
+# --- Typed commands in the demo window ----------------------------------------------------
+
+# Invented apps for the demo TV (docs/PRIVACY.md).
+_DEMO_APPS = (
+    AppChoice("demo.tv", "TV"),
+    AppChoice("demo.music", "Music"),
+    AppChoice("demo.photos", "Photos"),
+    AppChoice("demo.podcasts", "Podcasts"),
+    AppChoice("demo.video", "Example Video"),
+)
+_DEMO_VOLUME_STEP = 10.0
+
+
+class DemoCommands:
+    """The engine's command dispatcher on the demo backend's invented devices."""
+
+    def __init__(self, backend: DemoBackend) -> None:
+        self._dispatcher = CommandDispatcher(_DemoServices(backend))
+
+    def preview_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(self._dispatcher.preview(text))
+
+    async def run_command(self, text: str) -> ui.CommandOutcome:
+        return _outcome(await self._dispatcher.run(text))
+
+
+def demo_commands(backend: DemoBackend) -> DemoCommands:
+    return DemoCommands(backend)
+
+
+class _DemoServices:
+    def __init__(self, backend: DemoBackend) -> None:
+        self._backend = backend
+        self.launched: list[str] = []
+        self._last_audio: tuple[str, ...] = ()
+
+    def targets(self) -> list[TargetState]:
+        states: list[TargetState] = []
+        for device in self._backend.devices():
+            target = Target(device.id, device.name, EngineKind(device.kind.value))
+            controls = self._backend.controls(device.id)
+            if controls is None:
+                states.append(TargetState(target))
+                continue
+            found: set[Ability] = set()
+            if ui.MediaCommand.PLAY_PAUSE in controls.media:
+                found |= {Ability.PLAY, Ability.PAUSE}
+            if ui.MediaCommand.NEXT in controls.media:
+                found.add(Ability.NEXT)
+            if ui.MediaCommand.PREVIOUS in controls.media:
+                found.add(Ability.PREVIOUS)
+            if controls.volume is ui.Volume.LEVEL:
+                found |= {Ability.VOLUME_LEVEL, Ability.VOLUME_STEPS}
+            elif controls.volume is ui.Volume.STEPS:
+                found.add(Ability.VOLUME_STEPS)
+            if controls.can_power:
+                found.add(Ability.POWER)
+            if device.kind is ui.DeviceKind.APPLE_TV:
+                found.add(Ability.APPS)
+            playing = controls.now_playing is not None and controls.now_playing.state == "playing"
+            states.append(TargetState(target, True, frozenset(found), playing))
+        return states
+
+    def switches(self) -> Sequence[SwitchState]:
+        return ()
+
+    async def media(self, device_id: str, action: MediaAction) -> None:
+        if action is MediaAction.NEXT:
+            await _demo(self._backend.media(device_id, ui.MediaCommand.NEXT))
+        elif action is MediaAction.PREVIOUS:
+            await _demo(self._backend.media(device_id, ui.MediaCommand.PREVIOUS))
+        else:
+            controls = self._backend.controls(device_id)
+            playing = (
+                controls is not None
+                and controls.now_playing is not None
+                and (controls.now_playing.state == "playing")
+            )
+            if playing is not (action is MediaAction.PLAY):
+                await _demo(self._backend.media(device_id, ui.MediaCommand.PLAY_PAUSE))
+
+    async def set_volume(self, device_id: str, level: int) -> None:
+        await _demo(self._backend.set_volume(device_id, float(level)))
+
+    async def volume_step(self, device_id: str, up: bool) -> None:
+        controls = self._backend.controls(device_id)
+        if controls is not None and controls.volume_level is not None:
+            step = _DEMO_VOLUME_STEP if up else -_DEMO_VOLUME_STEP
+            await _demo(self._backend.set_volume(device_id, controls.volume_level + step))
+            return
+        key = ui.RemoteKey.VOLUME_UP if up else ui.RemoteKey.VOLUME_DOWN
+        await _demo(self._backend.press(device_id, key, ui.KeyAction.TAP))
+
+    async def set_power(self, device_id: str, on: bool) -> None:
+        await _demo(self._backend.set_power(device_id, on))
+
+    async def apps(self, device_id: str) -> list[AppChoice]:
+        return list(_DEMO_APPS)
+
+    async def launch(self, device_id: str, app_id: str) -> None:
+        self.launched.append(app_id)
+
+    async def set_switch(self, switch_id: str, on: bool) -> None:
+        raise ActionError(Code.CANT_DO_THAT)
+
+    def audio_targets(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.kind is ui.OutputKind.AIRPLAY
+        )
+
+    def streaming(self) -> frozenset[str]:
+        return frozenset(
+            o.id for o in self._backend.audio().outputs if o.state is not ui.OutputState.OFF
+        )
+
+    def last_audio(self) -> tuple[str, ...]:
+        return self._last_audio
+
+    async def start_audio(self, device_ids: Sequence[str]) -> None:
+        self._last_audio = tuple(device_ids)
+        for device_id in device_ids:
+            try:
+                await self._backend.set_output(device_id, True)
+            except ui.AudioError:
+                raise ActionError(Code.CANT_DO_THAT) from None
+
+    async def stop_audio(self) -> None:
+        for output_id in self.streaming():
+            await self._backend.set_output(output_id, False)
+
+
+async def _demo(command: Awaitable[None]) -> None:
+    try:
+        await command
+    except ui.ControlError as error:
+        code = Code.NOT_CONNECTED if str(error) == NOT_CONNECTED else Code.CANT_DO_THAT
+        raise ActionError(code) from None
+
+
 def _message(reason: str) -> str:
     return PIN_EXPIRED if reason == engine_pairing.PIN_TIMEOUT else COULD_NOT_PAIR
 
@@ -431,10 +682,18 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     bus = EventBus()
     store = SettingsStore(paths.settings_file(), bus)
     settings = store.load()
+    prefs = OutputPrefsStore(paths.data_dir() / "outputs.json")
+    prefs.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
         redactor=redactor,
         discovery_interval=settings.discovery_interval_s,
     )
-    return EngineBackend(engine, store)
+
+    def home_server() -> BridgeServer:
+        from tandem.engine.adapters.hap_bridge import HapBridgeServer
+
+        return HapBridgeServer(paths.data_dir() / "home-bridge.state")
+
+    return EngineBackend(engine, store, output_prefs=prefs, home_server=home_server)

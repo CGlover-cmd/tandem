@@ -11,7 +11,7 @@ logs them.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
@@ -63,6 +63,8 @@ class Appearance:
     background: str = "mist"
     app_icons: bool = True
     """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
+    onboarded: bool = False
+    """The first-run checklist has been closed (it opens by itself until then)."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:
@@ -179,8 +181,178 @@ class ControlsChanged:
     """None once the device disconnects."""
 
 
+# --- Typed commands (Phase 10a) -----------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class CommandOutcome:
+    """What a typed command did, or would do. Holds device names: show it, never log it."""
+
+    status: str
+    """ready (preview only), done, help, needsInfo, notUnderstood, notAvailable or failed."""
+    code: str
+    """What it is about, e.g. "pause" or "whichDevice"; the front end holds the words."""
+    params: dict[str, str] = field(default_factory=dict[str, str])
+    suggestions: tuple[str, ...] = ()
+    """Whole commands to offer instead, or examples."""
+
+
+class CommandRunner(Protocol):
+    def preview_command(self, text: str) -> CommandOutcome:
+        """What running `text` would do. Touches no device, so it can run on every keystroke."""
+        ...
+
+    async def run_command(self, text: str) -> CommandOutcome: ...
+
+
+# --- Audio outputs (Phases 4 and 5) and sending media (Phase 7) -------------------------
+
+
+class OutputKind(Enum):
+    AIRPLAY = "airplay"  # an AirPlay device, by its device id
+    PC = "pc"  # one of the PC's own sound outputs
+
+
+class OutputState(Enum):
+    OFF = "off"
+    STARTING = "starting"
+    STREAMING = "streaming"
+    WAITING = "waiting"  # the connection dropped; it resumes on reconnect
+    FAILED = "failed"
+
+
+class AudioSourceChoice(Enum):
+    SYSTEM = "system"  # whatever the PC plays
+    PLAYER = "player"  # Tandem's own player (files and radio)
+
+
+MAX_DELAY_MS = 10_000
+
+
+@dataclass(frozen=True, slots=True)
+class OutputSnapshot:
+    """One place the sound can go. `name` is shown on screen, never logged."""
+
+    id: str
+    name: str
+    kind: OutputKind
+    state: OutputState = OutputState.OFF
+    volume: float | None = None
+    """0 to 100; None until the user sets it (the device keeps its own volume)."""
+    delay_ms: int = 0
+    """Extra delay for this output, to line it up with the others by ear."""
+    device_kind: DeviceKind | None = None
+    needs_pairing: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class AudioSnapshot:
+    source: AudioSourceChoice = AudioSourceChoice.SYSTEM
+    outputs: tuple[OutputSnapshot, ...] = ()
+    pc_outputs_hidden: bool = False
+    """The PC's default output is left out because it would echo (system audio as source)."""
+
+
+@dataclass(frozen=True, slots=True)
+class AudioChanged:
+    audio: AudioSnapshot
+
+
+class SendState(Enum):
+    STARTING = "starting"
+    PLAYING = "playing"
+    ENDED = "ended"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class SendSnapshot:
+    """What was last sent to a device. `title` is a file name or link host: never logged."""
+
+    state: SendState
+    title: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SendChanged:
+    device_id: str
+    send: SendSnapshot | None
+
+
+# --- What the PC is playing (Phase 6) -------------------------------------------------------
+
+
+class MusicCommand(Enum):
+    PLAY_PAUSE = "play_pause"
+    NEXT = "next"
+    PREVIOUS = "previous"
+
+
+@dataclass(frozen=True, slots=True)
+class MusicSnapshot:
+    """What an app on this PC is playing (Spotify, Apple Music, a browser...). Titles are
+    personal: shown on screen only, never logged."""
+
+    app: str | None
+    """The app's name, e.g. "Apple Music"."""
+    state: str = "other"  # playing, paused, stopped, other
+    title: str | None = None
+    artist: str | None = None
+    album: str | None = None
+    position: float | None = None
+    """Seconds into the item at `position_at`; None for live streams."""
+    duration: float | None = None
+    position_at: float = 0.0
+    """`time.monotonic()` when `position` was read; count on from here while playing."""
+    commands: frozenset[MusicCommand] = frozenset[MusicCommand]()
+    """What the app allows right now."""
+    can_seek: bool = False
+    artwork: int | None = None
+    """Changes whenever the artwork does; None when there is none."""
+
+
+@dataclass(frozen=True, slots=True)
+class MusicArtwork:
+    """Artwork for what's playing. Kept in memory and sent to the window only."""
+
+    data: bytes
+    mimetype: str
+
+
+@dataclass(frozen=True, slots=True)
+class MusicChanged:
+    music: MusicSnapshot | None
+    """None when no app on the PC is playing media."""
+
+
+@dataclass(frozen=True, slots=True)
+class HomeSnapshot:
+    """Tandem in the Home app (ADR-0016). Switch names are Tandem's own, not personal."""
+
+    enabled: bool = False
+    running: bool = False
+    paired: bool = False
+    setup_code: str | None = None
+    """Shown in Settings until the Home app has added Tandem."""
+    failed: bool = False
+    switches: tuple[tuple[str, str, bool], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class HomeUpdated:
+    home: HomeSnapshot
+
+
 BackendEvent = (
-    DeviceUpdated | DeviceRemoved | DiscoveryChanged | AppearanceChanged | ControlsChanged
+    HomeUpdated
+    | DeviceUpdated
+    | DeviceRemoved
+    | DiscoveryChanged
+    | AppearanceChanged
+    | ControlsChanged
+    | AudioChanged
+    | SendChanged
+    | MusicChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -188,6 +360,18 @@ Unsubscribe = Callable[[], None]
 
 class BackendError(Exception):
     """A command didn't work. `str(error)` is safe to show the user; it holds no private data."""
+
+
+class HomeError(BackendError):
+    """The Home bridge couldn't be turned on."""
+
+
+class MediaError(BackendError):
+    """Sending media didn't work."""
+
+
+class AudioError(BackendError):
+    """An output couldn't be turned on or changed."""
 
 
 class PairingError(BackendError):
@@ -277,4 +461,62 @@ class Backend(Protocol):
 
     async def set_appearance(self, appearance: Appearance) -> None:
         """Save the user's choice and publish `AppearanceChanged`."""
+        ...
+
+    def music(self) -> MusicSnapshot | None:
+        """What an app on the PC is playing now; changes arrive as `MusicChanged`."""
+        ...
+
+    def music_artwork(self) -> MusicArtwork | None: ...
+
+    async def music_command(self, command: MusicCommand) -> None:
+        """Play/pause, next or previous in the app that's playing. Raises `ControlError` if
+        the app doesn't allow it or doesn't respond."""
+        ...
+
+    async def music_seek(self, position: float) -> None:
+        """Move to `position` seconds in the app that's playing. Raises `ControlError`."""
+        ...
+
+    def preview_command(self, text: str) -> CommandOutcome:
+        """What running the typed command `text` would do, without running it."""
+        ...
+
+    async def run_command(self, text: str) -> CommandOutcome:
+        """Run a typed command ("pause", "volume 30 on loft"). Problems are outcomes, not
+        errors."""
+        ...
+
+    # Audio outputs and sending media
+
+    def audio(self) -> AudioSnapshot: ...
+
+    async def set_output(self, output_id: str, on: bool) -> None:
+        """Turn an output on (connecting an AirPlay device if needed) or off. Raises
+        `AudioError`."""
+        ...
+
+    async def set_output_volume(self, output_id: str, level: float) -> None: ...
+
+    async def set_output_delay(self, output_id: str, delay_ms: int) -> None: ...
+
+    async def set_audio_source(self, source: AudioSourceChoice) -> None: ...
+
+    def send(self, device_id: str) -> SendSnapshot | None:
+        """What was last sent to the device, while it's playing or just after."""
+        ...
+
+    async def send_media(self, device_id: str, location: str) -> None:
+        """Play a link or a file on this PC on an Apple TV. Raises `MediaError`. The location
+        is personal: never log it."""
+        ...
+
+    async def stop_media(self, device_id: str) -> None: ...
+
+    # Tandem in the Home app
+
+    def home(self) -> HomeSnapshot: ...
+
+    async def set_home_bridge(self, on: bool) -> None:
+        """Turn the Home bridge on or off; the choice is saved."""
         ...

@@ -42,6 +42,10 @@ class Settings:
     """The window background picked in Settings; the UI owns the list of names (ADR-0010)."""
     app_icons: bool = True
     """Look up app icons on the App Store for the Apple TV app launcher (ADR-0012)."""
+    onboarded: bool = False
+    """The first-run checklist has been closed."""
+    home_bridge: bool = False
+    """Show Tandem in the Home app as a bridge with switches (ADR-0016). Off by default."""
 
     def __post_init__(self) -> None:
         if not 2.0 <= self.discovery_interval_s <= 300.0:

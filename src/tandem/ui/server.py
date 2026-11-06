@@ -41,6 +41,17 @@ _MISSING_BUILD = """<!doctype html>
 
 _MAX_MESSAGE = 16 * 1024
 
+# Artwork types the window shows. SVG is only ever the demo's own drawing; real artwork is
+# checked to be one of the others by the engine.
+_ARTWORK_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/bmp",
+    "image/webp",
+    "image/svg+xml",
+}
+
 # Only this server's own files and WebSocket; no remote scripts, frames or form targets.
 _CSP = (
     "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
@@ -94,6 +105,7 @@ class UiServer:
         if assets.is_dir():
             app.router.add_static("/assets", assets)
         app.router.add_get(URL_PREFIX + "{name}", self._icon)
+        app.router.add_get("/artwork", self._artwork)
         return app
 
     async def start(self) -> None:
@@ -144,6 +156,17 @@ class UiServer:
         if not path.is_file():
             raise web.HTTPNotFound()
         return web.FileResponse(path, headers={"Content-Type": "image/jpeg"})
+
+    async def _artwork(self, request: web.Request) -> web.StreamResponse:
+        """Artwork for what the PC is playing, from memory. It shows what someone listens
+        to, so like the WebSocket it needs this launch's token."""
+        token = request.query.get("token", "")
+        if not hmac.compare_digest(token.encode(), self.token.encode()):
+            raise web.HTTPForbidden()
+        art = self._controller.music_artwork()
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return web.Response(body=art.data, content_type=art.mimetype)
 
     async def _index(self, _request: web.Request) -> web.StreamResponse:
         index = self._static_dir / "index.html"

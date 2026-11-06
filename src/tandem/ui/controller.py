@@ -8,7 +8,8 @@ Messages for the user are sent as codes (`{"code": "wrongPin"}`); the front end 
 words, so translations live in one place. Text that comes from the backend (a
 `BackendError`) is safe to show and is passed through as `text`.
 
-Now-playing titles are personal: they go to the window only, never to a log.
+Now-playing titles and typed commands are personal: they go to the window only, never to a
+log.
 """
 
 from __future__ import annotations
@@ -16,30 +17,40 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any, Protocol, TypeVar
 
+from tandem.ui.audio_panel import AudioPanel, FilePicker
 from tandem.ui.backend import (
     MAX_TEXT,
     Appearance,
     AppearanceChanged,
     AppInfo,
+    AudioChanged,
     Backend,
     BackendError,
     BackendEvent,
+    CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
     DeviceRemoved,
     DeviceSnapshot,
     DeviceUpdated,
     DiscoveryChanged,
+    HomeUpdated,
     KeyAction,
     LinkState,
     MediaCommand,
+    MusicArtwork,
+    MusicChanged,
+    MusicCommand,
+    MusicSnapshot,
     PairingError,
     PairingFlow,
     RemoteKey,
+    SendChanged,
     Theme,
     WrongPinError,
 )
@@ -47,6 +58,9 @@ from tandem.ui.backend import (
 _LOGGER = logging.getLogger(__name__)
 
 _PIN = re.compile(r"\d{4}")
+
+MAX_COMMAND = 200
+"""Longest typed command the window may send; longer text is ignored."""
 
 Problem = dict[str, str]
 Listener = Callable[[], None]
@@ -233,6 +247,75 @@ class AppList:
         }
 
 
+class CommandBar:
+    """The typed command bar (Phase 10a).
+
+    The front end keeps the text box itself and sends each edit: `preview` says what Enter
+    would do, and `run` does it. Each preview and result carries the text it is for, so the
+    page can ignore one that arrives after the user has typed on.
+    """
+
+    def __init__(self, backend: Backend, runner: TaskRunner, *, on_change: Listener) -> None:
+        self._backend = backend
+        self._runner = runner
+        self._on_change = on_change
+        self.text = ""
+        self.preview_outcome: CommandOutcome | None = None
+        self.running = False
+        self.result: CommandOutcome | None = None
+        self.result_for = ""
+        self._attempt = 0
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "preview": _outcome_json(self.preview_outcome),
+            "running": self.running,
+            "result": _outcome_json(self.result),
+            "resultFor": self.result_for,
+        }
+
+    def preview(self, text: str) -> None:
+        if len(text) > MAX_COMMAND:
+            return
+        self.text = text
+        self.preview_outcome = self._backend.preview_command(text)
+        self._on_change()
+
+    def run(self, text: str) -> None:
+        if len(text) > MAX_COMMAND or not text.strip():
+            return
+        self._attempt += 1
+        self.text = text
+        self.running = True
+        self._on_change()
+        self._runner.run(self._run(self._attempt, text))
+
+    def clear(self) -> None:
+        """Forget the text and any result (the bar was closed)."""
+        self._attempt += 1
+        self.text = ""
+        self.preview_outcome = None
+        self.running = False
+        self.result = None
+        self.result_for = ""
+        self._on_change()
+
+    async def _run(self, attempt: int, text: str) -> None:
+        try:
+            outcome = await self._backend.run_command(text)
+        except BackendError as error:
+            outcome = CommandOutcome("failed", "backend", {"text": str(error)})
+        finally:
+            if attempt == self._attempt:
+                self.running = False
+        if attempt != self._attempt:
+            return
+        self.result = outcome
+        self.result_for = text
+        self._on_change()
+
+
 class AppController:
     """Everything the window and the tray menu show, and the commands they send."""
 
@@ -243,9 +326,13 @@ class AppController:
         demo_mode: bool = False,
         reduce_motion: bool = False,
         icons: IconSource | None = None,
+        picker: FilePicker | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
+        self._clock = clock
+        self.music: MusicSnapshot | None = None
         self.demo_mode = demo_mode
         self.reduce_motion = reduce_motion
         self.discovering = False
@@ -261,6 +348,9 @@ class AppController:
         self.pairing = PairingController(
             backend, self.runner, on_change=self._changed, on_paired=self.connect
         )
+        self.commands = CommandBar(backend, self.runner, on_change=self._changed)
+        self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
 
     # Observing
@@ -287,29 +377,47 @@ class AppController:
         return {
             "devices": [
                 _device_json(d, self._controls.get(d.id), self._apps.get(d.id))
+                | {"send": self.audio.send_json(d.id)}
                 for d in self.devices()
             ],
+            "audio": self.audio.snapshot(),
+            "home": {
+                "enabled": self.home.enabled,
+                "running": self.home.running,
+                "paired": self.home.paired,
+                "setupCode": self.home.setup_code,
+                "failed": self.home.failed,
+                "switches": [
+                    {"id": sid, "name": name, "on": on} for sid, name, on in self.home.switches
+                ],
+            },
             "discovering": self.discovering,
             "pairing": self.pairing.snapshot(),
+            "commands": self.commands.snapshot(),
             "message": self.message,
             "appearance": {
                 "theme": self.appearance.theme.value,
                 "background": self.appearance.background,
                 "appIcons": self.appearance.app_icons,
+                "onboarded": self.appearance.onboarded,
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
+            "music": _music_json(self.music, self._clock()),
         }
 
     # Lifecycle
 
     async def start(self) -> None:
         self._unsubscribe = self._backend.subscribe(self._on_event)
+        self.music = self._backend.music()
         for device in self._backend.devices():
             self._devices[device.id] = device
             controls = self._backend.controls(device.id)
             if controls is not None:
                 self._controls[device.id] = controls
+        self.audio.audio = self._backend.audio()
+        self.home = self._backend.home()
         self._changed()
         await self._backend.start()
 
@@ -363,6 +471,17 @@ class AppController:
     def set_volume(self, device_id: str, level: float) -> None:
         self.runner.run(self._backend.set_volume(device_id, level))
 
+    def music_command(self, command: MusicCommand) -> None:
+        """Play/pause, next or previous in the app that's playing on the PC."""
+        self.runner.run(self._backend.music_command(command))
+
+    def music_seek(self, position: float) -> None:
+        self.runner.run(self._backend.music_seek(position))
+
+    def music_artwork(self) -> MusicArtwork | None:
+        """The artwork for what's playing, for the window only."""
+        return self._backend.music_artwork() if self.music is not None else None
+
     def set_power(self, device_id: str, on: bool) -> None:
         self.runner.run(self._backend.set_power(device_id, on))
 
@@ -390,9 +509,13 @@ class AppController:
             self._text_sending.add(device_id)
             self.runner.run(self._send_text(device_id))
 
-    def set_appearance(self, theme: str, background: str, app_icons: bool = True) -> None:
+    def set_appearance(
+        self, theme: str, background: str, app_icons: bool = True, onboarded: bool | None = None
+    ) -> None:
+        if onboarded is None:
+            onboarded = self.appearance.onboarded
         try:
-            appearance = Appearance(Theme(theme), background, app_icons)
+            appearance = Appearance(Theme(theme), background, app_icons, onboarded)
         except ValueError:
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
@@ -442,22 +565,48 @@ class AppController:
             self.launch_app(device_id, command["appId"])
         elif kind == "setText" and has_id and isinstance(command.get("text"), str):
             self.set_text(device_id, command["text"])
+        elif kind == "previewCommand" and isinstance(command.get("text"), str):
+            self.commands.preview(command["text"])
+        elif kind == "runCommand" and isinstance(command.get("text"), str):
+            self.commands.run(command["text"])
+        elif kind == "music":
+            music = _enum(MusicCommand, command.get("command"))
+            if music is not None:
+                self.music_command(music)
+        elif kind == "musicSeek":
+            position = command.get("position")
+            if (
+                isinstance(position, int | float)
+                and not isinstance(position, bool)
+                and position >= 0
+            ):
+                self.music_seek(float(position))
+        elif kind == "clearCommand":
+            self.commands.clear()
         elif kind == "setAppearance":
             theme = command.get("theme", self.appearance.theme.value)
             background = command.get("background", self.appearance.background)
             app_icons = command.get("appIcons", self.appearance.app_icons)
+            onboarded = command.get("onboarded", self.appearance.onboarded)
             if (
                 isinstance(theme, str)
                 and isinstance(background, str)
                 and isinstance(app_icons, bool)
+                and isinstance(onboarded, bool)
             ):
-                self.set_appearance(theme, background, app_icons)
+                self.set_appearance(theme, background, app_icons, onboarded)
+        elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
+            self.runner.run(self._backend.set_home_bridge(command["on"]))
+        elif isinstance(kind, str) and self.audio.handle(kind, command):
+            pass
         else:
             _LOGGER.debug("Ignoring an unknown command")
 
     # Internals
 
     def _on_event(self, event: BackendEvent) -> None:
+        if isinstance(event, DeviceUpdated | DeviceRemoved):
+            self.audio.audio = self._backend.audio()  # outputs follow the device list
         match event:
             case DeviceUpdated(device=device):
                 self._devices[device.id] = device
@@ -475,9 +624,20 @@ class AppController:
                     self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
+            case MusicChanged(music=music):
+                self.music = music
             case AppearanceChanged(appearance=appearance):
                 self.appearance = appearance
                 self._refresh_icons()
+            case AudioChanged(audio=audio):
+                self.audio.audio = audio
+            case HomeUpdated(home=home):
+                self.home = home
+            case SendChanged(device_id=device_id, send=send):
+                if send is None:
+                    self.audio.sends.pop(device_id, None)
+                else:
+                    self.audio.sends[device_id] = send
         self._changed()
 
     async def _load_apps(self, device_id: str, apps: AppList) -> None:
@@ -583,6 +743,40 @@ def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
             "position": playing.position,
             "totalTime": playing.total_time,
         },
+    }
+
+
+def _music_json(music: MusicSnapshot | None, now: float) -> dict[str, Any] | None:
+    """What the PC is playing, with the position as of `now` so the page can count on."""
+    if music is None:
+        return None
+    position = music.position
+    if position is not None and music.state == "playing":
+        position += max(0.0, now - music.position_at)
+    if position is not None and music.duration is not None:
+        position = min(position, music.duration)
+    return {
+        "app": music.app,
+        "state": music.state,
+        "title": music.title,
+        "artist": music.artist,
+        "album": music.album,
+        "position": None if position is None else round(position, 2),
+        "duration": music.duration,
+        "commands": sorted(command.value for command in music.commands),
+        "canSeek": music.can_seek,
+        "artwork": music.artwork,
+    }
+
+
+def _outcome_json(outcome: CommandOutcome | None) -> dict[str, Any] | None:
+    if outcome is None:
+        return None
+    return {
+        "status": outcome.status,
+        "code": outcome.code,
+        "params": dict(outcome.params),
+        "suggestions": list(outcome.suggestions),
     }
 
 

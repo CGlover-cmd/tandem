@@ -1,4 +1,9 @@
-"""Runs system-audio streams: one shared capture, one buffer and sender per output.
+"""Runs audio streams: one shared source, one buffer and sender per output (ADR-0011, ADR-0015).
+
+An output is an AirPlay device (by its device id) or one of the PC's own sound outputs (an id
+starting with `LOCAL_PREFIX`). Each output has its own volume and an extra delay, so outputs
+with different buffers can be lined up by ear. The source is the PC's own audio (loopback) or
+Tandem's player; switching it keeps every output streaming.
 
 A stream that fails while its device is still wanted waits and resumes: straight away when
 the connection comes back (the session reconnects on its own), or after a backoff when the
@@ -32,13 +37,30 @@ from tandem.engine.session import ConnectionState, ConnectionStateChanged, Link,
 _LOGGER = logging.getLogger(__name__)
 
 SinkFactory = Callable[[Link], AudioSink | None]
+LocalSinkFactory = Callable[[str], AudioSink | None]
 LinkLookup = Callable[[str], Link | None]
+
+LOCAL_PREFIX = "local:"
+BASE_DELAY = 0.1
+"""Seconds of cushion every output builds before it sends (ADR-0011)."""
+MAX_DELAY_MS = 10_000
+
+
+def is_local(output_id: str) -> bool:
+    return output_id.startswith(LOCAL_PREFIX)
+
+
+def _no_local_sink(output_id: str) -> AudioSink | None:
+    return None
 
 
 @dataclass
 class _Output:
     buffer: PcmBuffer
     volume: float | None
+    delay_ms: int = 0
+    state: StreamState = StreamState.STARTING
+    sink: AudioSink | None = None
     task: asyncio.Task[None] | None = None
     failures: int = 0
     # Totals from earlier buffers, before a restart.
@@ -62,10 +84,12 @@ class AudioHub:
         backoff: Backoff | None = None,
         sleep: Sleep = asyncio.sleep,
         rng: random.Random | None = None,
+        local_sink: LocalSinkFactory = _no_local_sink,
     ) -> None:
         self._bus = bus
         self._capture_factory = capture
         self._sink_factory = sink
+        self._local_sink = local_sink
         self._link = link
         self._title = title
         self._artist = artist
@@ -82,13 +106,21 @@ class AudioHub:
     def streaming(self, device_id: str) -> bool:
         return device_id in self._outputs
 
-    def start(self, device_id: str, *, volume: float | None = None) -> None:
-        """Start streaming to a connected device. Idempotent."""
+    def active(self) -> dict[str, tuple[StreamState, float | None, int]]:
+        """Every output that is on: its state, volume and extra delay in ms."""
+        return {
+            output_id: (output.state, output.volume, output.delay_ms)
+            for output_id, output in self._outputs.items()
+        }
+
+    def start(self, device_id: str, *, volume: float | None = None, delay_ms: int = 0) -> None:
+        """Start streaming to a connected device or a local output. Idempotent."""
         if device_id in self._outputs:
             return
-        if self._link(device_id) is None:
+        if not is_local(device_id) and self._link(device_id) is None:
             raise AudioError("not connected")
-        output = _Output(self._new_buffer(), volume)
+        delay_ms = _clamp_delay(delay_ms)
+        output = _Output(self._new_buffer(delay_ms), volume, delay_ms)
         self._outputs[device_id] = output
         self._refresh_buffers()
         self._ensure_capture()
@@ -108,6 +140,34 @@ class AudioHub:
         for device_id in list(self._outputs):
             await self.stop(device_id)
 
+    async def set_volume(self, output_id: str, level: float) -> None:
+        """Set one output's volume (0 to 100); kept for restarts."""
+        if not 0 <= level <= 100:
+            raise ValueError("volume must be between 0 and 100")
+        output = self._outputs.get(output_id)
+        if output is None:
+            raise AudioError("not streaming")
+        output.volume = level
+        if output.sink is not None and output.state is StreamState.STREAMING:
+            await output.sink.set_volume(level)
+        self._publish(output_id, output.state)
+
+    def set_delay(self, output_id: str, delay_ms: int) -> None:
+        """Add `delay_ms` to one output, to line it up with the others by ear."""
+        output = self._outputs.get(output_id)
+        if output is None:
+            raise AudioError("not streaming")
+        output.delay_ms = _clamp_delay(delay_ms)
+        output.buffer.set_delay(BASE_DELAY + output.delay_ms / 1000)
+        self._publish(output_id, output.state)
+
+    def set_capture(self, capture: Callable[[], PcmCapture]) -> None:
+        """Switch the source (PC audio or the player). Outputs keep streaming."""
+        self._capture_factory = capture
+        if self._capture is not None:
+            self._stop_capture()
+            self._ensure_capture()
+
     def stats(self, device_id: str) -> AudioStats | None:
         output = self._outputs.get(device_id)
         if output is None:
@@ -123,8 +183,9 @@ class AudioHub:
 
     # --- internals -----------------------------------------------------------------
 
-    def _new_buffer(self) -> PcmBuffer:
-        return PcmBuffer()
+    def _new_buffer(self, delay_ms: int = 0) -> PcmBuffer:
+        delay = BASE_DELAY + delay_ms / 1000
+        return PcmBuffer(max_seconds=delay + 1.0, prime_seconds=delay)
 
     def _refresh_buffers(self) -> None:
         self._buffers = tuple(o.buffer for o in self._outputs.values())
@@ -160,16 +221,22 @@ class AudioHub:
                 await task
 
     def _publish(self, device_id: str, state: StreamState, reason: str | None = None) -> None:
+        output = self._outputs.get(device_id)
+        if output is not None:
+            output.state = state
         self._bus.publish(AudioStreamChanged(device_id, state, reason))
 
     def _launch(self, device_id: str, output: _Output) -> None:
         if output.task is not None and not output.task.done():
             return
-        link = self._link(device_id)
-        if link is None:
-            self._publish(device_id, StreamState.WAITING, "NotConnected")
-            return
-        sink = self._sink_factory(link)
+        if is_local(device_id):
+            sink = self._local_sink(device_id)
+        else:
+            link = self._link(device_id)
+            if link is None:
+                self._publish(device_id, StreamState.WAITING, "NotConnected")
+                return
+            sink = self._sink_factory(link)
         if sink is None:
             self._outputs.pop(device_id, None)
             self._refresh_buffers()
@@ -184,7 +251,8 @@ class AudioHub:
         output.silent_frames += old.silent_frames
         output.underruns += old.underruns
         old.close()
-        output.buffer = self._new_buffer()
+        output.buffer = self._new_buffer(output.delay_ms)
+        output.sink = sink
         self._refresh_buffers()
         output.task = asyncio.get_running_loop().create_task(
             self._run(device_id, output, sink), name="audio-stream"
@@ -219,7 +287,9 @@ class AudioHub:
 
         def retry() -> None:
             output.retry = None
-            if self._outputs.get(device_id) is output and self._link(device_id) is not None:
+            if self._outputs.get(device_id) is output and (
+                is_local(device_id) or self._link(device_id) is not None
+            ):
                 self._launch(device_id, output)
 
         output.retry = loop.call_later(delay, retry)
@@ -246,3 +316,7 @@ class AudioHub:
             if event.state is ConnectionState.FAILED:
                 state = StreamState.FAILED
             asyncio.get_running_loop().create_task(self.stop(event.device_id, state=state))
+
+
+def _clamp_delay(delay_ms: int) -> int:
+    return max(0, min(MAX_DELAY_MS, int(delay_ms)))

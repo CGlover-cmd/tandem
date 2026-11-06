@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tandem"
-version = "0.0.1"
+version = "1.0.0"
 description = "Send audio and video from Windows to Apple TV, HomePod and AirPlay 2 receivers."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -17,6 +17,13 @@ classifiers = [
 dependencies = [
     # pyatv minor releases can change behaviour; move the pin deliberately (ADR-0001).
     "pyatv>=0.18,<0.19",
+    # The Home bridge (Phase 10b, ADR-0016). Apache-2.0.
+    "HAP-python>=5.0,<6",
+    # What the PC is playing, from Windows' media controls (Phase 6, ADR-0013).
+    "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -28,11 +35,6 @@ dev = [
     "pyright>=1.1.380",
     "pre-commit>=3.8",
     "detect-secrets==1.5.0",
-    # Music spike 1 (Phase 6): Windows' media controls through the pywinrt projections.
-    "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
-    "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
-    "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
-    "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
 ]
 # The interface (ADR-0008, ADR-0010): a HeroUI web front end served on loopback by aiohttp and
 # shown in a WebView2 window by pywebview, with a pystray tray icon (pystray draws with Pillow).
@@ -41,6 +43,11 @@ ui = [
     "pywebview>=6.2,<7",
     "pystray>=0.19",
     "Pillow>=10",
+    # Now playing (Phase 6): Windows' media controls through the pywinrt projections.
+    "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
 ]
 
 [tool.hatch.build.targets.wheel]

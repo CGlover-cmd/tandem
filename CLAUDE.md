@@ -28,7 +28,7 @@ Public repo: https://github.com/CGlover-cmd/tandem (branch `main`).
 - No timelines or duration estimates in the docs.
 - Test only on the reference devices in ROADMAP; other AirPlay devices on the network are excluded.
 - Phase 10 targets: smart plugs, smart lamps and TV power on/off.
-- Music (Phase 6, ADR-0012): Tandem is a remote for Spotify and Apple Music and its router
+- Music (Phase 6, ADR-0013): Tandem is a remote for Spotify and Apple Music and its router
   carries their sound; it never plays Spotify streams itself (no Web Playback SDK, no
   librespot). Spotify is Web API only, each user brings their own Client ID. Apple Music needs
   the maintainer's MusicKit key, which stays in `local/`.
@@ -49,13 +49,16 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 ## Environment
 - Dev virtualenv lives OUTSIDE the OneDrive-synced project: `%USERPROFILE%\.venvs\tandem-dev`
   (Python 3.11). Run tools via `%USERPROFILE%\.venvs\tandem-dev\Scripts\python.exe`.
+- `.git` is in OneDrive and a crash once zeroed a branch ref and the index. Commit and push work
+  in progress before ending any working block. Repair: take the last SHA from
+  `.git/logs/refs/heads/<branch>`, write it to the ref, delete `.git/index`, run `git reset`.
 - pip must use the Windows certificate store (HTTPS inspection on this machine). pip ≥ 24.2 does
   this by default; on older pip pass `--use-feature=truststore`.
 - Windows Smart App Control is ON. It blocks unsigned executables, including pip's console-script
   `.exe` launchers and downloaded toolchains. Always run Python tools as
   `python -m <module>` (e.g. `python -m pre_commit`, `python -m detect_secrets`). Never try to
   disable or bypass it; our own unsigned builds will be blocked too (see ROADMAP risk register).
-- Test receivers: Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
+- Test receivers (retired 2026-10-27: the Pi was reformatted; details kept for a rebuild): Raspberry Pi 3 (Debian 13). UxPlay 1.71 (Spike D) and shairport-sync 5.6 +
   nqptp 1.2.9 built from source in `~/src` (Spike F; Debian's package lacks AirPlay 2), all on
   demand, not at boot; only one at a time (both use port 7000). Use shairport-sync in
   `--service-type=classic`: pyatv's AirPlay 2 sender uses NTP timing, which its AirPlay 2 mode
@@ -99,10 +102,17 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `tandem.ui.app` runs asyncio on a second thread and pystray on a third.
 - A second clone of the repo needs its own venv: the shared `tandem-dev` venv has an editable
   install pointing at the OneDrive checkout, so tests in another clone would import that copy.
-- Media sessions (Music spike 1): pywinrt `winrt-Windows.Media.Control` (+ Foundation,
-  Foundation.Collections, Storage.Streams) loads under Smart App Control. Its events fire on a
-  WinRT thread; hop to asyncio with `call_soon_threadsafe`. Spike output prints flags, never
-  titles or artists.
+- Media sessions (Phase 6, `engine/pc_media.py` + `engine/adapters/media_sessions.py`): pywinrt
+  `winrt-Windows.Media.Control` (+ Foundation, Foundation.Collections, Storage.Streams; in the
+  `ui` extra) loads under Smart App Control and works from the engine's asyncio thread while
+  pywebview owns an STA main thread. Events fire on a WinRT thread; hop to asyncio with
+  `call_soon_threadsafe`. Browsers re-make their session (same app id, new object) or drop it
+  for a moment on a track change, so re-hook on every session event and don't report "nothing
+  playing" at once. An app can "accept" a command and do nothing: confirm by the new state.
+  Titles, artists and artwork go to the window only (artwork via the token-gated `/artwork`
+  route, from memory); never log or print them. `spikes/now_playing_latency.py --page` times
+  the bar against Windows' events. A fresh Edge profile auto-opens a sync sign-in dialog and
+  holds back media in its hidden tab: don't use Edge for tests; the built-in browser pane works.
 - WebView2 here is Evergreen and ships Widevine (software level); PlayReady hardware works only
   outside pywebview's `private_mode`. pywebview handles every new-window request itself (opens
   the system browser), so `window.open` returns null; popups that must talk back need our own
@@ -115,6 +125,16 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Write source files with the Write tool, not `cat <<EOF`.
 - pyright doesn't find the venv on its own: run
   `python -m pyright --pythonpath <venv python.exe>` (CI does the same).
+- Smart App Control started blocking zeroconf's compiled `_cache.pyd` (2026-10-27). Reinstall it
+  as pure Python: `SKIP_CYTHON=1 python -m pip install --force-reinstall --no-deps --no-binary
+  zeroconf zeroconf==<version>`. Any upgrade that pulls a zeroconf wheel brings the block back.
+- Our own installer can't run here (unsigned, Smart App Control). Build the app folder outside
+  OneDrive (`%USERPROFILE%\.tandem-build`) with `packaging/build_bundle.py`: its python.exe is
+  python.org's signed one, so `--smoke` and opening the window work locally. The installer is
+  built, installed and tested in CI only (`.github/workflows/release.yml`).
+- HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
+  Bridge's `setup_message` is overridden (it is). Its state file is
+  `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
@@ -133,6 +153,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Package code is in `src/tandem/` (ADR-0007). Only `engine/adapters/` imports pyatv; core
   modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
   shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
+- Typed commands (Phase 10a, ADR-0014): parser in `engine/commands.py`, dispatcher in
+  `engine/command_dispatch.py` behind a small `CommandServices` protocol (the engine's, and the
+  demo backend's via `tandem.bridge.demo_commands`). Results are codes plus params; the words
+  live in `web/src/strings.ts`. Command text and results name devices: never log them. Never
+  call the feature "Siri".
 - Anything the engine logs or shows goes through `Redactor`; register new private values
   (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
   `--show-private` is given; Claude never passes that flag.
@@ -157,6 +182,15 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Without `--demo` the window shows real device names, so never screenshot it; check it through
   the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
+- Panels added after ADR-0008 keep their bridge and demo code in their own modules, mixed into
+  `EngineBackend` / `DemoBackend`: `tandem.bridge_audio` + `ui/demo_audio.py` (Audio, Send),
+  `tandem.bridge_home` (Home bridge), with the controller side in `ui/audio_panel.py`.
+- Packaging (ADR-0017): `packaging/build_bundle.py` (embeddable Python app folder) and
+  `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
+  `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
+  GitHub pre-release: only with the maintainer's OK.
+- HeroUI's `Switch` renders its input only inside `Switch.Content`: put `Switch.Control` (and a
+  label, or an `sr-only` span) inside it, or the switch has no accessible control.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring
