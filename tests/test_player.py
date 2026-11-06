@@ -11,8 +11,10 @@ import pytest
 from conftest import FakeBackend, FakeStream
 from tandem.engine.events import EventBus
 from tandem.engine.player import (
+    AHEAD_SECONDS,
     CHUNK_FRAMES,
     MAX_QUEUE,
+    NewTrack,
     Player,
     PlayerChanged,
     PlayerState,
@@ -169,3 +171,56 @@ def test_track_status_current() -> None:
     track = Track("t1", TrackKind.FILE, "x", "X")
     assert PlayerStatus(queue=(track,), index=0).current == track
     assert PlayerStatus(queue=(track,), index=3).current is None
+
+
+async def test_tracks_join_without_a_gap_on_one_worker(backend: FakeBackend) -> None:
+    long = TONE * 8  # 0.4 s each
+    backend.tracks = {"C:/Music/one.mp3": long, "C:/Music/two.flac": long}
+    player, clock = _player(backend)
+    threads: set[str] = set()
+    received = bytearray()
+    lock = threading.Lock()
+
+    def sink(data: bytes) -> None:
+        threads.add(threading.current_thread().name + str(threading.get_ident()))
+        with lock:
+            received.extend(data)
+
+    player.capture().start(sink)
+    player.play_tracks(
+        [
+            NewTrack(TrackKind.FILE, "C:/Music/one.mp3", "One", "Example Band", "Daybreak", "a1"),
+            NewTrack(TrackKind.FILE, "C:/Music/two.flac", "Two", "Example Band", "Daybreak", "a1"),
+        ]
+    )
+    await _until(lambda: player.status.state is PlayerState.STOPPED and len(received) > 0)
+    assert len(received) == 2 * len(long)
+    assert len(threads) == 1  # one worker for both tracks: no restart between them
+    # The fake clock moves only while the player waits to stay in real time. One clock across
+    # both tracks: 0.8 s of audio less the 0.2 s lead (a restart would lose a second lead).
+    seconds = 2 * len(long) / 4 / 44_100
+    assert clock.now == pytest.approx(seconds - AHEAD_SECONDS, abs=0.02)
+    assert player.status.queue[0].album == "Daybreak"
+    assert player.status.queue[0].art == "a1"
+    await player.close()
+
+
+async def test_play_next_and_play_tracks(backend: FakeBackend) -> None:
+    backend.tracks["slow"] = TONE * 50
+    player, _ = _player(backend)
+    a, b = player.add_tracks([NewTrack(TrackKind.FILE, "slow", t) for t in ("A", "B")])
+    player.play(a.id)
+    await _until(lambda: player.status.state is PlayerState.PLAYING)
+    (n,) = player.add_tracks([NewTrack(TrackKind.FILE, "slow", "Next")], play_next=True)
+    assert [t.title for t in player.status.queue] == ["A", "Next", "B"]
+    player.play_tracks([NewTrack(TrackKind.FILE, "slow", t) for t in ("X", "Y", "Z")], start=9)
+    await _until(lambda: player.status.state is PlayerState.PLAYING)
+    assert [t.title for t in player.status.queue] == ["X", "Y", "Z"]
+    current = player.status.current
+    assert current is not None
+    assert current.title == "Z"  # start clamped to the last track
+    assert n.id not in {t.id for t in player.status.queue}
+    player.play_tracks([])
+    assert player.status.queue == ()
+    assert b.id != n.id
+    await player.close()
