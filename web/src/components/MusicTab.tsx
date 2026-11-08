@@ -3,11 +3,12 @@ import { useState } from "react";
 
 import { strings } from "../strings";
 import type { AppState, Command } from "../types";
+import { AppleMusicView } from "./AppleMusic";
 import { LibraryView, PlayerStrip, QueueView, RadioView } from "./Library";
 import { MusicPanel } from "./Music";
 
-type Source = "now" | "pc" | "radio" | "queue";
-const SOURCES: Source[] = ["now", "pc", "radio", "queue"];
+type Source = "now" | "pc" | "radio" | "apple" | "queue";
+const SOURCES: Source[] = ["now", "pc", "radio", "apple", "queue"];
 
 /** The Music tab: Tandem's own player on top, then what to play from. */
 export function MusicTab({
@@ -25,6 +26,7 @@ export function MusicTab({
     now: words.nowPlaying,
     pc: words.thisPc,
     radio: words.radio,
+    apple: strings.appleMusic.source,
     queue: `${words.queue}${state.player.queue.length > 0 ? ` (${state.player.queue.length})` : ""}`,
   };
   return (
@@ -52,6 +54,9 @@ export function MusicTab({
         </Tabs.Panel>
         <Tabs.Panel id="radio">
           <RadioView radio={state.radio} send={send} />
+        </Tabs.Panel>
+        <Tabs.Panel id="apple">
+          <AppleMusicView catalog={state.catalog} send={send} />
         </Tabs.Panel>
         <Tabs.Panel id="queue">
           <QueueView player={state.player} send={send} />

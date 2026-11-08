@@ -59,6 +59,7 @@ function state(over: Partial<AppState> = {}): AppState {
     },
     radio: { query: "", searching: false, results: [], saved: [], error: null },
     player: { state: "stopped", index: null, position: 0, duration: null, error: false, queue: [] },
+    catalog: { query: "", searching: false, error: null, songs: [], albums: [] },
     ...over,
   };
 }

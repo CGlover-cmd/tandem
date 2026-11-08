@@ -19,6 +19,7 @@ from tandem.bridge_home import EngineHome
 from tandem.bridge_library import EngineLibrary
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine.apple_catalog import AppleCatalog
 from tandem.engine.command_dispatch import (
     Ability,
     ActionError,
@@ -121,6 +122,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         home_server: Callable[[], BridgeServer] | None = None,
         library: MusicLibrary | None = None,
         radio: Radio | None = None,
+        catalog: AppleCatalog | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -139,7 +141,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         ]
         self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
         self._unsubscribe += self._init_home(home_server)
-        self._unsubscribe += self._init_library(library, radio)
+        self._unsubscribe += self._init_library(library, radio, catalog)
         self._commands = CommandDispatcher(
             EngineCommandServices(
                 engine, start_output=self._start_from_command, home=self.home_bridge
@@ -715,6 +717,29 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
         read_art=read_art,
     )
     radio = Radio(bus, search_stations, store=paths.data_dir() / "radio.json")
+    from tandem.engine.adapters.itunes_catalog import (
+        badge_fetcher,
+        fetch_image,
+        open_in_apple_music,
+        search_catalog,
+    )
+    from tandem.ui.platform import store_country
+
+    country = store_country()
+    catalog = AppleCatalog(
+        bus,
+        search_catalog,
+        fetch_image,
+        open_in_apple_music,
+        fetch_badge=badge_fetcher(country),
+        country=country,
+    )
     return EngineBackend(
-        engine, store, output_prefs=prefs, home_server=home_server, library=library, radio=radio
+        engine,
+        store,
+        output_prefs=prefs,
+        home_server=home_server,
+        library=library,
+        radio=radio,
+        catalog=catalog,
     )

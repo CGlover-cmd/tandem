@@ -208,3 +208,58 @@ async def test_without_a_library_or_radio(tmp_path: Path, manual_sleep: ManualSl
     await backend.remove_station("x")
     await backend.remove_music_folder("x")
     await backend.rescan_library()
+
+
+async def test_apple_music_catalog(tmp_path: Path, manual_sleep: ManualSleep) -> None:
+    from tandem.engine.apple_catalog import AppleCatalog, CatalogArt
+
+    opened: list[str] = []
+
+    async def search(term: str, country: str, limit: int) -> list[dict[str, Any]]:
+        return [
+            {
+                "wrapperType": "track",
+                "kind": "song",
+                "trackId": 7,
+                "trackName": "Example Song",
+                "artistName": "Example Artist",
+                "collectionId": 70,
+                "collectionName": "Example Album",
+                "trackViewUrl": "https://music.apple.com/us/album/x/70?i=7",
+                "collectionViewUrl": "https://music.apple.com/us/album/x/70?i=7",
+                "artworkUrl100": "https://is1-ssl.mzstatic.com/x/100x100bb.jpg",
+            }
+        ]
+
+    async def fetch(url: str) -> CatalogArt | None:
+        return CatalogArt(b"\xff\xd8\xff", "image/jpeg")
+
+    async def open_link(link: str) -> bool:
+        opened.append(link)
+        return link.endswith("i=7")
+
+    bus = EventBus()
+    engine = Engine(FakeBackend([]), bus=bus, sleep=manual_sleep)
+    catalog = AppleCatalog(bus, search, fetch, open_link)
+    backend = bridge.EngineBackend(engine, SettingsStore(tmp_path / "s.json", bus), catalog=catalog)
+    events: list[ui.BackendEvent] = []
+    backend.subscribe(events.append)
+    await backend.search_catalog("example")
+    snapshot = backend.catalog()
+    assert [(s.id, s.title, s.has_art) for s in snapshot.songs] == [("s7", "Example Song", True)]
+    assert [a.id for a in snapshot.albums] == ["a70"]
+    assert any(isinstance(e, ui.CatalogChanged) for e in events)
+    await backend.open_in_apple_music("s7")
+    assert opened == ["music://music.apple.com/us/album/x/70?i=7"]
+    with pytest.raises(ui.LibraryError):
+        await backend.open_in_apple_music("a70")  # the fake app refuses the album link
+    assert await backend.catalog_art("s7") == ui.MusicArtwork(b"\xff\xd8\xff", "image/jpeg")
+    assert await backend.apple_music_badge() is None  # no badge fetcher given
+
+    bare = bridge.EngineBackend(engine, SettingsStore(tmp_path / "t.json", bus))
+    assert bare.catalog() == ui.CatalogSnapshot()
+    await bare.search_catalog("x")
+    assert await bare.catalog_art("x") is None
+    assert await bare.apple_music_badge() is None
+    with pytest.raises(ui.LibraryError):
+        await bare.open_in_apple_music("x")

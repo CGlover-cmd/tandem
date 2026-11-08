@@ -10,6 +10,10 @@ from dataclasses import replace
 
 from tandem.ui.backend import (
     BackendEvent,
+    CatalogAlbum,
+    CatalogChanged,
+    CatalogSnapshot,
+    CatalogSong,
     LibraryAlbum,
     LibraryChanged,
     LibraryError,
@@ -59,6 +63,18 @@ DEMO_STATIONS = (
     StationSnapshot("demo-station-3", "Placeholder Chillout", "MP3", 192, "DE", "chillout,lounge"),
     StationSnapshot("demo-station-4", "Sample News Talk", "MP3", 64, "CA", "news,talk"),
 )
+# Invented catalog results (docs/PRIVACY.md): what Apple's search might find.
+DEMO_CATALOG = (
+    CatalogSong("demo-cat-s1", "Harbour Lights", "Sample Singer", "Coastline", 201.0, True),
+    CatalogSong(
+        "demo-cat-s2", "Harbour Lights (Live)", "Sample Singer", "Coastline Live", 233.0, True
+    ),
+    CatalogSong("demo-cat-s3", "Lights Out", "Made-Up Duo", "Night Shift", 188.0, True),
+)
+DEMO_CATALOG_ALBUMS = (
+    CatalogAlbum("demo-cat-a1", "Coastline", "Sample Singer", 2022, True),
+    CatalogAlbum("demo-cat-a2", "Night Shift", "Made-Up Duo", 2020, True),
+)
 GONE = "That isn't in your music library any more."
 NO_STATION = "That station isn't in the list any more. Search again."
 
@@ -95,6 +111,8 @@ class DemoLibrary:
         self._player = PlayerSnapshot()
         self._started_at: float | None = None
         self._next_item = 1
+        self._catalog = CatalogSnapshot()
+        self.opened_in_apple_music: list[str] = []
 
     # Reading
 
@@ -206,6 +224,36 @@ class DemoLibrary:
             self._radio, saved=tuple(s for s in self._radio.saved if s.id != station_id)
         )
         self._publish(RadioChanged(self._radio))
+
+    # Apple Music's catalog (invented)
+
+    def catalog(self) -> CatalogSnapshot:
+        return self._catalog
+
+    async def search_catalog(self, text: str) -> None:
+        words = text.casefold().split()
+        songs = tuple(
+            s
+            for s in DEMO_CATALOG
+            if words and all(w in f"{s.title} {s.artist}".casefold() for w in words)
+        )
+        names = {s.album for s in songs}
+        albums = tuple(a for a in DEMO_CATALOG_ALBUMS if a.title in names)
+        self._catalog = CatalogSnapshot(" ".join(text.split()), False, songs, albums, None)
+        self._publish(CatalogChanged(self._catalog))
+
+    async def open_in_apple_music(self, item_id: str) -> None:
+        known = {s.id for s in self._catalog.songs} | {a.id for a in self._catalog.albums}
+        if item_id not in known:
+            raise LibraryError(GONE)
+        self.opened_in_apple_music.append(item_id)
+
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        colours = {"demo-cat-a2": ("#2B7BB6", "#7B2BB6"), "demo-cat-s3": ("#2B7BB6", "#7B2BB6")}
+        return MusicArtwork(_art(colours.get(item_id, ("#FF6B8B", "#FFB36B"))), "image/svg+xml")
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        return None  # the demo is offline: the window shows a text button instead
 
     # The queue
 

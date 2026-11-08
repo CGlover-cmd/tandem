@@ -449,6 +449,42 @@ class PlayerChanged:
     player: PlayerSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class CatalogSong:
+    """A song in Apple Music's catalog (Apple's public search). Shown on screen only."""
+
+    id: str
+    title: str
+    artist: str
+    album: str | None = None
+    duration: float | None = None
+    has_art: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogAlbum:
+    id: str
+    title: str
+    artist: str
+    year: int | None = None
+    has_art: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogSnapshot:
+    query: str = ""
+    searching: bool = False
+    songs: tuple[CatalogSong, ...] = ()
+    albums: tuple[CatalogAlbum, ...] = ()
+    error: str | None = None
+    """"unavailable" or "busy" (Apple allows about 20 searches a minute)."""
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogChanged:
+    catalog: CatalogSnapshot
+
+
 class PlayerCommand(Enum):
     PLAY_PAUSE = "play_pause"
     NEXT = "next"
@@ -469,6 +505,7 @@ BackendEvent = (
     | LibraryChanged
     | RadioChanged
     | PlayerChanged
+    | CatalogChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -691,3 +728,21 @@ class Backend(Protocol):
     async def remove_queue_item(self, item_id: str) -> None: ...
 
     async def clear_queue(self) -> None: ...
+
+    # Apple Music's catalog (Apple's public search; no account)
+
+    def catalog(self) -> CatalogSnapshot: ...
+
+    async def search_catalog(self, text: str) -> None: ...
+
+    async def open_in_apple_music(self, item_id: str) -> None:
+        """Hand a result to the Apple Music app. Raises `LibraryError` if it can't."""
+        ...
+
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        """A result's artwork, fetched from Apple and kept in memory."""
+        ...
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        """Apple's "Listen on Apple Music" badge, fetched from Apple; None when offline."""
+        ...

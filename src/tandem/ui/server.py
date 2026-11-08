@@ -42,8 +42,8 @@ _MISSING_BUILD = """<!doctype html>
 
 _MAX_MESSAGE = 16 * 1024
 
-# Artwork types the window shows. SVG is only ever the demo's own drawing; real artwork is
-# checked to be one of the others by the engine.
+# Artwork types the window shows. SVG is the demo's own drawing or Apple's badge; real artwork
+# is checked to be one of the others by the engine.
 _ARTWORK_TYPES = {
     "image/jpeg",
     "image/png",
@@ -58,6 +58,10 @@ _CSP = (
     "default-src 'self'; connect-src 'self'; img-src 'self' data:; "
     "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'none'"
 )
+
+# Images from Apple pass through this server. As <img> they can't run anything, but if one is
+# ever opened as a page (an SVG can hold scripts), it gets nothing and runs sandboxed.
+_REMOTE_IMAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 
 
 class UiServer:
@@ -108,6 +112,8 @@ class UiServer:
         app.router.add_get(URL_PREFIX + "{name}", self._icon)
         app.router.add_get("/artwork", self._artwork)
         app.router.add_get("/library-art/{album}", self._library_art)
+        app.router.add_get("/catalog-art/{item}", self._catalog_art)
+        app.router.add_get("/apple-music-badge", self._badge)
         app.router.add_get("/background", self._background)
         app.router.add_post("/background", self._save_background)
         return app
@@ -187,6 +193,23 @@ class UiServer:
         token = request.query.get("token", "")
         if not hmac.compare_digest(token.encode(), self.token.encode()):
             raise web.HTTPForbidden()
+
+    async def _catalog_art(self, request: web.Request) -> web.StreamResponse:
+        """A catalog result's artwork, fetched from Apple through Tandem (the page may load
+        images only from Tandem itself). It reveals a search, so it needs the token."""
+        self._check_token(request)
+        art = await self._controller.catalog_art(request.match_info["item"])
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return _remote_image(art.data, art.mimetype)
+
+    async def _badge(self, request: web.Request) -> web.StreamResponse:
+        """Apple's "Listen on Apple Music" badge, as Apple serves it (never stored in Tandem)."""
+        self._check_token(request)
+        art = await self._controller.apple_music_badge()
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return _remote_image(art.data, art.mimetype)
 
     async def _background(self, request: web.Request) -> web.StreamResponse:
         """The user's background photo (personal, so token-gated like the artwork)."""
@@ -282,3 +305,12 @@ class UiServer:
             await socket.send_str(message)
         except (ConnectionError, RuntimeError):
             self._sockets.discard(socket)
+
+
+def _remote_image(data: bytes, mimetype: str) -> web.Response:
+    """An image fetched from Apple, served to the window with a sandboxing policy."""
+    return web.Response(
+        body=data,
+        content_type=mimetype,
+        headers={"Content-Security-Policy": _REMOTE_IMAGE_CSP, "Cache-Control": "private"},
+    )

@@ -33,6 +33,7 @@ from tandem.ui.backend import (
     Backend,
     BackendError,
     BackendEvent,
+    CatalogChanged,
     CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
@@ -494,6 +495,13 @@ class AppController:
     def music_seek(self, position: float) -> None:
         self.runner.run(self._backend.music_seek(position))
 
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        """A catalog result's artwork (fetched from Apple), for the window only."""
+        return await self._backend.catalog_art(item_id)
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        return await self._backend.apple_music_badge()
+
     def library_art(self, album_id: str) -> MusicArtwork | None:
         """An album's artwork from the music library, for the window only."""
         return self._backend.library_art(album_id)
@@ -665,6 +673,8 @@ class AppController:
                 self.library.radio = radio
             case PlayerChanged(player=player):
                 self.library.player = player
+            case CatalogChanged(catalog=catalog):
+                self.library.catalog = catalog
             case MusicChanged(music=music):
                 self.music = music
             case AppearanceChanged(appearance=appearance):

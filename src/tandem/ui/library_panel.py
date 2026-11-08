@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 from tandem.ui.backend import (
     Backend,
+    CatalogSnapshot,
     LibrarySnapshot,
     LibrarySong,
     PlayerCommand,
@@ -51,6 +52,7 @@ class LibraryPanel:
         self.library: LibrarySnapshot = LibrarySnapshot()
         self.radio: RadioSnapshot = RadioSnapshot()
         self.player: PlayerSnapshot = PlayerSnapshot()
+        self.catalog: CatalogSnapshot = CatalogSnapshot()
         self.open_album: str | None = None
         self.album_songs: list[LibrarySong] = []
         self.search_text = ""
@@ -61,6 +63,7 @@ class LibraryPanel:
         self.library = self._backend.library()
         self.radio = self._backend.radio()
         self.player = self._backend.player()
+        self.catalog = self._backend.catalog()
 
     def library_changed(self, library: LibrarySnapshot) -> None:
         self.library = library
@@ -108,6 +111,32 @@ class LibraryPanel:
                 "results": [_station(s) for s in self.radio.results],
                 "saved": [_station(s) for s in self.radio.saved],
                 "error": self.radio.error,
+            },
+            "catalog": {
+                "query": self.catalog.query,
+                "searching": self.catalog.searching,
+                "error": self.catalog.error,
+                "songs": [
+                    {
+                        "id": s.id,
+                        "title": s.title,
+                        "artist": s.artist,
+                        "album": s.album,
+                        "duration": s.duration,
+                        "hasArt": s.has_art,
+                    }
+                    for s in self.catalog.songs
+                ],
+                "albums": [
+                    {
+                        "id": a.id,
+                        "title": a.title,
+                        "artist": a.artist,
+                        "year": a.year,
+                        "hasArt": a.has_art,
+                    }
+                    for a in self.catalog.albums
+                ],
             },
             "player": {
                 "state": player.state,
@@ -173,6 +202,10 @@ class LibraryPanel:
             self._run(b.save_station(item))
         elif kind == "removeStation" and has_id:
             self._run(b.remove_station(item))
+        elif kind == "searchCatalog" and isinstance(command.get("text"), str):
+            self._run(b.search_catalog(command["text"][:MAX_SEARCH_TEXT]))
+        elif kind == "openInAppleMusic" and has_id:
+            self._run(b.open_in_apple_music(item))
         elif kind == "player":
             try:
                 action = PlayerCommand(command.get("command"))

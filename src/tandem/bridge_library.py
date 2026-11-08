@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
+from tandem.engine.apple_catalog import AppleCatalog, CatalogArt, CatalogChanged, CatalogStatus
 from tandem.engine.events import EventBus
 from tandem.engine.library import Album, LibraryChanged, LibraryStatus, LibraryTrack, MusicLibrary
 from tandem.engine.player import NewTrack, Player, PlayerChanged, PlayerStatus, TrackKind
@@ -21,6 +22,7 @@ from tandem.ui import backend as ui
 GONE = "That isn't in your music library any more."
 NO_STATION = "That station isn't in the list any more. Search again."
 NO_FOLDER = "Tandem couldn't add that folder."
+NO_APPLE_MUSIC = "The Apple Music app didn't open. Make sure it's installed."
 
 
 class EngineLibrary:
@@ -30,12 +32,19 @@ class EngineLibrary:
     _publish: Callable[[ui.BackendEvent], None]
 
     def _init_library(
-        self, library: MusicLibrary | None, radio: Radio | None
+        self,
+        library: MusicLibrary | None,
+        radio: Radio | None,
+        catalog: AppleCatalog | None = None,
     ) -> list[Callable[[], None]]:
         self._library = library
         self._radio = radio
+        self._catalog = catalog
         bus: EventBus = self._engine.bus
         return [
+            bus.subscribe(
+                CatalogChanged, lambda e: self._publish(ui.CatalogChanged(_catalog(e.status)))
+            ),
             bus.subscribe(
                 LibraryChanged, lambda e: self._publish(ui.LibraryChanged(_library(e.status)))
             ),
@@ -143,6 +152,25 @@ class EngineLibrary:
     async def remove_station(self, station_id: str) -> None:
         if self._radio is not None:
             await self._radio.remove(station_id)
+
+    # Apple Music's catalog
+
+    def catalog(self) -> ui.CatalogSnapshot:
+        return _catalog(self._catalog.status if self._catalog else CatalogStatus())
+
+    async def search_catalog(self, text: str) -> None:
+        if self._catalog is not None:
+            await self._catalog.search(text)
+
+    async def open_in_apple_music(self, item_id: str) -> None:
+        if self._catalog is None or not await self._catalog.open(item_id):
+            raise ui.LibraryError(NO_APPLE_MUSIC)
+
+    async def catalog_art(self, item_id: str) -> ui.MusicArtwork | None:
+        return _art(await self._catalog.artwork(item_id) if self._catalog else None)
+
+    async def apple_music_badge(self) -> ui.MusicArtwork | None:
+        return _art(await self._catalog.badge() if self._catalog else None)
 
     # The queue
 
@@ -255,6 +283,25 @@ def _radio(status: RadioStatus) -> ui.RadioSnapshot:
         saved=tuple(_station(s) for s in status.saved),
         error=status.error,
     )
+
+
+def _catalog(status: CatalogStatus) -> ui.CatalogSnapshot:
+    return ui.CatalogSnapshot(
+        query=status.query,
+        searching=status.searching,
+        songs=tuple(
+            ui.CatalogSong(s.id, s.title, s.artist, s.album, s.duration, s.has_art)
+            for s in status.songs
+        ),
+        albums=tuple(
+            ui.CatalogAlbum(a.id, a.title, a.artist, a.year, a.has_art) for a in status.albums
+        ),
+        error=status.error,
+    )
+
+
+def _art(art: CatalogArt | None) -> ui.MusicArtwork | None:
+    return None if art is None else ui.MusicArtwork(art.data, art.mimetype)
 
 
 def _player(status: PlayerStatus) -> ui.PlayerSnapshot:

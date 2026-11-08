@@ -194,6 +194,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   a song search go only while the page shows them, so state messages stay small. miniaudio's
   stream generator returns the first chunk when primed: keep it (`adapters/decoders.py`), or
   every track loses its first 23 ms.
+- Apple Music catalog search (ADR-0013, 2026-11-08 note): `engine/apple_catalog.py` with HTTP
+  and `music://` opening in `adapters/itunes_catalog.py`. Apple's artwork and badge pass
+  through Tandem's server (`/catalog-art`, `/apple-music-badge`, sandboxing CSP), are fetched
+  at run time and stay in memory: never commit or save them. No previews. Keep the 20-a-minute
+  limit. Don't open a real song link without the maintainer's OK (it plays from their account).
 - Library versions: `packaging/constraints.txt` pins every runtime library; the app folder, the
   release workflow and CI install with `-c` it. Move a pin only on purpose, after the tests and
   a hardware check (1.0.0 shipped an unpinned srptools 2.0 that broke all Apple handshakes).
