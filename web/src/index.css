@@ -707,10 +707,36 @@ h2 {
   color: var(--foreground);
 }
 
-/* Scrollbars: thin and quiet, so Windows' arrow scrollbar doesn't sit inside the glass. */
+/* Scrollbars: a thin rounded thumb with no arrow buttons, so Windows' scrollbar doesn't sit
+   inside the glass. WebView2 (Chromium) uses ::-webkit-scrollbar only while the standard
+   scrollbar-width and scrollbar-color are left at auto, so those are reset here. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--tandem-hairline) transparent;
+  scrollbar-width: auto !important;
+  scrollbar-color: auto !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--tandem-hairline) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted) padding-box;
 }
 
 /* Sliders: a thin track and a round knob, like the system's own. */
