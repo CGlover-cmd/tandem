@@ -26,6 +26,8 @@ LIVE = frozenset({OutputState.STARTING, OutputState.STREAMING, OutputState.WAITI
 """Outputs Tandem is sending to (the header's "playing" count). A failed output and the PC's
 default output, which Windows plays itself, don't count."""
 
+MAX_GROUP_NAME = 40
+
 MAX_LOCATION = 2000
 """Longest link or path the window may send."""
 
@@ -91,6 +93,10 @@ class AudioPanel:
             "source": self.audio.source.value,
             "pcOutputsHidden": self.audio.pc_outputs_hidden,
             "outputs": [_output_json(o) for o in self.audio.outputs],
+            "groups": [
+                {"id": g.id, "name": g.name, "outputs": list(g.outputs), "state": g.state.value}
+                for g in self.audio.groups
+            ],
             "streaming": sum(o.state in LIVE for o in self.audio.outputs),
             "canPickFiles": self.can_pick_files,
             "picking": self.picking,
@@ -127,6 +133,15 @@ class AudioPanel:
                 self._run(self._pick(output_id))
         elif kind == "stopMedia" and has_id:
             self._run(self._backend.stop_media(output_id))
+        elif kind == "saveGroup" and isinstance(command.get("name"), str):
+            outputs = command.get("outputs")
+            if isinstance(outputs, list) and all(isinstance(o, str) for o in outputs):  # pyright: ignore[reportUnknownVariableType]
+                names: list[str] = outputs  # pyright: ignore[reportUnknownVariableType]
+                self._run(self._backend.save_group(command["name"][:MAX_GROUP_NAME], names[:50]))
+        elif kind == "deleteGroup" and has_id:
+            self._run(self._backend.delete_group(output_id))
+        elif kind == "setGroup" and has_id and isinstance(command.get("on"), bool):
+            self._run(self._backend.set_group(output_id, command["on"]))
         elif kind == "allOutputsOff":
             for output in self.audio.outputs:
                 if output.state in LIVE or output.state is OutputState.FAILED:

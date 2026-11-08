@@ -204,6 +204,19 @@ export const strings = {
     switchOff: (name: string) => `${name}: off`,
   },
 
+  groups: {
+    title: "Groups",
+    saveAs: (count: number) => `Save these ${count} speakers as a group…`,
+    nameLabel: "Group name",
+    namePlaceholder: "Downstairs",
+    save: "Save",
+    cancel: "Cancel",
+    remove: "Remove",
+    delete: (name: string) => `Remove the group ${name}`,
+    turnOn: (name: string) => `Play on the group ${name}`,
+    partly: (members: string) => `Some playing: ${members}`,
+    noneAround: "None of its speakers are around right now.",
+  },
   update: {
     title: (version: string) => `Tandem ${version} is out`,
     body: "See what's new and download it from GitHub.",

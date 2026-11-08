@@ -38,6 +38,8 @@ from tandem.engine.commands import (
     parse,
 )
 from tandem.engine.home_bridge import HomeBridge
+from tandem.engine.models import DeviceKind
+from tandem.engine.output_groups import GroupStore
 from tandem.engine.service import Engine
 
 _LOGGER = logging.getLogger(__name__)
@@ -495,14 +497,17 @@ class EngineCommandServices:
         *,
         start_output: Callable[[str], Awaitable[None]] | None = None,
         home: HomeBridge | None = None,
+        groups: GroupStore | None = None,
     ) -> None:
         self._engine = engine
         self._start_output = start_output
         self._home = home
+        self._groups = groups or GroupStore(None)
         self._last: tuple[str, ...] = ()
 
     def audio_targets(self) -> frozenset[str]:
-        return frozenset(d.id for d in self._engine.registry.devices() if d.can_play_audio)
+        devices = {d.id for d in self._engine.registry.devices() if d.can_play_audio}
+        return frozenset(devices | {g.id for g in self._groups.groups()})
 
     def streaming(self) -> frozenset[str]:
         return frozenset(self._engine.outputs_on())
@@ -512,7 +517,7 @@ class EngineCommandServices:
 
     async def start_audio(self, device_ids: Sequence[str]) -> None:
         self._last = tuple(device_ids)
-        for device_id in device_ids:
+        for device_id in self._groups.expand(device_ids):
             try:
                 if self._start_output is not None:
                     await self._start_output(device_id)
@@ -527,6 +532,8 @@ class EngineCommandServices:
 
     def targets(self) -> list[TargetState]:
         states: list[TargetState] = []
+        for group in self._groups.groups():  # "send audio to downstairs"
+            states.append(TargetState(Target(group.id, group.name, DeviceKind.OTHER)))
         for device in self._engine.registry.devices():
             target = Target(device.id, device.name, device.kind)
             controls = self._engine.controls(device.id)

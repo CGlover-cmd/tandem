@@ -124,3 +124,25 @@ async def test_hotkey_asks_the_window_for_commands(backend: DemoBackend) -> None
     controller.set_window_visible(False)
     await controller.runner.drain()
     assert backend.window_visible is False
+
+
+async def test_groups_from_the_window(backend: DemoBackend) -> None:
+    controller = AppController(backend)
+    await controller.start()
+    await controller.runner.drain()
+    controller.handle(
+        {"type": "saveGroup", "name": "Outside", "outputs": ["demo-speaker-1", "demo-soundbar"]}
+    )
+    controller.handle({"type": "saveGroup", "name": "Bad", "outputs": "demo-speaker-1"})  # ignored
+    await controller.runner.drain()
+    (group,) = controller.snapshot()["audio"]["groups"]
+    assert (group["name"], group["state"]) == ("Outside", "off")
+
+    controller.handle({"type": "setGroup", "id": group["id"], "on": True})
+    await controller.runner.drain()
+    assert controller.snapshot()["audio"]["groups"][0]["state"] == "on"
+    controller.handle({"type": "setGroup", "id": group["id"], "on": False})
+    controller.handle({"type": "deleteGroup", "id": group["id"]})
+    await controller.runner.drain()
+    assert controller.snapshot()["audio"]["groups"] == []
+    await controller.stop()

@@ -106,11 +106,20 @@ export interface AudioOutput {
   problem: "unreachable" | "access" | "failed" | null;
 }
 
+/** A saved set of outputs turned on together. `name` is the user's own: never log it. */
+export interface SpeakerGroup {
+  id: string;
+  name: string;
+  outputs: string[];
+  state: "off" | "on" | "partly" | "starting";
+}
+
 export interface AudioPanel {
   source: AudioSource;
   /** The PC's default output is hidden while its own sound is the source (it would echo). */
   pcOutputsHidden: boolean;
   outputs: AudioOutput[];
+  groups: SpeakerGroup[];
   /** How many outputs Tandem is sending to (not counting the PC's default output). */
   streaming: number;
   /** The window can open a file picker (it can't in the browser preview). */
@@ -237,6 +246,9 @@ export type Command =
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
   | { type: "openUpdate" | "reportProblem" }
+  | { type: "saveGroup"; name: string; outputs: string[] }
+  | { type: "deleteGroup"; id: string }
+  | { type: "setGroup"; id: string; on: boolean }
   | {
       type: "setAppearance";
       theme?: ThemeChoice;

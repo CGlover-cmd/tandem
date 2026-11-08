@@ -6,7 +6,7 @@ works only to the demo TV, and only once it's connected.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 
 from tandem.ui.backend import (
@@ -18,6 +18,7 @@ from tandem.ui.backend import (
     BackendEvent,
     DeviceKind,
     DeviceSnapshot,
+    GroupSnapshot,
     HomeSnapshot,
     HomeUpdated,
     LinkState,
@@ -30,6 +31,7 @@ from tandem.ui.backend import (
     SendState,
     output_order,
 )
+from tandem.ui.groups import BAD_GROUP, GONE, group_snapshots, set_members
 
 # Invented PC outputs. The first is the "Windows default", which echoes with system audio.
 DEMO_PC_OUTPUTS = (("demo-pc-speakers", "Speakers"), ("demo-pc-headphones", "Headphones"))
@@ -59,6 +61,7 @@ class DemoAudio:
         self._outputs: dict[str, OutputSnapshot] = {}
         self._sends: dict[str, SendSnapshot] = {}
         self.sent: list[tuple[str, str]] = []
+        self._groups: dict[str, GroupSnapshot] = {}
 
     def audio(self) -> AudioSnapshot:
         outputs: list[OutputSnapshot] = []
@@ -82,7 +85,34 @@ class DemoAudio:
                 self._outputs.get(output_id) or OutputSnapshot(output_id, name, OutputKind.PC)
             )
         outputs.sort(key=output_order)
-        return AudioSnapshot(self._source, tuple(outputs), self._source is AudioSourceChoice.SYSTEM)
+        return AudioSnapshot(
+            self._source,
+            tuple(outputs),
+            self._source is AudioSourceChoice.SYSTEM,
+            group_snapshots(list(self._groups.values()), outputs),
+        )
+
+    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
+        name = " ".join(name.split())[:40]
+        members = tuple(dict.fromkeys(o for o in outputs if o))
+        if not name or not members:
+            raise AudioError(BAD_GROUP)
+        same = next(
+            (g for g in self._groups.values() if g.name.casefold() == name.casefold()), None
+        )
+        group_id = same.id if same else f"group:demo-{len(self._groups) + 1}"
+        self._groups[group_id] = GroupSnapshot(group_id, name, members)
+        self._publish(AudioChanged(self.audio()))
+
+    async def delete_group(self, group_id: str) -> None:
+        if self._groups.pop(group_id, None) is not None:
+            self._publish(AudioChanged(self.audio()))
+
+    async def set_group(self, group_id: str, on: bool) -> None:
+        group = self._groups.get(group_id)
+        if group is None:
+            raise AudioError(GONE)
+        await set_members(self, group.outputs, on)
 
     def send(self, device_id: str) -> SendSnapshot | None:
         return self._sends.get(device_id)

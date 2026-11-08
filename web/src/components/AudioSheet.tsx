@@ -12,6 +12,7 @@ import {
 import { DeviceIcon, HeadphonesIcon, VolumeIcon } from "../icons";
 import { strings } from "../strings";
 import type { AudioOutput, AudioPanel, Command } from "../types";
+import { GroupsSection } from "./GroupsSection";
 import { LiveSlider } from "./LiveSlider";
 
 interface Props {
@@ -135,6 +136,8 @@ export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
                 />
               </section>
             )}
+            <GroupsSection groups={audio.groups} outputs={audio.outputs} send={send} />
+
             <section className="flex flex-col gap-2" aria-labelledby="airplay-label">
               <h3 id="airplay-label" className="section-title">
                 {strings.audio.airplay}

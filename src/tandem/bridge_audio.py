@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.audio import AudioError as EngineAudioError
@@ -17,11 +17,13 @@ from tandem.engine.audio_hub import is_local
 from tandem.engine.media_send import MediaError as EngineMediaError
 from tandem.engine.media_send import MediaSendChanged
 from tandem.engine.media_send import SendState as EngineSendState
+from tandem.engine.output_groups import GroupStore
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 from tandem.ui import backend as ui
+from tandem.ui.groups import BAD_GROUP, group_snapshots, set_members
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ GONE = "That speaker is no longer available."
 NO_AUDIO = "Tandem couldn't send audio there. Make sure it's on and try again."
 NO_SEND = "The TV couldn't play that. Try an MP4 or MOV file, or a direct link to one."
 NOT_STREAMING = "Turn this output on first."
+
 
 _STATE = {
     StreamState.STARTING: ui.OutputState.STARTING,
@@ -53,8 +56,11 @@ class EngineAudio:
     _engine: Engine
     _publish: Callable[[ui.BackendEvent], None]
 
-    def _init_audio(self, prefs: OutputPrefsStore) -> list[Callable[[], None]]:
+    def _init_audio(
+        self, prefs: OutputPrefsStore, groups: GroupStore | None = None
+    ) -> list[Callable[[], None]]:
         self._prefs = prefs
+        self._groups = groups or GroupStore(None)
         self._restoring: set[str] = set()
         """Outputs to turn back on when they appear ("turn my speakers back on")."""
         self._restore_tasks: set[asyncio.Task[None]] = set()
@@ -113,7 +119,31 @@ class EngineAudio:
             source=ui.AudioSourceChoice.SYSTEM if system else ui.AudioSourceChoice.PLAYER,
             outputs=tuple(outputs),
             pc_outputs_hidden=system,
+            groups=group_snapshots(self._groups.groups(), outputs),
         )
+
+    # Speaker groups
+
+    @property
+    def groups(self) -> GroupStore:
+        return self._groups
+
+    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
+        try:
+            self._groups.save(name, outputs)
+        except ValueError:
+            raise ui.AudioError(BAD_GROUP) from None
+        self._audio_changed()
+
+    async def delete_group(self, group_id: str) -> None:
+        if self._groups.delete(group_id):
+            self._audio_changed()
+
+    async def set_group(self, group_id: str, on: bool) -> None:
+        group = self._groups.get(group_id)
+        if group is None:
+            raise ui.AudioError(GONE)
+        await set_members(self, group.outputs, on)
 
     def send(self, device_id: str) -> ui.SendSnapshot | None:
         return self._sends.get(device_id)

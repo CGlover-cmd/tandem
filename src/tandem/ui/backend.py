@@ -10,7 +10,7 @@ logs them.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -280,12 +280,30 @@ def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
     )
 
 
+class GroupState(Enum):
+    OFF = "off"
+    ON = "on"  # every member that's around is playing
+    PARTLY = "partly"  # some members are playing
+    STARTING = "starting"
+
+
+@dataclass(frozen=True, slots=True)
+class GroupSnapshot:
+    """A saved set of outputs turned on together. `name` is shown, never logged."""
+
+    id: str
+    name: str
+    outputs: tuple[str, ...]
+    state: GroupState = GroupState.OFF
+
+
 @dataclass(frozen=True, slots=True)
 class AudioSnapshot:
     source: AudioSourceChoice = AudioSourceChoice.SYSTEM
     outputs: tuple[OutputSnapshot, ...] = ()
     pc_outputs_hidden: bool = False
     """The PC's default output is left out because it would echo (system audio as source)."""
+    groups: tuple[GroupSnapshot, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,6 +572,18 @@ class Backend(Protocol):
 
     async def set_home_bridge(self, on: bool) -> None:
         """Turn the Home bridge on or off; the choice is saved."""
+        ...
+
+    # Speaker groups
+
+    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
+        """Save outputs as a named group (a group with the same name is replaced)."""
+        ...
+
+    async def delete_group(self, group_id: str) -> None: ...
+
+    async def set_group(self, group_id: str, on: bool) -> None:
+        """Turn every member on or off. Raises AudioError only if none would play."""
         ...
 
     # Housekeeping

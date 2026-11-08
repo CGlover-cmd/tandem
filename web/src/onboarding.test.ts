@@ -37,6 +37,7 @@ function state(over: Partial<AppState> = {}): AppState {
       source: "system",
       pcOutputsHidden: true,
       outputs: [],
+      groups: [],
       streaming: 0,
       canPickFiles: false,
       picking: false,
