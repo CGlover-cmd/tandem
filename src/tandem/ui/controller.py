@@ -56,11 +56,13 @@ from tandem.ui.backend import (
     RadioChanged,
     RemoteKey,
     SendChanged,
+    SpotifyChanged,
     Theme,
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.library_panel import FolderPicker, LibraryPanel
+from tandem.ui.spotify_panel import SpotifyPanel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -364,6 +366,7 @@ class AppController:
         self.library = LibraryPanel(
             backend, self.runner.run, on_change=self._changed, picker=folder_picker
         )
+        self.spotify = SpotifyPanel(backend, self.runner.run, on_change=self._changed)
         self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
 
@@ -396,6 +399,7 @@ class AppController:
             ],
             "audio": self.audio.snapshot(),
             **self.library.snapshot(),
+            **self.spotify.snapshot(),
             "home": {
                 "enabled": self.home.enabled,
                 "running": self.home.running,
@@ -434,6 +438,7 @@ class AppController:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
         self.library.load()
+        self.spotify.load()
         self.home = self._backend.home()
         self._changed()
         await self._backend.start()
@@ -443,6 +448,7 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
+        await self.spotify.close()
         await self.runner.drain()
         if self._icons is not None:
             await self._icons.close()
@@ -501,6 +507,10 @@ class AppController:
 
     async def apple_music_badge(self) -> MusicArtwork | None:
         return await self._backend.apple_music_badge()
+
+    async def spotify_art(self, item_id: str) -> MusicArtwork | None:
+        """A Spotify item's artwork (fetched from Spotify), for the window only."""
+        return await self._backend.spotify_art(item_id)
 
     def library_art(self, album_id: str) -> MusicArtwork | None:
         """An album's artwork from the music library, for the window only."""
@@ -639,7 +649,9 @@ class AppController:
         elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
             self.runner.run(self._backend.set_home_bridge(command["on"]))
         elif isinstance(kind, str) and (
-            self.library.handle(kind, command) or self.audio.handle(kind, command)
+            self.library.handle(kind, command)
+            or self.spotify.handle(kind, command)
+            or self.audio.handle(kind, command)
         ):
             pass
         else:
@@ -675,6 +687,8 @@ class AppController:
                 self.library.player = player
             case CatalogChanged(catalog=catalog):
                 self.library.catalog = catalog
+            case SpotifyChanged(spotify=spotify):
+                self.spotify.changed(spotify)
             case MusicChanged(music=music):
                 self.music = music
             case AppearanceChanged(appearance=appearance):

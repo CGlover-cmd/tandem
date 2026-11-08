@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, TypeVar
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
 from tandem.bridge_library import EngineLibrary
+from tandem.bridge_spotify import EngineSpotify
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.apple_catalog import AppleCatalog
@@ -45,6 +46,7 @@ from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
 from tandem.engine.settings import SettingsChanged, SettingsStore
 from tandem.engine.settings import Theme as EngineTheme
+from tandem.engine.spotify import Spotify
 from tandem.ui import backend as ui
 
 if TYPE_CHECKING:
@@ -110,7 +112,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
+class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
     def __init__(
         self,
         engine: Engine,
@@ -123,6 +125,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         library: MusicLibrary | None = None,
         radio: Radio | None = None,
         catalog: AppleCatalog | None = None,
+        spotify: Spotify | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -142,6 +145,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
         self._unsubscribe += self._init_home(home_server)
         self._unsubscribe += self._init_library(library, radio, catalog)
+        self._unsubscribe += self._init_spotify(spotify)
         self._commands = CommandDispatcher(
             EngineCommandServices(
                 engine, start_output=self._start_from_command, home=self.home_bridge
@@ -197,10 +201,12 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         self._engine.discovery.start()
         await self._start_home()
         await self._start_library()
+        await self._start_spotify()
 
     async def stop(self) -> None:
         await self._stop_home()
         await self._stop_library()
+        await self._stop_spotify()
         for unsubscribe in self._unsubscribe:
             unsubscribe()
         self._unsubscribe = []
@@ -742,4 +748,20 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
         library=library,
         radio=radio,
         catalog=catalog,
+        spotify=create_spotify(bus),
+    )
+
+
+def create_spotify(bus: EventBus) -> Spotify:  # pragma: no cover - needs the network
+    """Spotify as the app runs it: aiohttp, the system browser, a DPAPI-encrypted file."""
+    from tandem.engine import paths
+    from tandem.engine.adapters.spotify_web import AiohttpSpotifyHttp, listen, open_in_browser
+    from tandem.engine.vault import EncryptedJsonFile
+
+    return Spotify(
+        bus,
+        AiohttpSpotifyHttp(),
+        EncryptedJsonFile(paths.data_dir() / "spotify.bin"),
+        open_in_browser,
+        listen,
     )

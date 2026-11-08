@@ -485,6 +485,56 @@ class CatalogChanged:
     catalog: CatalogSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class SpotifyDeviceSnapshot:
+    """A Spotify Connect device. Its name is personal: shown on screen only."""
+
+    id: str
+    name: str
+    kind: str
+    """Spotify's device type in lower case: "computer", "smartphone", "speaker", ..."""
+    active: bool = False
+    restricted: bool = False
+    """Spotify won't take commands for it (some TVs and cars)."""
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyItemSnapshot:
+    """A playlist, album or track from Spotify. Shown on screen only."""
+
+    id: str
+    kind: str
+    """"track", "album" or "playlist"."""
+    title: str
+    subtitle: str = ""
+    duration: float | None = None
+    has_art: bool = False
+    count: int | None = None
+
+
+SPOTIFY_REDIRECT_URI = "http://127.0.0.1/callback"
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifySnapshot:
+    state: str = "not_set_up"
+    """"not_set_up", "signed_out", "signing_in" or "signed_in"."""
+    loading: bool = False
+    playlists: tuple[SpotifyItemSnapshot, ...] = ()
+    devices: tuple[SpotifyDeviceSnapshot, ...] = ()
+    query: str = ""
+    searching: bool = False
+    results: tuple[SpotifyItemSnapshot, ...] = ()
+    error: str | None = None
+    """A code the window turns into words (see `web/src/strings.ts`)."""
+    redirect_uri: str = SPOTIFY_REDIRECT_URI
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyChanged:
+    spotify: SpotifySnapshot
+
+
 class PlayerCommand(Enum):
     PLAY_PAUSE = "play_pause"
     NEXT = "next"
@@ -506,6 +556,7 @@ BackendEvent = (
     | RadioChanged
     | PlayerChanged
     | CatalogChanged
+    | SpotifyChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -745,4 +796,40 @@ class Backend(Protocol):
 
     async def apple_music_badge(self) -> MusicArtwork | None:
         """Apple's "Listen on Apple Music" badge, fetched from Apple; None when offline."""
+        ...
+
+    # Spotify (Web API remote only; ADR-0018)
+
+    def spotify(self) -> SpotifySnapshot: ...
+
+    async def set_spotify_client_id(self, text: str) -> None:
+        """Save the user's own Client ID; a bad one sets the snapshot's error."""
+        ...
+
+    async def spotify_sign_in(self) -> None:
+        """Sign in through the system browser; returns when it's done, refused or cancelled."""
+        ...
+
+    async def spotify_cancel_sign_in(self) -> None: ...
+
+    async def spotify_sign_out(self, forget_client_id: bool) -> None: ...
+
+    async def open_spotify_dashboard(self) -> None: ...
+
+    async def spotify_refresh(self) -> None:
+        """Fetch playlists and devices again."""
+        ...
+
+    async def spotify_search(self, text: str) -> None: ...
+
+    async def spotify_play(self, item_id: str, device_id: str | None) -> None: ...
+
+    async def spotify_transfer(self, device_id: str) -> None: ...
+
+    async def open_in_spotify(self, item_id: str) -> None: ...
+
+    async def spotify_dismiss_error(self) -> None: ...
+
+    async def spotify_art(self, item_id: str) -> MusicArtwork | None:
+        """An item's artwork, fetched from Spotify and kept in memory."""
         ...

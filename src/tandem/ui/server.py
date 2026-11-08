@@ -59,8 +59,9 @@ _CSP = (
     "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; form-action 'none'"
 )
 
-# Images from Apple pass through this server. As <img> they can't run anything, but if one is
-# ever opened as a page (an SVG can hold scripts), it gets nothing and runs sandboxed.
+# Images from Apple and Spotify pass through this server. As <img> they can't run anything,
+# but if one is ever opened as a page (an SVG can hold scripts), it gets nothing and runs
+# sandboxed.
 _REMOTE_IMAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
 
 
@@ -114,6 +115,7 @@ class UiServer:
         app.router.add_get("/library-art/{album}", self._library_art)
         app.router.add_get("/catalog-art/{item}", self._catalog_art)
         app.router.add_get("/apple-music-badge", self._badge)
+        app.router.add_get("/spotify-art/{item}", self._spotify_art)
         app.router.add_get("/background", self._background)
         app.router.add_post("/background", self._save_background)
         return app
@@ -207,6 +209,15 @@ class UiServer:
         """Apple's "Listen on Apple Music" badge, as Apple serves it (never stored in Tandem)."""
         self._check_token(request)
         art = await self._controller.apple_music_badge()
+        if art is None or art.mimetype not in _ARTWORK_TYPES:
+            raise web.HTTPNotFound()
+        return _remote_image(art.data, art.mimetype)
+
+    async def _spotify_art(self, request: web.Request) -> web.StreamResponse:
+        """A Spotify playlist's, album's or track's artwork, fetched from Spotify through
+        Tandem. It shows what someone listens to, so it needs the token."""
+        self._check_token(request)
+        art = await self._controller.spotify_art(request.match_info["item"])
         if art is None or art.mimetype not in _ARTWORK_TYPES:
             raise web.HTTPNotFound()
         return _remote_image(art.data, art.mimetype)
@@ -308,7 +319,7 @@ class UiServer:
 
 
 def _remote_image(data: bytes, mimetype: str) -> web.Response:
-    """An image fetched from Apple, served to the window with a sandboxing policy."""
+    """An image fetched from Apple or Spotify, served to the window with a sandboxing policy."""
     return web.Response(
         body=data,
         content_type=mimetype,
