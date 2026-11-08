@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Protocol
 
 
@@ -58,6 +59,7 @@ PHOTO_BACKGROUND = "photo"
 BACKGROUNDS = (*NEUTRAL_BACKGROUNDS, *GRADIENT_BACKGROUNDS, PHOTO_BACKGROUND)
 """Window backgrounds the user can pick in Settings. The front end defines their colours."""
 DEFAULT_BACKGROUND = "sky"
+MAX_PHOTO_BLUR = 24
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,10 +70,18 @@ class Appearance:
     """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
     onboarded: bool = False
     """The first-run checklist has been closed (it opens by itself until then)."""
+    update_check: bool = True
+    """Look for a newer Tandem on GitHub when the window opens (Advanced settings)."""
+    restore_outputs: bool = False
+    """Turn the speakers that were on back on when Tandem starts (Advanced settings)."""
+    photo_blur: int = 0
+    """Blur over the user's background photo, in pixels."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:
             raise ValueError("unknown background")
+        if not 0 <= self.photo_blur <= MAX_PHOTO_BLUR:
+            raise ValueError("photo blur out of range")
 
 
 @dataclass(frozen=True, slots=True)
@@ -534,4 +544,14 @@ class Backend(Protocol):
 
     async def set_home_bridge(self, on: bool) -> None:
         """Turn the Home bridge on or off; the choice is saved."""
+        ...
+
+    # Housekeeping
+
+    async def set_window_visible(self, visible: bool) -> None:
+        """The window was shown or hidden: scan less often while hidden and nothing plays."""
+        ...
+
+    async def write_diagnostics(self) -> Path | None:
+        """Write a redacted diagnostics zip for a bug report; None if there's nothing to write."""
         ...

@@ -97,7 +97,7 @@ async def test_turning_outputs_on_and_off(harness: Harness) -> None:
     assert harness.output(SPEAKER.id).delay_ms == ui.MAX_DELAY_MS
     assert harness.fake.sinks[SPEAKER.id][0].volumes[-1] == 55
     saved = json.loads(harness.prefs_file.read_text(encoding="utf-8"))
-    assert saved[SPEAKER.id] == {"volume": 55.0, "delay_ms": ui.MAX_DELAY_MS}
+    assert saved[SPEAKER.id] == {"volume": 55.0, "delay_ms": ui.MAX_DELAY_MS, "on": True}
 
     await harness.backend.set_output("local:headphones", True)
     assert harness.output("local:headphones").state is not ui.OutputState.OFF

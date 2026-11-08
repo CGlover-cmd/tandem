@@ -15,7 +15,11 @@ async def test_menu_says_when_no_devices_are_found(backend: DemoBackend) -> None
         Entry("Open Tandem", "open"),
         SEPARATOR,
         Entry("Looking for devices…", enabled=False),
+        Entry("Play the PC's sound on", enabled=False),
+        Entry("    Headphones", "output", "demo-pc-headphones"),
         SEPARATOR,
+        SEPARATOR,
+        Entry("Report a problem…", "report"),
         Entry("Quit Tandem", "quit"),
     ]
     assert SEPARATOR.separator
@@ -29,13 +33,20 @@ async def test_menu_lists_devices_with_their_state(backend: DemoBackend) -> None
     await controller.runner.drain()
     backend._update("demo-soundbar", state=LinkState.CONNECTING)  # pyright: ignore[reportPrivateUsage]
 
-    devices = menu_entries(controller)[2 + len(music_entries(controller)) : -2]
+    controller.handle({"type": "setOutput", "id": "demo-speaker-1", "on": True})
+    await controller.runner.drain()
 
+    devices = menu_entries(controller)[2 + len(music_entries(controller)) : -3]
+
+    # Speakers and PC outputs are switches for the PC's sound; Apple TVs connect or pair.
     assert devices == [
-        Entry("Den Soundbar", "activate", "demo-soundbar", enabled=False),
+        Entry("Play the PC's sound on", enabled=False),
+        Entry("    Den Soundbar", "output", "demo-soundbar"),
+        Entry("    Office Speaker", "output", "demo-speaker-2"),
+        Entry("    Patio Speaker", "output", "demo-speaker-1", checked=True),
+        Entry("    Headphones", "output", "demo-pc-headphones"),
+        SEPARATOR,
         Entry("Living Room TV (pair to use)", "pair", "demo-tv"),
-        Entry("Office Speaker", "activate", "demo-speaker-2"),
-        Entry("Patio Speaker", "activate", "demo-speaker-1", checked=True),
     ]
 
 

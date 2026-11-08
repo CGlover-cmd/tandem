@@ -6,6 +6,7 @@ into `EngineBackend`; it needs the engine, the output preferences and the backen
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 
@@ -17,7 +18,7 @@ from tandem.engine.media_send import MediaError as EngineMediaError
 from tandem.engine.media_send import MediaSendChanged
 from tandem.engine.media_send import SendState as EngineSendState
 from tandem.engine.output_prefs import OutputPrefsStore
-from tandem.engine.registry import DeviceEvent
+from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionFailedError
 from tandem.ui import backend as ui
@@ -54,6 +55,9 @@ class EngineAudio:
 
     def _init_audio(self, prefs: OutputPrefsStore) -> list[Callable[[], None]]:
         self._prefs = prefs
+        self._restoring: set[str] = set()
+        """Outputs to turn back on when they appear ("turn my speakers back on")."""
+        self._restore_tasks: set[asyncio.Task[None]] = set()
         self._failed: set[str] = set()
         self._starting: set[str] = set()
         """Outputs being turned on: shown as starting at once, before the engine reports."""
@@ -64,7 +68,7 @@ class EngineAudio:
         return [
             bus.subscribe(AudioStreamChanged, self._on_stream),
             bus.subscribe(MediaSendChanged, self._on_send),
-            bus.subscribe(DeviceEvent, lambda _event: self._audio_changed()),
+            bus.subscribe(DeviceEvent, self._on_device_for_audio),
         ]
 
     # Reading
@@ -113,10 +117,39 @@ class EngineAudio:
 
     # Commands
 
+    def restore_outputs(self) -> None:
+        """Turn back on the outputs the user left on: PC outputs now, speakers as they appear."""
+        self._restoring = set(self._prefs.were_on())
+        for local in self._engine.local_outputs():
+            self._restore(local.id)
+        for device in self._engine.registry.devices():
+            self._restore(device.id)
+
+    def _restore(self, output_id: str) -> None:
+        if output_id not in self._restoring:
+            return
+        self._restoring.discard(output_id)
+
+        async def turn_on() -> None:
+            try:
+                await self.set_output(output_id, True)
+            except ui.BackendError as error:
+                _LOGGER.info("A speaker didn't come back on (%s)", type(error).__name__)
+
+        task = asyncio.get_running_loop().create_task(turn_on())
+        self._restore_tasks.add(task)
+        task.add_done_callback(self._restore_tasks.discard)
+
+    def _on_device_for_audio(self, event: DeviceEvent) -> None:
+        if not isinstance(event, DeviceLost):
+            self._restore(event.device.id)
+        self._audio_changed()
+
     async def set_output(self, output_id: str, on: bool) -> None:
         if not on:
             self._failed.discard(output_id)
             self._starting.discard(output_id)
+            self._prefs.update(output_id, on=False)
             await self._engine.stop_output(output_id)
             self._audio_changed()
             return
@@ -140,6 +173,7 @@ class EngineAudio:
             raise ui.AudioError(NO_AUDIO) from None
         finally:
             self._starting.discard(output_id)
+        self._prefs.update(output_id, on=True)
         if output_id in self.last_outputs:
             self.last_outputs.remove(output_id)
         self.last_outputs = [output_id, *self.last_outputs][:8]

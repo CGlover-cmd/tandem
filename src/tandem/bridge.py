@@ -12,12 +12,14 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine import paths
 from tandem.engine.command_dispatch import (
     Ability,
     ActionError,
@@ -160,7 +162,13 @@ class EngineBackend(EngineAudio, EngineHome):
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
         return ui.Appearance(
-            ui.Theme(settings.theme.value), background, settings.app_icons, settings.onboarded
+            ui.Theme(settings.theme.value),
+            background,
+            settings.app_icons,
+            settings.onboarded,
+            update_check=settings.update_check,
+            restore_outputs=settings.restore_outputs,
+            photo_blur=settings.photo_blur,
         )
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
@@ -187,6 +195,8 @@ class EngineBackend(EngineAudio, EngineHome):
         finally:
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
+        if self._settings.settings.restore_outputs:
+            self.restore_outputs()
         await self._start_home()
 
     async def stop(self) -> None:
@@ -277,6 +287,9 @@ class EngineBackend(EngineAudio, EngineHome):
             background=appearance.background,
             app_icons=appearance.app_icons,
             onboarded=appearance.onboarded,
+            update_check=appearance.update_check,
+            restore_outputs=appearance.restore_outputs,
+            photo_blur=appearance.photo_blur,
         )
 
     def preview_command(self, text: str) -> ui.CommandOutcome:
@@ -284,6 +297,20 @@ class EngineBackend(EngineAudio, EngineHome):
 
     async def run_command(self, text: str) -> ui.CommandOutcome:
         return _outcome(await self._commands.run(text))
+
+    async def set_window_visible(self, visible: bool) -> None:
+        # Hidden and silent: scan once a minute instead of every few seconds.
+        idle = not visible and not self._engine.outputs_on()
+        await self._engine.discovery.set_idle(idle)
+
+    async def write_diagnostics(self) -> Path | None:
+        settings = self._settings.settings.to_json()
+        return await asyncio.to_thread(
+            self._engine.diagnostics,
+            paths.data_dir() / "diagnostics",
+            log_dir=paths.log_dir(),
+            settings=settings,
+        )
 
     async def _start_from_command(self, output_id: str) -> None:
         await self.set_output(output_id, True)
