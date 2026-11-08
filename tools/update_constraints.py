@@ -68,10 +68,14 @@ def runtime_closure(extras: tuple[str, ...] = ("ui",)) -> dict[str, str]:
 
 
 def main() -> None:
-    header = [line for line in CONSTRAINTS.read_text(encoding="utf-8").splitlines() if line.startswith("#")]
+    header = [
+        line
+        for line in CONSTRAINTS.read_text(encoding="utf-8").splitlines()
+        if line.startswith("#")
+    ]
     pins = sorted(runtime_closure().items(), key=lambda item: _key(item[0]))
     lines = [*header, *(f"{name}=={version}" for name, version in pins)]
-    CONSTRAINTS.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    CONSTRAINTS.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(f"Pinned {len(pins)} libraries in {CONSTRAINTS.relative_to(ROOT)}")
 
 
