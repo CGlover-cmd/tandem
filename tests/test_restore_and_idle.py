@@ -40,8 +40,8 @@ async def test_speakers_left_on_come_back_on(tmp_path: Path, manual_sleep: Manua
     settings = SettingsStore(tmp_path / "settings.json", bus)
     settings.update(restore_outputs=True)
     fake = FakeBackend([SPEAKER])
-    engine = Engine(fake, bus=bus, sleep=manual_sleep, discovery_interval=60.0)
-    backend = bridge.EngineBackend(engine, settings, output_prefs=prefs)
+    engine = Engine(fake, bus=bus, sleep=manual_sleep, discovery_interval=60.0, output_prefs=prefs)
+    backend = bridge.EngineBackend(engine, settings)
     await backend.start()
     await _until(lambda: SPEAKER.id in engine.outputs_on())
     assert engine.outputs_on()[SPEAKER.id][1] == 30  # with its saved volume
@@ -64,10 +64,14 @@ async def test_speakers_stay_off_unless_asked(tmp_path: Path, manual_sleep: Manu
     prefs = OutputPrefsStore(prefs_file)
     prefs.load()
     bus = EventBus()
-    engine = Engine(FakeBackend([SPEAKER]), bus=bus, sleep=manual_sleep, discovery_interval=60.0)
-    backend = bridge.EngineBackend(
-        engine, SettingsStore(tmp_path / "settings.json", bus), output_prefs=prefs
+    engine = Engine(
+        FakeBackend([SPEAKER]),
+        bus=bus,
+        sleep=manual_sleep,
+        discovery_interval=60.0,
+        output_prefs=prefs,
     )
+    backend = bridge.EngineBackend(engine, SettingsStore(tmp_path / "settings.json", bus))
     await backend.start()
     for _ in range(20):
         await asyncio.sleep(0)

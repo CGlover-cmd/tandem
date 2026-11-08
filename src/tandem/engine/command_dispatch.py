@@ -39,7 +39,6 @@ from tandem.engine.commands import (
 )
 from tandem.engine.home_bridge import HomeBridge
 from tandem.engine.models import DeviceKind
-from tandem.engine.output_groups import GroupStore
 from tandem.engine.service import Engine
 
 _LOGGER = logging.getLogger(__name__)
@@ -495,19 +494,16 @@ class EngineCommandServices:
         self,
         engine: Engine,
         *,
-        start_output: Callable[[str], Awaitable[None]] | None = None,
         home: HomeBridge | None = None,
-        groups: GroupStore | None = None,
     ) -> None:
         self._engine = engine
-        self._start_output = start_output
+        self._outputs = engine.outputs
         self._home = home
-        self._groups = groups or GroupStore(None)
         self._last: tuple[str, ...] = ()
 
     def audio_targets(self) -> frozenset[str]:
         devices = {d.id for d in self._engine.registry.devices() if d.can_play_audio}
-        return frozenset(devices | {g.id for g in self._groups.groups()})
+        return frozenset(devices | {g.id for g in self._outputs.groups.groups()})
 
     def streaming(self) -> frozenset[str]:
         return frozenset(self._engine.outputs_on())
@@ -517,22 +513,18 @@ class EngineCommandServices:
 
     async def start_audio(self, device_ids: Sequence[str]) -> None:
         self._last = tuple(device_ids)
-        for device_id in self._groups.expand(device_ids):
+        for device_id in self._outputs.groups.expand(device_ids):
             try:
-                if self._start_output is not None:
-                    await self._start_output(device_id)
-                else:
-                    await self._engine.start_output(device_id)
+                await self._outputs.start(device_id)  # with its saved volume and delay
             except Exception as error:
                 raise _audio_error(error) from None
 
     async def stop_audio(self) -> None:
-        for output_id in list(self._engine.outputs_on()):
-            await self._engine.stop_output(output_id)
+        await self._outputs.stop_all()
 
     def targets(self) -> list[TargetState]:
         states: list[TargetState] = []
-        for group in self._groups.groups():  # "send audio to downstairs"
+        for group in self._outputs.groups.groups():  # "send audio to downstairs"
             states.append(TargetState(Target(group.id, group.name, DeviceKind.OTHER)))
         for device in self._engine.registry.devices():
             target = Target(device.id, device.name, device.kind)

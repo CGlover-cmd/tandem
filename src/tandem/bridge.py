@@ -109,8 +109,6 @@ class EngineBackend(EngineAudio, EngineHome):
         *,
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
-        output_prefs: OutputPrefsStore | None = None,
-        output_groups: GroupStore | None = None,
         home_server: Callable[[], BridgeServer] | None = None,
     ) -> None:
         self._engine = engine
@@ -128,16 +126,9 @@ class EngineBackend(EngineAudio, EngineHome):
             bus.subscribe(ec.ControlEvent, self._on_control),
             bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
-        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None), output_groups)
+        self._unsubscribe += self._init_audio()
         self._unsubscribe += self._init_home(home_server)
-        self._commands = CommandDispatcher(
-            EngineCommandServices(
-                engine,
-                start_output=self._start_from_command,
-                home=self.home_bridge,
-                groups=self.groups,
-            )
-        )
+        self._commands = CommandDispatcher(EngineCommandServices(engine, home=self.home_bridge))
 
     # Observing
 
@@ -301,9 +292,6 @@ class EngineBackend(EngineAudio, EngineHome):
             log_dir=paths.log_dir(),
             settings=settings,
         )
-
-    async def _start_from_command(self, output_id: str) -> None:
-        await self.set_output(output_id, True)
 
     # Engine events
 
@@ -704,6 +692,8 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
         bus=bus,
         redactor=redactor,
         discovery_interval=settings.discovery_interval_s,
+        output_prefs=prefs,
+        output_groups=groups,
     )
 
     def home_server() -> BridgeServer:
@@ -711,6 +701,4 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
 
         return HapBridgeServer(paths.data_dir() / "home-bridge.state")
 
-    return EngineBackend(
-        engine, store, output_prefs=prefs, output_groups=groups, home_server=home_server
-    )
+    return EngineBackend(engine, store, home_server=home_server)

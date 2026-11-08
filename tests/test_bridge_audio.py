@@ -10,10 +10,11 @@ from pathlib import Path
 import pytest
 
 from conftest import FakeBackend, ManualSleep, make_device
-from tandem import bridge, bridge_audio
+from tandem import bridge
 from tandem.engine.events import EventBus
 from tandem.engine.models import DeviceKind, Service
 from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.outputs import OutputProblem, classify
 from tandem.engine.service import Engine
 from tandem.engine.settings import SettingsStore
 from tandem.ui import backend as ui
@@ -42,9 +43,11 @@ class Harness:
         bus = EventBus()
         self.prefs_file = tmp_path / "outputs.json"
         self.prefs = OutputPrefsStore(self.prefs_file)
-        self.engine = Engine(self.fake, bus=bus, sleep=sleep, discovery_interval=60.0)
+        self.engine = Engine(
+            self.fake, bus=bus, sleep=sleep, discovery_interval=60.0, output_prefs=self.prefs
+        )
         self.backend = bridge.EngineBackend(
-            self.engine, SettingsStore(tmp_path / "settings.json", bus), output_prefs=self.prefs
+            self.engine, SettingsStore(tmp_path / "settings.json", bus)
         )
         self.events: list[ui.BackendEvent] = []
         self.backend.subscribe(self.events.append)
@@ -215,9 +218,8 @@ async def test_a_speaker_that_cant_connect_fails_and_stops_trying(harness: Harne
 
 
 def test_failures_are_explained() -> None:
-    classify = bridge_audio.classify
-    assert classify("AuthenticationError", TimeoutError()) is ui.OutputProblem.ACCESS
-    assert classify(None, TimeoutError()) is ui.OutputProblem.UNREACHABLE
-    assert classify("ConnectionRefusedError", None) is ui.OutputProblem.UNREACHABLE
-    assert classify(None, None) is ui.OutputProblem.UNREACHABLE
-    assert classify("ProtocolError", ValueError()) is ui.OutputProblem.FAILED
+    assert classify("AuthenticationError", TimeoutError()) is OutputProblem.ACCESS
+    assert classify(None, TimeoutError()) is OutputProblem.UNREACHABLE
+    assert classify("ConnectionRefusedError", None) is OutputProblem.UNREACHABLE
+    assert classify(None, None) is OutputProblem.UNREACHABLE
+    assert classify("ProtocolError", ValueError()) is OutputProblem.FAILED
