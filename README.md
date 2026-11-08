@@ -177,6 +177,12 @@ the free [Radio Browser](https://www.radio-browser.info) directory and keeps the
 save; **Queue** shows what plays next. Pick the speakers in **Audio**: Tandem's player plays
 straight to them, gaplessly. Only your search words go to the radio directory.
 
+**Apple Music** in the Music tab searches Apple Music's catalog (no Apple account or key
+needed) and opens a song or album in the Apple Music app on this PC, which plays it; send the
+PC's audio to your speakers in **Audio** to hear it there. Only your search words go to Apple,
+and Apple allows about 20 searches a minute. Your own Apple Music library and playlists aren't
+available yet.
+
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (gradients, neutral tones, or a photo of your own) under
 **Settings**, the gear button at the top right. **Advanced settings** there holds the speaker

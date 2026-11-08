@@ -111,8 +111,10 @@ _Update this section at the end of every working session._
   (needs a paid Apple Developer membership; resumes if the maintainer joins). The now-playing
   bar passed its exit test with the Apple Music app and a browser. The local player and radio
   are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
-  still to run. **Next for Music:** that speaker check, then Apple Music catalog search
-  (Apple's keyless search, opening results in the Apple Music app).
+  still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
+  open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
+  Music:** the speaker check, the catalog search's link check (does a song link play, or only
+  open its page?), then Connections and Spotify.
 
 ## Scope
 
@@ -122,8 +124,9 @@ _Update this section at the end of every working session._
 - System audio to any mix of AirPlay outputs **and** the PC's own speakers, in sync
 - Sending video files and links to Apple TV
 - Music (Phase 6): now playing and remote control for any music app, Spotify through its Web
-  API, and a player for local files and internet radio (ADR-0013). Apple Music browsing is on
-  hold until the maintainer has an Apple Developer membership
+  API, a player for local files and internet radio, and Apple Music catalog search that opens
+  results in the Apple Music app (ADR-0013). Apple Music library browsing is on hold until the
+  maintainer has an Apple Developer membership
 - Screen mirroring: shelved — no legitimate open-source path (FairPlay-gated); see ADR-0006
 - Smart home and commands (Phase 10): a typed command bar, Tandem as a Home bridge, offline
   voice input, and control of plugs, lamps and TV power
@@ -318,6 +321,14 @@ one.)
   on a go): catalog and library browsing; playback handed to the Apple Music app unless the
   spike shows full tracks play in the window. Meanwhile Apple Music works through now playing
   and the router, like any other app.
+- [ ] Apple Music catalog search without a key (ADR-0013, 2026-11-08 note): Apple's public
+  Search API, songs and albums with artwork beside Apple's "Listen on Apple Music" badge (both
+  fetched at run time, kept in memory), no previews, at most 20 searches a minute; a result
+  opens in the Apple Music app through its `music://` link. **Exit:** a search finds a known
+  song and opening it plays it in the Apple Music app, heard on the speakers through the
+  router. Built, with tests on fakes and a demo source. **To run:** the link check (with the
+  maintainer's OK, since it plays from their account); until then the button says "Open in
+  Apple Music".
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.

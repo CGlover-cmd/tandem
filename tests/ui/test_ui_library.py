@@ -256,6 +256,7 @@ async def test_apple_music_catalog(controller: AppController, tmp_path: Path) ->
             async with http.get(art_url) as art:
                 assert art.status == 200
                 assert art.headers["Content-Type"] == "image/svg+xml"
+                assert "sandbox" in art.headers["Content-Security-Policy"]
             async with http.get(f"{server.origin}/catalog-art/demo-cat-s1") as refused:
                 assert refused.status == 403
             async with http.get(f"{server.origin}/apple-music-badge?token={server.token}") as badge:

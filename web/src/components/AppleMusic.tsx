@@ -79,9 +79,12 @@ export function AppleMusicView({ catalog, send }: { catalog: Catalog; send: Send
   };
 
   const query = text.trim();
+  // The words the engine searches for (it folds spaces and keeps 100 characters). Until its
+  // results are for these words, the typed search is still on its way.
+  const asked = query.replace(/\s+/g, " ").slice(0, 100);
   let results = null;
   if (query) {
-    if (catalog.searching) {
+    if (catalog.searching || catalog.query !== asked) {
       results = (
         <p className="flex items-center gap-2 text-[var(--muted)]" aria-live="polite">
           <Spinner size="sm" />
@@ -94,7 +97,7 @@ export function AppleMusicView({ catalog, send }: { catalog: Catalog; send: Send
           {catalog.error === "busy" ? words.busy : words.unavailable}
         </p>
       );
-    } else if (catalog.songs.length === 0 && catalog.query === query.replace(/\s+/g, " ")) {
+    } else if (catalog.songs.length === 0) {
       results = <p className="text-[var(--muted)]">{words.noMatch(query)}</p>;
     } else {
       results = (
