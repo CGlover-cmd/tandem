@@ -20,6 +20,10 @@ export function GroupsSection({
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const names = new Map(outputs.map((o) => [o.id, o.name]));
+  const playingIds = new Set(playing.map((o) => o.id));
+  const alreadySaved = groups.some(
+    (g) => g.outputs.length === playingIds.size && g.outputs.every((id) => playingIds.has(id)),
+  );
 
   const save = () => {
     const trimmed = name.trim();
@@ -75,6 +79,7 @@ export function GroupsSection({
         </ul>
       )}
       {playing.length >= 2 &&
+        !alreadySaved &&
         (naming ? (
           <form
             className="flex items-center gap-2"

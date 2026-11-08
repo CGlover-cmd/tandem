@@ -1,4 +1,4 @@
-# Tandem 1.1.1 (pre-release)
+# Tandem 1.2.0 (pre-release)
 
 A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
 controls them from your PC. It's still
@@ -6,6 +6,33 @@ a **pre-release**: some features haven't been tried on real speakers yet (listed
 Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To attach
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
+
+## New in 1.2.0
+
+- **Line up automatically** (Settings, Advanced settings): Tandem plays three short beeps on
+  each playing speaker in turn, listens with the PC's microphone, and sets the delays so they
+  play together. Pause your music first. Windows must let desktop apps use the microphone.
+- **Speaker groups:** with two or more speakers playing, "Save these speakers as a group" in
+  the Audio panel. A group has one switch, and the command bar understands "send audio to
+  <group>".
+- **All speakers** volume slider in the Audio panel: moves every playing speaker together.
+- **Turn my speakers back on** (Advanced settings): the speakers you left on play again when
+  Tandem starts.
+- **Speakers in the tray menu:** a switch for each one, so the window rarely needs opening.
+- **Ctrl+Alt+K anywhere in Windows** opens Tandem with its commands ready.
+- **Clearer speaker errors:** a failed speaker says why (no answer, turned away by the Home
+  app's speaker access setting, or an untrusted network) and how to fix it.
+- **Update check:** when a newer Tandem is out, the window says so and links to it. One look at
+  GitHub's releases list at start; turn it off in Advanced settings.
+- **Report a problem** (Advanced settings or the tray): saves the diagnostics file, shows it,
+  and opens a GitHub issue for you to describe the problem and attach it.
+- **Photo background blur** (Settings, under your photo).
+- **Faster to open:** setup prepares Tandem's libraries once, instead of on every start. The
+  download is smaller too.
+- **Quieter when idle:** while the window is hidden and nothing plays, Tandem looks for devices
+  once a minute instead of every few seconds.
+
+Media keys need nothing from Tandem: Windows already sends them to the app that's playing.
 
 ## New in 1.1.1
 
@@ -60,6 +87,9 @@ of logs with names, addresses and identifiers replaced.
    with the code shown, then flip each switch and ask Siri "turn on Tandem Audio".
 6. **Commands:** "send audio to <speaker>", "stop streaming", "turn on Tandem Audio".
 7. **Your own background photo.**
+8. **Line up automatically** with two speakers, then listen: do they play together?
+9. **A speaker group**, "send audio to <group>", and the tray's speaker switches.
+10. **Ctrl+Alt+K** from another app, and "Turn my speakers back on" after restarting Tandem.
 
 ## Known limits
 
@@ -74,5 +104,7 @@ of logs with names, addresses and identifiers replaced.
   cable as Windows' default output.
 - The Home app gets three switches, not all of Tandem: choosing speakers, volume and the remote
   stay in Tandem's window.
-- Speakers are lined up by ear with the delays; there's no automatic sync yet.
-- No automatic updates: check the [releases page](https://github.com/CGlover-cmd/tandem/releases).
+- Automatic line-up needs a microphone and a quiet room, and leaves the PC's own speakers as
+  they are (Windows plays them directly).
+- Tandem tells you about updates but doesn't install them: download the new setup from the
+  [releases page](https://github.com/CGlover-cmd/tandem/releases).

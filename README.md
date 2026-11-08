@@ -3,7 +3,7 @@
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
-> **Status: 1.1.1, a pre-release.** Every feature below is built and tested in code, but some
+> **Status: 1.2.0, a pre-release.** Every feature below is built and tested in code, but some
 > haven't been checked on real speakers yet; the [release notes](docs/release-notes.md) list
 > which. 1.1.0 fixes Apple TV pairing and HomePod and soundbar audio, which 1.0.0 broke. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
 
@@ -15,8 +15,11 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
   power, your TV's apps, and a keyboard for its search boxes.
 - **Audio:** turn a speaker on in the Audio panel and whatever the PC plays goes there right
   away. Any mix of speakers at once, plus the PC's own outputs (headphones, a second sound
-  card), each with its own volume. A delay per speaker, to line them up by ear, is in
-  Settings, Advanced settings.
+  card), each with its own volume, an "All speakers" slider, and saved speaker groups.
+  **Line up automatically** (Settings, Advanced settings) times each speaker with the PC's
+  microphone and sets the delays so they play together; the delays can also be set by hand.
+  The tray menu has a switch for each speaker, and Ctrl+Alt+K opens Tandem's commands from
+  anywhere.
 - **Send to TV:** plays a video file from the PC, or a link to a video, on the Apple TV.
 - **Music:** shows and controls what any app on the PC is playing (Spotify, Apple Music, a
   browser), with a now-playing bar and tray controls. Tandem is a remote for the streaming
@@ -32,8 +35,10 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
 Screen mirroring is **not** included: it is gated by Apple's FairPlay content protection, with
 no legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
-Nothing is collected or sent anywhere except to your own devices (and, if you leave app icons
-on, an App Store icon lookup).
+Nothing is collected or sent anywhere except to your own devices, plus two lookups you can turn
+off in Advanced settings: App Store icons for your TV's apps, and a look at GitHub's releases
+list for a newer Tandem when the window opens. Line-up recordings stay in memory and are
+dropped as soon as the beeps are timed.
 
 ## Install
 

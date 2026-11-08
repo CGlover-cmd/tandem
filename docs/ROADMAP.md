@@ -22,6 +22,12 @@ _Update this section at the end of every working session._
   panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
   settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
   default background and a photo background.
+- **1.2.0 (2026-11-08):** the maintainer's ideas list after the 1.0 test: automatic line-up
+  with the microphone and speaker groups (ADR-0018), an All speakers slider, remembered
+  speakers, tray speaker switches, Ctrl+Alt+K from anywhere, clearer speaker errors, update
+  check and Report a problem, photo blur, compile-on-install and a smaller app folder, idle
+  scanning, a monthly dependency check and a SignPath signing hook (docs/signing.md). All
+  untested on hardware; the release notes list the checks.
 - **1.1.1 (2026-11-08):** Windows' Private/Public setting is Tandem's per-network trust list:
   allowed (local subnet) on Private, blocked on Public, so Windows no longer asks "allow
   Python?"; on a Public network the window offers to mark it Private (maintainer's choice;
@@ -330,8 +336,9 @@ Foundation, free for open source), docs site, contributor docs, reproducible bui
 - [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
 - [x] One window per user; Getting started checklist on first run
 - [x] Pinned, tested library versions in every build (1.1.0, after 1.0.0 shipped a breaking one)
-- [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
-- [ ] Auto-update (for now the releases page)
+- [ ] Code signing (SignPath Foundation; needs the maintainer to apply; the release workflow
+  is ready: docs/signing.md)
+- [x] Update check (the window links to new releases; installing stays manual)
 
 ### Phase 10 · Smart home and commands
 Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer
