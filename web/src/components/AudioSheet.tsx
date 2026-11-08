@@ -1,6 +1,6 @@
 import { Button, Modal, Spinner, Switch } from "@heroui/react";
 
-import { groupOutputs, outputDirect, outputLive, outputVolume } from "../audio";
+import { groupOutputs, masterChanges, masterVolume, outputDirect, outputLive, outputVolume } from "../audio";
 import { DeviceIcon, HeadphonesIcon, VolumeIcon } from "../icons";
 import { strings } from "../strings";
 import type { AudioOutput, AudioPanel, Command } from "../types";
@@ -71,6 +71,7 @@ function OutputRow({ output, send }: { output: AudioOutput; send: (command: Comm
 
 export function AudioSheet({ isOpen, onClose, audio, send }: Props) {
   const { airplay, pc } = groupOutputs(audio.outputs);
+  const master = masterVolume(audio.outputs);
   return (
     <Modal.Backdrop
       isOpen={isOpen}
@@ -87,6 +88,24 @@ export function AudioSheet({ isOpen, onClose, audio, send }: Props) {
             <p className="text-[13px] text-[var(--muted)]">{strings.audio.subtitle}</p>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-5">
+            {master !== null && (
+              <section className="glass output-row flex items-center gap-3" aria-label={strings.audio.master}>
+                <span className="w-24 text-[13px] font-semibold">{strings.audio.master}</span>
+                <VolumeIcon level={1} size={16} className="text-[var(--muted)]" />
+                <LiveSlider
+                  label={strings.audio.masterOf}
+                  value={master}
+                  min={0}
+                  max={100}
+                  step={1}
+                  onCommit={(level) => {
+                    for (const change of masterChanges(audio.outputs, level)) {
+                      send({ type: "setOutputVolume", id: change.id, level: change.level });
+                    }
+                  }}
+                />
+              </section>
+            )}
             <section className="flex flex-col gap-2" aria-labelledby="airplay-label">
               <h3 id="airplay-label" className="section-title">
                 {strings.audio.airplay}

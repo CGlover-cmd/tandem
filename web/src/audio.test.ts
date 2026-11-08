@@ -6,6 +6,8 @@ import {
   delayOutputs,
   groupOutputs,
   isLink,
+  masterChanges,
+  masterVolume,
   outputDirect,
   outputLive,
   outputVolume,
@@ -96,5 +98,21 @@ describe("the PC's default output", () => {
       output({ id: "demo-tv", needsPairing: true }),
     ];
     expect(delayOutputs(outputs).map((o) => o.id)).toEqual(["demo-speaker-1"]);
+  });
+});
+
+describe("the All speakers slider", () => {
+  const live = (id: string, volume: number) => output({ id, state: "streaming", volume });
+
+  it("shows only with two or more playing outputs, at their average", () => {
+    expect(masterVolume([live("a", 40)])).toBeNull();
+    expect(masterVolume([live("a", 40), live("b", 60), output({ id: "c", volume: 99 })])).toBe(50);
+  });
+
+  it("moves every playing output by the same amount, within 0 to 100", () => {
+    expect(masterChanges([live("a", 40), live("b", 90)], 75)).toEqual([
+      { id: "a", level: 50 },
+      { id: "b", level: 100 },
+    ]);
   });
 });

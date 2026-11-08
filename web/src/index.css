@@ -58,7 +58,17 @@ h2 {
 
 /* Over the user's photo every bit of text sits on glass, the header included (theme.test.ts). */
 .app-backdrop[data-photo] {
-  background-attachment: fixed;
+  position: relative;
+  isolation: isolate;
+}
+
+/* The photo under its scrim, fixed while the page scrolls; blurred from Settings. Its edges sit
+   off screen so a blur doesn't show a pale rim. */
+.photo-layer {
+  position: fixed;
+  inset: -32px;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .app-backdrop[data-photo] .app-header {

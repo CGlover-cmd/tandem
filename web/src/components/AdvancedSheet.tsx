@@ -1,4 +1,4 @@
-import { Button, Modal, Separator, Switch } from "@heroui/react";
+import { Button, Modal, Separator, Spinner, Switch } from "@heroui/react";
 
 import { delayLabel, delayOutputs } from "../audio";
 import { strings } from "../strings";
@@ -12,13 +12,40 @@ interface Props {
   appearance: Appearance;
   audio: AudioPanel;
   home: HomeBridge;
+  reporting: boolean;
   send: (command: Command) => void;
+}
+
+function SettingSwitch({
+  isSelected,
+  onChange,
+  title,
+  detail,
+}: {
+  isSelected: boolean;
+  onChange: (on: boolean) => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Switch isSelected={isSelected} onChange={onChange} className="items-start gap-3">
+      <Switch.Content className="flex items-start gap-3">
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <span className="flex flex-col gap-1">
+          <span className="section-title">{title}</span>
+          <span className="text-[12px] text-[var(--muted)]">{detail}</span>
+        </span>
+      </Switch.Content>
+    </Switch>
+  );
 }
 
 const MAX_DELAY_MS = 10_000;
 
 /** Settings most people never need: speaker delays, app icon lookups and the Home app bridge. */
-export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home, send }: Props) {
+export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home, reporting, send }: Props) {
   const words = strings.settingsSheet;
   const outputs = delayOutputs(audio.outputs);
   return (
@@ -69,21 +96,25 @@ export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home
 
             <Separator />
 
-            <Switch
+            <SettingSwitch
+              isSelected={appearance.restoreOutputs}
+              onChange={(restoreOutputs) => send({ type: "setAppearance", restoreOutputs })}
+              title={words.restoreOutputs}
+              detail={words.restoreOutputsDetail}
+            />
+            <SettingSwitch
               isSelected={appearance.appIcons}
               onChange={(appIcons) => send({ type: "setAppearance", appIcons })}
-              className="items-start gap-3"
-            >
-              <Switch.Content className="flex items-start gap-3">
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <span className="flex flex-col gap-1">
-                  <span className="section-title">{words.appIcons}</span>
-                  <span className="text-[12px] text-[var(--muted)]">{words.appIconsDetail}</span>
-                </span>
-              </Switch.Content>
-            </Switch>
+              title={words.appIcons}
+              detail={words.appIconsDetail}
+            />
+            <SettingSwitch
+              isSelected={appearance.updateCheck}
+              onChange={(updateCheck) => send({ type: "setAppearance", updateCheck })}
+              title={words.updateCheck}
+              detail={words.updateCheckDetail}
+            />
+            <p className="text-[12px] text-[var(--muted)]">{words.hotkey}</p>
 
             <Separator />
 
@@ -122,6 +153,18 @@ export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home
                   <span className="text-[22px] font-semibold tabular-nums tracking-wider">{home.setupCode}</span>
                 </div>
               )}
+            </section>
+
+            <Separator />
+
+            <section className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <Button size="sm" variant="secondary" isDisabled={reporting} onPress={() => send({ type: "reportProblem" })}>
+                  {reporting ? words.reporting : words.report}
+                </Button>
+                {reporting && <Spinner size="sm" color="accent" />}
+              </div>
+              <p className="text-[12px] text-[var(--muted)]">{words.reportDetail}</p>
             </section>
           </Modal.Body>
           <Modal.Footer>

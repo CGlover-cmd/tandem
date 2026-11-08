@@ -141,6 +141,12 @@ export interface Appearance {
   onboarded: boolean;
   /** Changes whenever the user's background photo does; null when there's none. */
   photo: number | null;
+  /** Look for a newer Tandem on GitHub when the window opens. */
+  updateCheck: boolean;
+  /** Turn the speakers that were on back on when Tandem starts. */
+  restoreOutputs: boolean;
+  /** Blur over the background photo, in pixels (0 to 24). */
+  photoBlur: number;
 }
 
 export type CommandStatus =
@@ -212,6 +218,12 @@ export interface AppState {
   appearance: Appearance;
   /** Windows treats every connected network as Public, so the firewall keeps speakers out. */
   network: { untrusted: boolean };
+  /** A newer Tandem on GitHub, found by the update check. */
+  update: { version: string; url: string } | null;
+  /** A diagnostics zip is being written for "Report a problem". */
+  reporting: boolean;
+  /** Goes up when Ctrl+Alt+K is pressed anywhere: open the command bar. */
+  commandsRequested: number;
   demo: boolean;
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
@@ -222,7 +234,17 @@ export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
-  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean; onboarded?: boolean }
+  | { type: "openUpdate" | "reportProblem" }
+  | {
+      type: "setAppearance";
+      theme?: ThemeChoice;
+      background?: string;
+      appIcons?: boolean;
+      onboarded?: boolean;
+      updateCheck?: boolean;
+      restoreOutputs?: boolean;
+      photoBlur?: number;
+    }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }

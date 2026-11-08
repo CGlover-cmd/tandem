@@ -18,6 +18,23 @@ export function delayOutputs(outputs: AudioOutput[]): AudioOutput[] {
   return outputs.filter((o) => !o.needsPairing && !outputDirect(o));
 }
 
+/** The "All speakers" slider: the average volume of the outputs Tandem is playing on. */
+export function masterVolume(outputs: AudioOutput[]): number | null {
+  const live = outputs.filter(outputLive);
+  if (live.length < 2) return null;
+  return Math.round(live.reduce((sum, o) => sum + outputVolume(o), 0) / live.length);
+}
+
+/** Move every playing output by the same amount, keeping their balance (each stays 0 to 100). */
+export function masterChanges(outputs: AudioOutput[], level: number): { id: string; level: number }[] {
+  const current = masterVolume(outputs);
+  if (current === null) return [];
+  const delta = level - current;
+  return outputs
+    .filter(outputLive)
+    .map((o) => ({ id: o.id, level: Math.max(0, Math.min(100, Math.round(outputVolume(o) + delta))) }));
+}
+
 /** The slider's position: the saved volume, or the middle until the user sets one. */
 export function outputVolume(output: AudioOutput): number {
   return output.volume ?? 50;
