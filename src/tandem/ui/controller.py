@@ -25,6 +25,7 @@ from typing import Any, Protocol, TypeVar
 from tandem.ui.audio_panel import AudioPanel, FilePicker
 from tandem.ui.backend import (
     MAX_TEXT,
+    PHOTO_BACKGROUND,
     Appearance,
     AppearanceChanged,
     AppInfo,
@@ -58,6 +59,7 @@ from tandem.ui.backend import (
     Theme,
     WrongPinError,
 )
+from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.library_panel import FolderPicker, LibraryPanel
 
 _LOGGER = logging.getLogger(__name__)
@@ -333,10 +335,13 @@ class AppController:
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
         folder_picker: FolderPicker | None = None,
+        photo: BackgroundPhoto | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
+        self.photo = photo
+        """The user's background photo, if this window offers one."""
         self._clock = clock
         self.music: MusicSnapshot | None = None
         self.demo_mode = demo_mode
@@ -410,6 +415,7 @@ class AppController:
                 "background": self.appearance.background,
                 "appIcons": self.appearance.app_icons,
                 "onboarded": self.appearance.onboarded,
+                "photo": None if self.photo is None else self.photo.version,
             },
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
@@ -499,6 +505,19 @@ class AppController:
     def library_art(self, album_id: str) -> MusicArtwork | None:
         """An album's artwork from the music library, for the window only."""
         return self._backend.library_art(album_id)
+
+    def save_photo(self, data: bytes) -> bool:
+        """Use `data` (a JPEG the window made) as the background. False if it was refused."""
+        if self.photo is None or not self.photo.save(data):
+            return False
+        self.set_appearance(
+            self.appearance.theme.value,
+            PHOTO_BACKGROUND,
+            self.appearance.app_icons,
+            self.appearance.onboarded,
+        )
+        self._changed()  # the photo's version changed even if the choice didn't
+        return True
 
     def music_artwork(self) -> MusicArtwork | None:
         """The artwork for what's playing, for the window only."""

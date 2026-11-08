@@ -73,7 +73,9 @@ async def _until(predicate: object) -> None:
 async def test_outputs_list_audio_devices_then_pc_outputs(harness: Harness) -> None:
     audio = harness.backend.audio()
     ids = [o.id for o in audio.outputs]
-    assert ids == [UNPAIRED.id, SPEAKER.id, TV.id, "local:headphones"]  # by name, PC last
+    # By name, then the PC: Windows' default output first (Windows plays there itself).
+    assert ids == [UNPAIRED.id, SPEAKER.id, TV.id, "local:speakers", "local:headphones"]
+    assert harness.output("local:speakers").state is ui.OutputState.DIRECT
     assert audio.source is ui.AudioSourceChoice.SYSTEM
     assert audio.pc_outputs_hidden
     assert harness.output(UNPAIRED.id).needs_pairing
@@ -188,3 +190,24 @@ def test_prefs_store_survives_bad_files(tmp_path: Path) -> None:
     memory = OutputPrefsStore(None)
     memory.load()
     assert memory.update("x", delay_ms=5).delay_ms == 5
+
+
+async def test_an_output_shows_starting_at_once(harness: Harness) -> None:
+    # 1.0.0 showed nothing until the speaker answered, which could take half a minute.
+    seen: list[ui.OutputState] = []
+
+    def record(event: ui.BackendEvent) -> None:
+        if isinstance(event, ui.AudioChanged):
+            seen.extend(o.state for o in event.audio.outputs if o.id == SPEAKER.id)
+
+    harness.backend.subscribe(record)
+    await harness.backend.set_output(SPEAKER.id, True)
+    assert seen[0] is ui.OutputState.STARTING
+
+
+async def test_a_speaker_that_cant_connect_fails_and_stops_trying(harness: Harness) -> None:
+    harness.fake.connect_failures[SPEAKER.id] = [OSError("refused") for _ in range(50)]
+    harness.engine.audio_connect_timeout = 0.05
+    with pytest.raises(ui.AudioError):
+        await harness.backend.set_output(SPEAKER.id, True)
+    assert harness.output(SPEAKER.id).state is ui.OutputState.FAILED

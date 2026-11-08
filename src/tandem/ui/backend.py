@@ -53,14 +53,17 @@ class Theme(Enum):
 
 NEUTRAL_BACKGROUNDS = ("mist", "sand", "slate")
 GRADIENT_BACKGROUNDS = ("sky", "dusk", "meadow", "sunrise", "aurora")
-BACKGROUNDS = NEUTRAL_BACKGROUNDS + GRADIENT_BACKGROUNDS
+PHOTO_BACKGROUND = "photo"
+"""The user's own picture, saved by `set_background_photo`."""
+BACKGROUNDS = (*NEUTRAL_BACKGROUNDS, *GRADIENT_BACKGROUNDS, PHOTO_BACKGROUND)
 """Window backgrounds the user can pick in Settings. The front end defines their colours."""
+DEFAULT_BACKGROUND = "sky"
 
 
 @dataclass(frozen=True, slots=True)
 class Appearance:
     theme: Theme = Theme.SYSTEM
-    background: str = "mist"
+    background: str = DEFAULT_BACKGROUND
     app_icons: bool = True
     """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
     onboarded: bool = False
@@ -219,6 +222,7 @@ class OutputState(Enum):
     STREAMING = "streaming"
     WAITING = "waiting"  # the connection dropped; it resumes on reconnect
     FAILED = "failed"
+    DIRECT = "direct"  # the PC's default output: Windows plays there itself, not Tandem
 
 
 class AudioSourceChoice(Enum):
@@ -243,6 +247,17 @@ class OutputSnapshot:
     """Extra delay for this output, to line it up with the others by ear."""
     device_kind: DeviceKind | None = None
     needs_pairing: bool = False
+
+
+def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
+    """Speakers and TVs first, then the PC: its default output (Windows plays there) first,
+    then the rest by name."""
+    return (
+        output.kind is OutputKind.PC,
+        output.state is not OutputState.DIRECT,
+        output.name.casefold(),
+        output.id,
+    )
 
 
 @dataclass(frozen=True, slots=True)

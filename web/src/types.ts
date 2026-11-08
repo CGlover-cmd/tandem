@@ -86,7 +86,8 @@ export interface SendState {
 }
 
 export type OutputKind = "airplay" | "pc";
-export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed";
+/** "direct": the PC's default output. Windows plays there itself, so it's always on. */
+export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed" | "direct";
 export type AudioSource = "system" | "player";
 
 /** One place the sound can go: an AirPlay device or one of the PC's own sound outputs. */
@@ -108,7 +109,7 @@ export interface AudioPanel {
   /** The PC's default output is hidden while its own sound is the source (it would echo). */
   pcOutputsHidden: boolean;
   outputs: AudioOutput[];
-  /** How many outputs are on. */
+  /** How many outputs Tandem is sending to (not counting the PC's default output). */
   streaming: number;
   /** The window can open a file picker (it can't in the browser preview). */
   canPickFiles: boolean;
@@ -138,6 +139,8 @@ export interface Appearance {
   appIcons: boolean;
   /** The first-run checklist has been closed. */
   onboarded: boolean;
+  /** Changes whenever the user's background photo does; null when there's none. */
+  photo: number | null;
 }
 
 export type CommandStatus =

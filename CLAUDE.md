@@ -194,6 +194,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   a song search go only while the page shows them, so state messages stay small. miniaudio's
   stream generator returns the first chunk when primed: keep it (`adapters/decoders.py`), or
   every track loses its first 23 ms.
+- Library versions: `packaging/constraints.txt` pins every runtime library; the app folder, the
+  release workflow and CI install with `-c` it. Move a pin only on purpose, after the tests and
+  a hardware check (1.0.0 shipped an unpinned srptools 2.0 that broke all Apple handshakes).
 - Packaging (ADR-0017): `packaging/build_bundle.py` (embeddable Python app folder) and
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
