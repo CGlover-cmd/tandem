@@ -26,6 +26,11 @@ from tandem.ui.controller import MAX_COMMAND, AppController
 AIRPLAY = frozenset({Service.AIRPLAY, Service.RAOP})
 
 
+def _without_music(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The snapshot less the PC's music, whose position counts on in real time."""
+    return {key: value for key, value in snapshot.items() if key != "music"}
+
+
 async def _started(backend: DemoBackend) -> AppController:
     controller = AppController(backend, demo_mode=True)
     await controller.start()
@@ -374,12 +379,12 @@ async def test_malformed_commands_are_ignored(
     backend: DemoBackend, command: dict[str, Any]
 ) -> None:
     controller = await _started(backend)
-    before = controller.snapshot()
+    before = _without_music(controller.snapshot())
 
     controller.handle(command)
     await settle(controller)
 
-    assert controller.snapshot() == before
+    assert _without_music(controller.snapshot()) == before
 
 
 async def test_commands_drive_the_controller(backend: DemoBackend) -> None:
