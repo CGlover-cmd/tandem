@@ -24,6 +24,11 @@ OutputDir=..\dist
 OutputBaseFilename=Tandem-{#AppVersion}-setup
 SetupIconFile={#BundleDir}\Tandem.ico
 UninstallDisplayIcon={app}\Tandem.ico
+UninstallDisplayName=Tandem
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName=Tandem
+VersionInfoDescription=Tandem Setup
+VersionInfoCompany=Tandem contributors
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -56,7 +61,8 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 ; Home app reaching the bridge), so allow Tandem in on private networks only.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=private"; StatusMsg: "Allowing Tandem on private networks..."; Flags: runhidden waituntilterminated
-Filename: "{app}\python\pythonw.exe"; Parameters: "-m tandem.ui"; WorkingDir: "{app}"; Description: "Open Tandem"; Flags: postinstall nowait skipifsilent
+; Opens as the signed-in user, not as administrator (setup itself runs elevated).
+Filename: "{app}\python\pythonw.exe"; Parameters: "-m tandem.ui"; WorkingDir: "{app}"; Description: "Open Tandem"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden; RunOnceId: "TandemFirewall"

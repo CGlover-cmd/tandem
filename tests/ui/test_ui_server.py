@@ -170,3 +170,48 @@ async def test_no_icon_folder_means_no_icons(running: tuple[AppController, UiSer
         name = "0123456789abcdef0123456789abcdef.jpg"
         async with http.get(f"{server.origin}/app-icons/{name}") as missing:
             assert missing.status == 404
+
+
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64 + b"\xff\xd9"
+
+
+async def test_background_photo_upload_and_download(backend: DemoBackend, tmp_path: Path) -> None:
+    from tandem.ui.background_photo import BackgroundPhoto
+
+    controller = AppController(backend, photo=BackgroundPhoto(tmp_path / "photo"))
+    server = UiServer(controller, static_dir=tmp_path / "nothing")
+    await server.start()
+    await controller.start()
+    url = f"{server.origin}/background?token={server.token}"
+    origin = {"Origin": server.origin}
+    try:
+        assert controller.snapshot()["appearance"]["photo"] is None
+        async with aiohttp.ClientSession() as http:
+            async with http.get(url) as missing:
+                assert missing.status == 404
+            async with http.post(
+                f"{server.origin}/background?token=x", data=JPEG, headers=origin
+            ) as r:
+                assert r.status == 403  # wrong token
+            async with http.post(url, data=JPEG, headers={"Origin": "http://evil.example"}) as r:
+                assert r.status == 403  # another page
+            async with http.post(url, data=b"GIF89a not a jpeg", headers=origin) as r:
+                assert r.status == 415
+            too_big = JPEG[:4] + b"\x00" * (9 * 1024 * 1024) + JPEG[-2:]
+            async with http.post(url, data=too_big, headers=origin) as r:
+                assert r.status == 413
+            async with http.post(url, data=JPEG, headers=origin) as saved:
+                assert saved.status == 204
+            async with http.get(url) as photo:
+                assert photo.status == 200
+                assert photo.content_type == "image/jpeg"
+                assert await photo.read() == JPEG
+            async with http.get(f"{server.origin}/background?token=x") as refused:
+                assert refused.status == 403
+        await controller.runner.drain()
+        appearance = controller.snapshot()["appearance"]
+        assert appearance["background"] == "photo"
+        assert isinstance(appearance["photo"], int)
+    finally:
+        await server.stop()
+        await controller.stop()

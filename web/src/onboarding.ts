@@ -10,6 +10,8 @@ export interface Step {
   title: string;
   detail: string;
   state: StepState;
+  /** The pair step: the Apple TV its Pair button pairs. */
+  deviceId?: string;
 }
 
 export function onboardingSteps(state: AppState): Step[] {
@@ -25,19 +27,22 @@ export function onboardingSteps(state: AppState): Step[] {
   const tvs = state.devices.filter((d) => d.kind === "apple_tv");
   if (tvs.length > 0) {
     const paired = tvs.some((d) => !d.needsPairing);
+    const pairing = state.pairing.state !== "closed";
     steps.push({
       id: "pair",
       title: words.pairTitle,
       detail: paired ? words.pairDone : words.pairDetail,
-      state: paired ? "done" : "todo",
+      state: paired ? "done" : pairing ? "waiting" : "todo",
+      deviceId: tvs.find((d) => d.needsPairing)?.id,
     });
   }
-  const playing = state.audio.outputs.some((o) => o.state === "streaming");
+  const playing = state.audio.outputs.some((o) => o.kind === "airplay" && o.state === "streaming");
+  const starting = state.audio.outputs.some((o) => o.state === "starting");
   steps.push({
     id: "play",
     title: words.playTitle,
     detail: playing ? words.playDone : words.playDetail,
-    state: playing ? "done" : "todo",
+    state: playing ? "done" : starting ? "waiting" : "todo",
   });
   return steps;
 }

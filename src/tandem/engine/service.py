@@ -94,6 +94,10 @@ class Backend(Protocol):
         ...
 
 
+AUDIO_CONNECT_TIMEOUT = 15.0
+"""Seconds to wait for a speaker before saying it couldn't play (it normally takes one)."""
+
+
 class AudioSource(Enum):
     SYSTEM = "system"
     """The PC's own audio (loopback of the default output)."""
@@ -136,6 +140,8 @@ class Engine:
         self._controls = ControlHub(self.bus, backend.controller, self._live_link)
         self.player = Player(self.bus, backend.open_track)
         self.audio_source = AudioSource.SYSTEM
+        self.audio_connect_timeout = AUDIO_CONNECT_TIMEOUT
+        """How long `start_output` waits for a speaker to connect."""
         self._audio = AudioHub(
             self.bus,
             backend.capture,
@@ -297,13 +303,22 @@ class Engine:
         device_id: str,
         *,
         volume: float | None = None,
-        timeout: float | None = 30.0,
+        timeout: float | None = AUDIO_CONNECT_TIMEOUT,
     ) -> None:
         """Connect if needed, then stream the PC's audio to the device until `stop_audio`.
-        The stream survives connection drops: it resumes when the device reconnects."""
+        The stream survives connection drops: it resumes when the device reconnects.
+
+        If this call opened the connection and it never comes up, the connection is closed
+        again, so a speaker that can't be reached isn't retried forever in the background."""
         if volume is not None and not 0 <= volume <= 100:
             raise ValueError("volume must be between 0 and 100")
-        await self.connect(device_id, timeout=timeout)
+        opened = device_id not in self._sessions
+        try:
+            await self.connect(device_id, timeout=timeout)
+        except BaseException:
+            if opened:
+                await self.disconnect(device_id)
+            raise
         self._audio.start(device_id, volume=volume)
 
     async def stop_audio(self, device_id: str) -> None:
@@ -325,6 +340,13 @@ class Engine:
             outputs = [o for o in outputs if not o.default]
         return outputs
 
+    def direct_output(self) -> LocalOutput | None:
+        """While the source is the PC's own audio, Windows' default output: Windows plays
+        there itself (Tandem captures it), so it is always on and Tandem doesn't send to it."""
+        if self.audio_source is not AudioSource.SYSTEM:
+            return None
+        return next((o for o in self._backend.local_outputs() if o.default), None)
+
     def outputs_on(self) -> dict[str, tuple[StreamState, float | None, int]]:
         """Every output that is on: its stream state, volume and extra delay (ms)."""
         return self._audio.active()
@@ -338,7 +360,7 @@ class Engine:
                 raise AudioError("that sound output isn't available")
             self._audio.start(output_id, volume=volume, delay_ms=delay_ms)
             return
-        await self.start_audio(output_id, volume=volume)
+        await self.start_audio(output_id, volume=volume, timeout=self.audio_connect_timeout)
         if delay_ms:
             self._audio.set_delay(output_id, delay_ms)
 
