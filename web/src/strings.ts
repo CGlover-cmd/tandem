@@ -189,7 +189,7 @@ export const strings = {
     addSteps: "In the Home app, choose Add Accessory, then More Options, pick Tandem and type this code:",
     added: "Tandem is in your Home app.",
     starting: "Starting…",
-    failed: "Tandem couldn't start its Home bridge. Check that Windows allows Tandem on private networks.",
+    failed: "Tandem couldn't start its Home bridge. Check that Windows Firewall allows Tandem.",
     switchOn: (name: string) => `${name}: on`,
     switchOff: (name: string) => `${name}: off`,
   },
@@ -199,7 +199,7 @@ export const strings = {
     subtitle: "Three quick steps. This list ticks itself off as you go.",
     findTitle: "Find your devices",
     findDetail:
-      "Make sure your speakers and TV are on and on the same Wi-Fi as this PC. If Windows asks about network access for Tandem, allow private networks.",
+      "Make sure your speakers and TV are on and on the same Wi-Fi as this PC.",
     findDone: (count: number) => (count === 1 ? "Tandem found 1 device." : `Tandem found ${count} devices.`),
     pairTitle: "Pair your Apple TV",
     pairDetail: "Choose Pair and type the PIN your TV shows. It asks twice: remote control, then AirPlay.",

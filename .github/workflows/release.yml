@@ -71,8 +71,12 @@ jobs:
           Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          netsh advfirewall firewall show rule name="Tandem" | Out-Null
+          $rule = (netsh advfirewall firewall show rule name="Tandem") -join "`n"
           if ($LASTEXITCODE -ne 0) { Write-Error "The installer didn't add the firewall rule"; exit 1 }
+          # Every network type, local subnet only (ADR-0017, 1.1.1 addendum).
+          if ($rule -notmatch "Domain,Private,Public" -or $rule -notmatch "LocalSubnet") {
+            Write-Output $rule; Write-Error "The firewall rule isn't limited to the local subnet on every network type"; exit 1
+          }
           Start-Process "$env:ProgramFiles\Tandem\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
           if (Test-Path "$env:ProgramFiles\Tandem\python") { Write-Error "Uninstall left files"; exit 1 }
 

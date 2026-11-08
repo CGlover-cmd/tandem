@@ -58,9 +58,12 @@ Name: "{autostartup}\Tandem"; Filename: "{app}\python\pythonw.exe"; Parameters: 
 ; WebView2 (Tandem's window) ships with Windows 11 and with Edge on Windows 10; install it if missing.
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2..."; Check: NeedsWebView2; Flags: waituntilterminated
 ; Speakers and the TV connect back to Tandem (AirPlay timing, the TV fetching a sent file, the
-; Home app reaching the bridge), so allow Tandem in on private networks only.
+; Home app reaching the bridge), so let devices on the local network reach Tandem. The rule
+; covers every network type, because Windows often marks home Wi-Fi as Public and then asks
+; "allow Python?" on first run; it only admits the local subnet, so nothing past the router can
+; reach Tandem (ADR-0017, 1.1.1 addendum; the maintainer's choice).
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=private"; StatusMsg: "Allowing Tandem on private networks..."; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Lets AirPlay speakers and TVs on your local network reach Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=any remoteip=localsubnet"; StatusMsg: "Letting speakers on your network reach Tandem..."; Flags: runhidden waituntilterminated
 ; Opens as the signed-in user, not as administrator (setup itself runs elevated).
 Filename: "{app}\python\pythonw.exe"; Parameters: "-m tandem.ui"; WorkingDir: "{app}"; Description: "Open Tandem"; Flags: postinstall nowait skipifsilent runasoriginaluser
 

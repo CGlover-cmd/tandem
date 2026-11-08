@@ -3,7 +3,7 @@
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
-> **Status: 1.1.0, a pre-release.** Every feature below is built and tested in code, but some
+> **Status: 1.1.1, a pre-release.** Every feature below is built and tested in code, but some
 > haven't been checked on real speakers yet; the [release notes](docs/release-notes.md) list
 > which. 1.1.0 fixes Apple TV pairing and HomePod and soundbar audio, which 1.0.0 broke. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
 
@@ -42,9 +42,9 @@ Tandem runs on Windows 11 and Windows 10 22H2 or later (64-bit).
 1. Download `Tandem-<version>-setup.exe` from the
    [latest release](https://github.com/CGlover-cmd/tandem/releases).
 2. Run it. Windows may warn that the publisher is unknown: Tandem isn't code-signed yet. Choose
-   **More info**, then **Run anyway**. The installer adds a Windows Firewall rule so your
-   speakers and TV can reach Tandem on private networks, and installs Microsoft's WebView2 if
-   your PC doesn't have it.
+   **More info**, then **Run anyway**. That's the only prompt. The installer adds a Windows
+   Firewall rule so your speakers and TV can reach Tandem (devices on your local network only,
+   on any network type), and installs Microsoft's WebView2 if your PC doesn't have it.
 3. Open **Tandem** from the Start menu.
 
 **Smart App Control:** if it's on, Windows blocks unsigned installers outright, including
@@ -60,6 +60,23 @@ A portable zip (no installer, no firewall rule) is on the release page too: unzi
 the speakers it's capturing (that would echo). Install a virtual audio cable such as
 [VB-CABLE](https://vb-audio.com/Cable/), set it as Windows' default output, then turn your real
 speakers on in Tandem's Audio panel ([ADR-0005](docs/adr/0005-multi-output-audio-routing.md)).
+
+## Network and security
+
+The installer's firewall rule lets devices on your **local network** reach Tandem, on any
+network type; nothing from the internet can. What they can reach:
+
+- **Tandem's window** never: it listens on this PC only (127.0.0.1) and needs a per-launch key.
+- **While audio is streaming:** the AirPlay timing and control ports pyatv opens. A device on the
+  same Wi-Fi could at most disturb that stream.
+- **Once you've sent a video to the TV:** a small file server, until Tandem quits. It hands out
+  only the files you sent, each at an address with a random secret in it.
+- **The Home app bridge** (off unless you turn it on): Apple's HomeKit protocol, encrypted, and
+  it pairs only with the 8-digit code shown in Tandem's window.
+
+The remaining risk is the usual one for any app that listens on a network: a bug in Tandem or a
+library it uses could be found by someone on the same Wi-Fi. At home that's your own devices; on
+a café or hotel network, quit Tandem from the tray when you're not using it if you'd rather not.
 
 ## Contributing
 

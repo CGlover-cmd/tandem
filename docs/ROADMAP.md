@@ -21,9 +21,10 @@ _Update this section at the end of every working session._
   was checked from a locally built app folder. Also in 1.1.0: instant feedback on the Audio
   panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
   settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
-  default background and a photo background. Still open from the test: a second firewall
-  prompt on networks Windows marks Public (the rule covers private networks; widening it
-  needs the maintainer's OK).
+  default background and a photo background.
+- **1.1.1 (2026-11-08):** the firewall rule covers every network type, local subnet only, so
+  Windows no longer asks "allow Python?" on networks it marks Public (maintainer's choice;
+  ADR-0017 addendum).
 - **1.0.0 (2026-11-04)** was built as a pre-release. Every phase except the
   shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
   and CI builds, installs and smoke-tests the Windows installer
@@ -33,10 +34,10 @@ _Update this section at the end of every working session._
   (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
   picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
   checklist, the Home bridge (ADR-0016), one window per user, and the installer.
-- **Next:** the maintainer installs 1.1.0 and reruns the release notes' checklist (pairing
+- **Next:** the maintainer installs 1.1.1 and reruns the release notes' checklist (pairing
   first); then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
   signing (SignPath), and 10c voice input.
-- **Repo note:** 1.0.0 was PR #12 (merged); 1.1.0 is on `claude/project-thread-o66qn3`. The Raspberry Pi test receiver was retired on
+- **Repo note:** 1.0.0 was PR #12, 1.1.0 was PR #16 (both merged). The Raspberry Pi test receiver was retired on
   2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote

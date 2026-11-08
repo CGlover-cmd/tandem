@@ -1,13 +1,20 @@
-# Tandem 1.1.0 (pre-release)
+# Tandem 1.1.1 (pre-release)
 
 A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
-controls them from your PC. 1.1.0 fixes what the first hands-on test of 1.0.0 found. It's still
+controls them from your PC. It's still
 a **pre-release**: some features haven't been tried on real speakers yet (listed below).
 Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To attach
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
 
-## Fixed
+## New in 1.1.1
+
+- **One prompt to install.** On a network Windows marks as Public (often home Wi-Fi), 1.1.0
+  also asked "allow Python through the firewall?" the first time Tandem opened. The installer's
+  firewall rule now covers every network type but only lets in devices on your own local
+  network, so that second prompt no longer appears.
+
+## Fixed in 1.1.0
 
 - **Apple TV pairing said "That PIN didn't match" even with the right PIN.** The 1.0.0
   installer picked up a newer version of a library (srptools 2.0) that broke the handshake
@@ -20,7 +27,7 @@ of logs with names, addresses and identifiers replaced.
 - **"2 playing" when only the PC was playing.** A speaker that failed was counted. The count
   now shows only the speakers Tandem is sending to.
 
-## Changed
+## Changed in 1.1.0
 
 - **Audio panel:** a spinner shows next to a speaker's switch the moment you turn it on. The
   panel says what the switch does: the PC's sound plays there right away, nothing else to
@@ -55,9 +62,9 @@ of logs with names, addresses and identifiers replaced.
 - **Not code-signed yet.** Windows SmartScreen warns about the installer (choose More info, then
   Run anyway). With **Smart App Control** on, Windows blocks it outright; install with Python
   instead (see the README).
-- **If Windows calls your Wi-Fi a Public network**, it asks whether to let Python (Tandem's
-  runtime) through the firewall the first time Tandem opens. Allow it, or set the network to
-  Private in Windows' Wi-Fi settings. Tandem's own firewall rule covers private networks only.
+- **On a shared network** (a café, a hotel), other devices on the same Wi-Fi can reach Tandem's
+  network ports, as they can at home. Each one is guarded (see "Network and security" in the README), but quit Tandem
+  from the tray there if you'd rather not.
 - No screen mirroring (FairPlay; see ADR-0006). No Spotify or Apple Music browsing inside
   Tandem yet: use their apps, and Tandem sends their sound and shows what's playing.
 - Windows' volume and mute also affect what Tandem sends (it captures what Windows plays), and

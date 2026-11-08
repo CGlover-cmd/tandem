@@ -43,3 +43,11 @@ missed it because they fake pyatv. Now:
   tests what ships. `pyproject.toml` also caps srptools below 2 for pip installs.
 - `tests/test_dependencies.py` runs pyatv's real SRP code against srptools' server side.
 - Moving a pin is a deliberate change: update the file, run the tests, check on hardware.
+
+## Addendum (1.1.1): firewall rule on every network type, local subnet only
+Windows often marks home Wi-Fi as Public. With a Private-only rule, Windows then asked "allow
+Python on this network?" on first run, a second prompt after setup's own. At the maintainer's
+request the rule now covers every profile with `remoteip=localsubnet`. Trade-off: on a shared
+Public network (café, hotel), devices on the same subnet can reach Tandem's listeners (AirPlay
+timing ports while streaming, the token-path media server after a send, until Tandem quits, the HomeKit bridge if
+enabled); the UI server stays loopback-only. The release workflow checks the rule's scope.
