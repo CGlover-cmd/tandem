@@ -22,6 +22,7 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
+from tandem.ui import background_photo
 from tandem.ui.app_icons import URL_PREFIX, is_icon_file
 from tandem.ui.controller import AppController
 
@@ -107,6 +108,8 @@ class UiServer:
         app.router.add_get(URL_PREFIX + "{name}", self._icon)
         app.router.add_get("/artwork", self._artwork)
         app.router.add_get("/library-art/{album}", self._library_art)
+        app.router.add_get("/background", self._background)
+        app.router.add_post("/background", self._save_background)
         return app
 
     async def start(self) -> None:
@@ -161,9 +164,7 @@ class UiServer:
     async def _artwork(self, request: web.Request) -> web.StreamResponse:
         """Artwork for what the PC is playing, from memory. It shows what someone listens
         to, so like the WebSocket it needs this launch's token."""
-        token = request.query.get("token", "")
-        if not hmac.compare_digest(token.encode(), self.token.encode()):
-            raise web.HTTPForbidden()
+        self._check_token(request)
         art = self._controller.music_artwork()
         if art is None or art.mimetype not in _ARTWORK_TYPES:
             raise web.HTTPNotFound()
@@ -172,9 +173,7 @@ class UiServer:
     async def _library_art(self, request: web.Request) -> web.StreamResponse:
         """An album's artwork from the music library. Like `/artwork`, it shows what someone
         listens to, so it needs this launch's token."""
-        token = request.query.get("token", "")
-        if not hmac.compare_digest(token.encode(), self.token.encode()):
-            raise web.HTTPForbidden()
+        self._check_token(request)
         art = await asyncio.to_thread(self._controller.library_art, request.match_info["album"])
         if art is None or art.mimetype not in _ARTWORK_TYPES:
             raise web.HTTPNotFound()
@@ -183,6 +182,43 @@ class UiServer:
             content_type=art.mimetype,
             headers={"Cache-Control": "private, max-age=3600"},
         )
+
+    def _check_token(self, request: web.Request) -> None:
+        token = request.query.get("token", "")
+        if not hmac.compare_digest(token.encode(), self.token.encode()):
+            raise web.HTTPForbidden()
+
+    async def _background(self, request: web.Request) -> web.StreamResponse:
+        """The user's background photo (personal, so token-gated like the artwork)."""
+        self._check_token(request)
+        photo = self._controller.photo
+        data = None if photo is None else photo.read()
+        if data is None:
+            raise web.HTTPNotFound()
+        return web.Response(body=data, content_type="image/jpeg")
+
+    async def _save_background(self, request: web.Request) -> web.StreamResponse:
+        """A new background photo from the window: a JPEG it made from the user's pick. It's
+        bigger than the WebSocket's messages, so it comes as one POST from this page."""
+        self._check_token(request)
+        if request.headers.get("Origin") not in self._allowed_origins():
+            raise web.HTTPForbidden()
+        if (request.content_length or 0) > background_photo.MAX_BYTES:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=background_photo.MAX_BYTES, actual_size=request.content_length or 0
+            )
+        chunks: list[bytes] = []
+        size = 0
+        while chunk := await request.content.read(64 * 1024):
+            size += len(chunk)
+            if size > background_photo.MAX_BYTES:
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=background_photo.MAX_BYTES, actual_size=size
+                )
+            chunks.append(chunk)
+        if not self._controller.save_photo(b"".join(chunks)):
+            raise web.HTTPUnsupportedMediaType()
+        return web.Response(status=204)
 
     async def _index(self, _request: web.Request) -> web.StreamResponse:
         index = self._static_dir / "index.html"

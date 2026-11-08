@@ -8,6 +8,16 @@ export function outputLive(output: AudioOutput): boolean {
   return output.state === "starting" || output.state === "streaming" || output.state === "waiting";
 }
 
+/** The PC's default output: Windows plays there itself, so its switch stays on. */
+export function outputDirect(output: AudioOutput): boolean {
+  return output.state === "direct";
+}
+
+/** Outputs whose delay can be set (Advanced settings): everything Tandem sends to. */
+export function delayOutputs(outputs: AudioOutput[]): AudioOutput[] {
+  return outputs.filter((o) => !o.needsPairing && !outputDirect(o));
+}
+
 /** The slider's position: the saved volume, or the middle until the user sets one. */
 export function outputVolume(output: AudioOutput): number {
   return output.volume ?? 50;

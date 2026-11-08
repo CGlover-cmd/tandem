@@ -56,6 +56,19 @@ h2 {
   flex-wrap: wrap;
 }
 
+/* Over the user's photo every bit of text sits on glass, the header included (theme.test.ts). */
+.app-backdrop[data-photo] {
+  background-attachment: fixed;
+}
+
+.app-backdrop[data-photo] .app-header {
+  background: var(--tandem-glass);
+  backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid var(--tandem-hairline);
+  border-radius: 20px;
+  padding: 12px 16px;
+}
+
 /* Glass: translucent surface that blurs whatever is behind it. */
 .glass {
   background: var(--tandem-glass) !important;

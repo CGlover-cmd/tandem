@@ -131,10 +131,33 @@ export const backgrounds: Background[] = [
   },
 ];
 
-export const DEFAULT_BACKGROUND = "mist";
+export const DEFAULT_BACKGROUND = "sky";
+/** The user's own photo (tandem.ui.backend.PHOTO_BACKGROUND). */
+export const PHOTO_BACKGROUND = "photo";
 
 export function findBackground(id: string): Background {
-  return backgrounds.find((b) => b.id === id) ?? backgrounds[0]!;
+  return backgrounds.find((b) => b.id === id) ?? backgrounds.find((b) => b.id === DEFAULT_BACKGROUND)!;
+}
+
+/** A wash over the user's photo so text and glass cards stay readable on any picture. */
+export const PHOTO_SCRIM: Record<Mode, string> = {
+  light: "rgba(245, 245, 247, 0.55)",
+  dark: "rgba(17, 17, 19, 0.72)",
+};
+
+/** The address of the user's photo; `version` changes with the photo so the page reloads it. */
+export function photoUrl(version: number, search: string = window.location.search): string {
+  const token = new URLSearchParams(search).get("token") ?? "";
+  return `/background?token=${encodeURIComponent(token)}&v=${version}`;
+}
+
+/** The window's CSS background: the chosen preset, or the user's photo under a scrim. */
+export function windowBackground(id: string, photo: number | null, mode: Mode, search?: string): string {
+  if (id === PHOTO_BACKGROUND && photo !== null) {
+    const scrim = PHOTO_SCRIM[mode];
+    return `linear-gradient(${scrim}, ${scrim}), url("${photoUrl(photo, search)}") center / cover no-repeat`;
+  }
+  return backgroundCss(findBackground(id), mode);
 }
 
 /** The CSS `background` for a preset: soft colour washes for gradients, a gentle fall for neutrals. */

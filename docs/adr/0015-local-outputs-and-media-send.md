@@ -29,3 +29,10 @@ random path (`secrets.token_urlsafe`) per file. File paths and links are never l
 - Local-output delay and AirPlay latency must match to within ~20 ms (Phase 5 exit), which
   depends on finding the HomePod mini's ~5 s lag first (Phase 4 open item).
 - The local playback sink needs sound hardware, so it's excluded from coverage and checked by hand.
+
+## Addendum (1.1.0): one source in the window
+The window no longer offers the "This PC / Tandem's player" choice: nothing in the window can
+queue the player, so the choice only confused. The engine keeps both sources. While the PC's
+audio is the source, Windows' default output is listed as on ("Playing from Windows") rather
+than hidden, since Windows keeps playing there; it has no switch or delay. The per-output
+delays moved to Settings, Advanced settings.

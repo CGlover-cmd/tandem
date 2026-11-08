@@ -16,10 +16,15 @@ from tandem.ui.backend import (
     AudioSourceChoice,
     Backend,
     OutputSnapshot,
+    OutputState,
     SendSnapshot,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+LIVE = frozenset({OutputState.STARTING, OutputState.STREAMING, OutputState.WAITING})
+"""Outputs Tandem is sending to (the header's "playing" count). A failed output and the PC's
+default output, which Windows plays itself, don't count."""
 
 MAX_LOCATION = 2000
 """Longest link or path the window may send."""
@@ -86,7 +91,7 @@ class AudioPanel:
             "source": self.audio.source.value,
             "pcOutputsHidden": self.audio.pc_outputs_hidden,
             "outputs": [_output_json(o) for o in self.audio.outputs],
-            "streaming": sum(o.state.value != "off" for o in self.audio.outputs),
+            "streaming": sum(o.state in LIVE for o in self.audio.outputs),
             "canPickFiles": self.can_pick_files,
             "picking": self.picking,
         }
@@ -124,7 +129,7 @@ class AudioPanel:
             self._run(self._backend.stop_media(output_id))
         elif kind == "allOutputsOff":
             for output in self.audio.outputs:
-                if output.state.value != "off":
+                if output.state in LIVE or output.state is OutputState.FAILED:
                     self._run(self._backend.set_output(output.id, False))
         else:
             return False

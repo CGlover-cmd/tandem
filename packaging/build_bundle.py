@@ -24,6 +24,8 @@ from pathlib import Path
 
 EMBED_URL = "https://www.python.org/ftp/python/{v}/python-{v}-embed-amd64.zip"
 ROOT = Path(__file__).resolve().parents[1]
+# The tested library versions: a new dependency release can't slip into a build.
+CONSTRAINTS = ROOT / "packaging" / "constraints.txt"
 
 
 def build(wheel: Path, out: Path, python_version: str) -> None:
@@ -47,7 +49,16 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
 
     site_packages = runtime / "Lib" / "site-packages"
     site_packages.mkdir(parents=True)
-    pip = [sys.executable, "-m", "pip", "install", "--no-warn-script-location", "--target"]
+    pip = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-warn-script-location",
+        "-c",
+        str(CONSTRAINTS),
+        "--target",
+    ]
     # zeroconf as pure Python: its compiled modules are blocked by Smart App Control on some
     # PCs (docs/ROADMAP.md risk register). The pure version is the same code.
     env = dict(os.environ, SKIP_CYTHON="1")

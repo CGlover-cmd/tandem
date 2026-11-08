@@ -10,6 +10,7 @@ interface Props {
   state: AppState;
   onClose: () => void;
   onOpenAudio: () => void;
+  onPair: (deviceId: string) => void;
 }
 
 function Mark({ step, index }: { step: Step; index: number }) {
@@ -34,7 +35,7 @@ function Mark({ step, index }: { step: Step; index: number }) {
   );
 }
 
-export function OnboardingSheet({ isOpen, state, onClose, onOpenAudio }: Props) {
+export function OnboardingSheet({ isOpen, state, onClose, onOpenAudio, onPair }: Props) {
   const steps = onboardingSteps(state);
   const words = strings.onboarding;
   return (
@@ -64,6 +65,11 @@ export function OnboardingSheet({ isOpen, state, onClose, onOpenAudio }: Props) 
                     </p>
                     <p className="text-[13px] text-[var(--muted)]">{step.detail}</p>
                   </div>
+                  {step.id === "pair" && step.state === "todo" && step.deviceId && (
+                    <Button size="sm" variant="primary" onPress={() => onPair(step.deviceId!)}>
+                      {words.pair}
+                    </Button>
+                  )}
                   {step.id === "play" && step.state !== "done" && (
                     <Button size="sm" variant="secondary" onPress={onOpenAudio}>
                       {words.openAudio}

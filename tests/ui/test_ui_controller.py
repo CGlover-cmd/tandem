@@ -77,9 +77,10 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
     }
     assert snapshot["appearance"] == {
         "theme": "system",
-        "background": "mist",
+        "background": "sky",
         "appIcons": True,
         "onboarded": False,
+        "photo": None,
     }
     assert snapshot["pairing"]["state"] == "closed"
     assert snapshot["demo"] is True
@@ -318,14 +319,15 @@ async def test_backend_pairing_errors_are_shown_as_given(backend: DemoBackend) -
 async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
     controller = await _started(backend)
 
-    controller.set_appearance("dark", "sky")
+    controller.set_appearance("dark", "dusk")
     await controller.runner.drain()
 
     assert controller.snapshot()["appearance"] == {
         "theme": "dark",
-        "background": "sky",
+        "background": "dusk",
         "appIcons": True,
         "onboarded": False,
+        "photo": None,
     }
 
 
@@ -340,9 +342,10 @@ async def test_unknown_appearance_is_ignored(
 
     assert controller.snapshot()["appearance"] == {
         "theme": "system",
-        "background": "mist",
+        "background": "sky",
         "appIcons": True,
         "onboarded": False,
+        "photo": None,
     }
     assert "unknown appearance" in caplog.text
 
