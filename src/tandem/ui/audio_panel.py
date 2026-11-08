@@ -158,6 +158,7 @@ def _output_json(output: OutputSnapshot) -> dict[str, Any]:
         "delayMs": output.delay_ms,
         "deviceKind": None if output.device_kind is None else output.device_kind.value,
         "needsPairing": output.needs_pairing,
+        "problem": None if output.problem is None else output.problem.value,
     }
 
 

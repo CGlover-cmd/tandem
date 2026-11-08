@@ -18,6 +18,13 @@ export function delayOutputs(outputs: AudioOutput[]): AudioOutput[] {
   return outputs.filter((o) => !o.needsPairing && !outputDirect(o));
 }
 
+/** What a failed output's row says. On an untrusted network that comes first: it's the fix. */
+export function problemText(output: AudioOutput, untrusted: boolean): string | null {
+  if (output.state !== "failed") return null;
+  if (untrusted && output.kind === "airplay") return strings.audio.problem.network!;
+  return strings.audio.problem[output.problem ?? "failed"] ?? strings.audio.problem.failed!;
+}
+
 /** The "All speakers" slider: the average volume of the outputs Tandem is playing on. */
 export function masterVolume(outputs: AudioOutput[]): number | null {
   const live = outputs.filter(outputLive);

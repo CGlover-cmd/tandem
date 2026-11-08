@@ -1,6 +1,14 @@
 import { Button, Modal, Spinner, Switch } from "@heroui/react";
 
-import { groupOutputs, masterChanges, masterVolume, outputDirect, outputLive, outputVolume } from "../audio";
+import {
+  groupOutputs,
+  masterChanges,
+  masterVolume,
+  outputDirect,
+  outputLive,
+  outputVolume,
+  problemText,
+} from "../audio";
 import { DeviceIcon, HeadphonesIcon, VolumeIcon } from "../icons";
 import { strings } from "../strings";
 import type { AudioOutput, AudioPanel, Command } from "../types";
@@ -10,10 +18,21 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   audio: AudioPanel;
+  /** Windows treats the network as Public: speakers can't reach Tandem. */
+  untrusted: boolean;
   send: (command: Command) => void;
 }
 
-function OutputRow({ output, send }: { output: AudioOutput; send: (command: Command) => void }) {
+function OutputRow({
+  output,
+  untrusted,
+  send,
+}: {
+  output: AudioOutput;
+  untrusted: boolean;
+  send: (command: Command) => void;
+}) {
+  const problem = problemText(output, untrusted);
   const direct = outputDirect(output);
   const live = outputLive(output);
   const on = live || direct;
@@ -50,6 +69,16 @@ function OutputRow({ output, send }: { output: AudioOutput; send: (command: Comm
         </Switch>
       </div>
       {direct && <p className="mt-2 text-[12px] text-[var(--muted)]">{strings.audio.directNote}</p>}
+      {problem && (
+        <div className="mt-2 flex flex-col items-start gap-2" role="status">
+          <p className="text-[12px] text-[var(--danger)]">{problem}</p>
+          {untrusted && output.kind === "airplay" && (
+            <Button size="sm" variant="secondary" onPress={() => send({ type: "openNetworkSettings" })}>
+              {strings.audio.trustNetwork}
+            </Button>
+          )}
+        </div>
+      )}
       {live && (
         <div className="mt-3 flex flex-col gap-2">
           <div className="flex items-center gap-3">
@@ -69,7 +98,7 @@ function OutputRow({ output, send }: { output: AudioOutput; send: (command: Comm
   );
 }
 
-export function AudioSheet({ isOpen, onClose, audio, send }: Props) {
+export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
   const { airplay, pc } = groupOutputs(audio.outputs);
   const master = masterVolume(audio.outputs);
   return (
@@ -115,7 +144,7 @@ export function AudioSheet({ isOpen, onClose, audio, send }: Props) {
               ) : (
                 <ul className="flex flex-col gap-2" aria-labelledby="airplay-label">
                   {airplay.map((output) => (
-                    <OutputRow key={output.id} output={output} send={send} />
+                    <OutputRow key={output.id} output={output} untrusted={untrusted} send={send} />
                   ))}
                 </ul>
               )}
@@ -131,7 +160,7 @@ export function AudioSheet({ isOpen, onClose, audio, send }: Props) {
               ) : (
                 <ul className="flex flex-col gap-2" aria-labelledby="pc-label">
                   {pc.map((output) => (
-                    <OutputRow key={output.id} output={output} send={send} />
+                    <OutputRow key={output.id} output={output} untrusted={untrusted} send={send} />
                   ))}
                 </ul>
               )}

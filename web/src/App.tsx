@@ -266,7 +266,13 @@ export function App() {
         />
       )}
       {state && (
-        <AudioSheet isOpen={audioOpen} onClose={() => setAudioOpen(false)} audio={state.audio} send={send} />
+        <AudioSheet
+          isOpen={audioOpen}
+          onClose={() => setAudioOpen(false)}
+          audio={state.audio}
+          untrusted={state.network.untrusted}
+          send={send}
+        />
       )}
       <SendSheet
         device={sendDevice}

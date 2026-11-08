@@ -235,6 +235,14 @@ class OutputState(Enum):
     DIRECT = "direct"  # the PC's default output: Windows plays there itself, not Tandem
 
 
+class OutputProblem(Enum):
+    """Why an output couldn't play; the window words each one with its fix."""
+
+    UNREACHABLE = "unreachable"  # no answer: off, asleep, or on another network
+    ACCESS = "access"  # it answered and refused: the Home app's speaker access setting
+    FAILED = "failed"  # anything else
+
+
 class AudioSourceChoice(Enum):
     SYSTEM = "system"  # whatever the PC plays
     PLAYER = "player"  # Tandem's own player (files and radio)
@@ -257,6 +265,8 @@ class OutputSnapshot:
     """Extra delay for this output, to line it up with the others by ear."""
     device_kind: DeviceKind | None = None
     needs_pairing: bool = False
+    problem: OutputProblem | None = None
+    """Why it couldn't play, while `state` is FAILED."""
 
 
 def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:

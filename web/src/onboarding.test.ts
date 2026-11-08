@@ -24,6 +24,7 @@ const output: AudioOutput = {
   delayMs: 0,
   deviceKind: "homepod",
   needsPairing: false,
+  problem: null,
 };
 
 function state(over: Partial<AppState> = {}): AppState {

@@ -20,7 +20,7 @@ from tandem.engine.media_send import SendState as EngineSendState
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
-from tandem.engine.session import ConnectionFailedError
+from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 from tandem.ui import backend as ui
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,7 +58,9 @@ class EngineAudio:
         self._restoring: set[str] = set()
         """Outputs to turn back on when they appear ("turn my speakers back on")."""
         self._restore_tasks: set[asyncio.Task[None]] = set()
-        self._failed: set[str] = set()
+        self._failed: dict[str, ui.OutputProblem] = {}
+        self._last_reason: dict[str, str] = {}
+        """Why each device's last connection attempt failed (an exception type name)."""
         self._starting: set[str] = set()
         """Outputs being turned on: shown as starting at once, before the engine reports."""
         self._sends: dict[str, ui.SendSnapshot] = {}
@@ -69,6 +71,7 @@ class EngineAudio:
             bus.subscribe(AudioStreamChanged, self._on_stream),
             bus.subscribe(MediaSendChanged, self._on_send),
             bus.subscribe(DeviceEvent, self._on_device_for_audio),
+            bus.subscribe(ConnectionStateChanged, self._on_connection_for_audio),
         ]
 
     # Reading
@@ -140,6 +143,10 @@ class EngineAudio:
         self._restore_tasks.add(task)
         task.add_done_callback(self._restore_tasks.discard)
 
+    def _on_connection_for_audio(self, event: ConnectionStateChanged) -> None:
+        if event.reason is not None:
+            self._last_reason[event.device_id] = event.reason
+
     def _on_device_for_audio(self, event: DeviceEvent) -> None:
         if not isinstance(event, DeviceLost):
             self._restore(event.device.id)
@@ -147,7 +154,7 @@ class EngineAudio:
 
     async def set_output(self, output_id: str, on: bool) -> None:
         if not on:
-            self._failed.discard(output_id)
+            self._failed.pop(output_id, None)
             self._starting.discard(output_id)
             self._prefs.update(output_id, on=False)
             await self._engine.stop_output(output_id)
@@ -161,14 +168,15 @@ class EngineAudio:
             if engine_pairing.services_to_pair(device):
                 raise ui.AudioError(PAIR_FIRST)
         prefs = self._prefs.get(output_id)
-        self._failed.discard(output_id)
+        self._failed.pop(output_id, None)
+        self._last_reason.pop(output_id, None)
         self._starting.add(output_id)
         self._audio_changed()  # the switch shows a spinner at once, not after the connection
         try:
             await self._engine.start_output(output_id, volume=prefs.volume, delay_ms=prefs.delay_ms)
         except (EngineAudioError, ConnectionFailedError, OSError, TimeoutError, ValueError) as exc:
             _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
-            self._failed.add(output_id)
+            self._failed[output_id] = classify(self._last_reason.get(output_id), exc)
             self._audio_changed()
             raise ui.AudioError(NO_AUDIO) from None
         finally:
@@ -221,7 +229,7 @@ class EngineAudio:
 
     def _on_stream(self, event: AudioStreamChanged) -> None:
         if event.state is StreamState.FAILED:
-            self._failed.add(event.device_id)
+            self._failed[event.device_id] = classify(event.reason, None)
         self._audio_changed()
 
     def _on_send(self, event: MediaSendChanged) -> None:
@@ -255,6 +263,31 @@ class EngineAudio:
             else:
                 state = ui.OutputState.OFF
             volume, delay = prefs.volume, prefs.delay_ms
+        problem = self._failed.get(output_id) if state is ui.OutputState.FAILED else None
         return ui.OutputSnapshot(
-            output_id, name, kind, state, volume, delay, device_kind, needs_pairing
+            output_id, name, kind, state, volume, delay, device_kind, needs_pairing, problem
         )
+
+
+# Exception type names (from the connection or the stream) that mean "no answer" or "refused".
+_UNREACHABLE = {
+    "TimeoutError",
+    "ConnectionFailedError",
+    "ConnectionRefusedError",
+    "ConnectionResetError",
+    "ConnectionAbortedError",
+    "OSError",
+    "ConnectionClosed",
+    "ConnectionLostError",
+}
+_REFUSED = {"AuthenticationError", "NotPairedError", "PairingError", "AccessDeniedError"}
+
+
+def classify(reason: str | None, error: BaseException | None) -> ui.OutputProblem:
+    """Why an output couldn't play, from the last connection failure or the error itself."""
+    names = {reason, None if error is None else type(error).__name__} - {None}
+    if names & _REFUSED:
+        return ui.OutputProblem.ACCESS
+    if names & _UNREACHABLE or not names:
+        return ui.OutputProblem.UNREACHABLE
+    return ui.OutputProblem.FAILED

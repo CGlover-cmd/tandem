@@ -211,3 +211,13 @@ async def test_a_speaker_that_cant_connect_fails_and_stops_trying(harness: Harne
     with pytest.raises(ui.AudioError):
         await harness.backend.set_output(SPEAKER.id, True)
     assert harness.output(SPEAKER.id).state is ui.OutputState.FAILED
+    assert harness.output(SPEAKER.id).problem is ui.OutputProblem.UNREACHABLE
+
+
+def test_failures_are_explained() -> None:
+    classify = bridge_audio.classify
+    assert classify("AuthenticationError", TimeoutError()) is ui.OutputProblem.ACCESS
+    assert classify(None, TimeoutError()) is ui.OutputProblem.UNREACHABLE
+    assert classify("ConnectionRefusedError", None) is ui.OutputProblem.UNREACHABLE
+    assert classify(None, None) is ui.OutputProblem.UNREACHABLE
+    assert classify("ProtocolError", ValueError()) is ui.OutputProblem.FAILED

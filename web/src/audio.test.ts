@@ -11,6 +11,7 @@ import {
   outputDirect,
   outputLive,
   outputVolume,
+  problemText,
   sendText,
 } from "./audio";
 import type { AudioOutput, Device } from "./types";
@@ -24,6 +25,7 @@ const output = (over: Partial<AudioOutput> = {}): AudioOutput => ({
   delayMs: 0,
   deviceKind: "homepod",
   needsPairing: false,
+  problem: null,
   ...over,
 });
 
@@ -114,5 +116,15 @@ describe("the All speakers slider", () => {
       { id: "a", level: 50 },
       { id: "b", level: 100 },
     ]);
+  });
+});
+
+describe("why a speaker couldn't play", () => {
+  it("names the fix, and the untrusted network first", () => {
+    const failed = output({ state: "failed", problem: "access" });
+    expect(problemText(failed, false)).toContain("Allow Speaker & TV Access");
+    expect(problemText(failed, true)).toContain("doesn't trust this network");
+    expect(problemText(output({ state: "failed", problem: "unreachable" }), false)).toContain("No answer");
+    expect(problemText(output(), false)).toBeNull();
   });
 });

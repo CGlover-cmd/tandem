@@ -102,6 +102,8 @@ export interface AudioOutput {
   delayMs: number;
   deviceKind: DeviceKind | null;
   needsPairing: boolean;
+  /** Why it couldn't play, while `state` is "failed". */
+  problem: "unreachable" | "access" | "failed" | null;
 }
 
 export interface AudioPanel {
