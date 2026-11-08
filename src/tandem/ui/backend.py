@@ -210,14 +210,6 @@ class CommandOutcome:
     """Whole commands to offer instead, or examples."""
 
 
-class CommandRunner(Protocol):
-    def preview_command(self, text: str) -> CommandOutcome:
-        """What running `text` would do. Touches no device, so it can run on every keystroke."""
-        ...
-
-    async def run_command(self, text: str) -> CommandOutcome: ...
-
-
 # --- Audio outputs (Phases 4 and 5) and sending media (Phase 7) -------------------------
 
 

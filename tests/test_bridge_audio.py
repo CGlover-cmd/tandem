@@ -151,7 +151,7 @@ async def test_send_media_and_stop(harness: Harness, tmp_path: Path) -> None:
 
     with pytest.raises(ui.MediaError, match="fileGone"):
         await harness.backend.send_media(TV.id, str(tmp_path / "gone.mp4"))
-    with pytest.raises(ui.MediaError, match="speakerGone"):
+    with pytest.raises(ui.MediaError, match="notAvailable"):
         await harness.backend.send_media("AA:BB:CC:00:00:99", "https://media.example/a.mp4")
 
 

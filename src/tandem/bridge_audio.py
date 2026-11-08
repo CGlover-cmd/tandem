@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TypeVar
 
 from tandem.engine import outputs as eo
+from tandem.engine import pairing as engine_pairing
 from tandem.engine.media_send import MediaError as EngineMediaError
 from tandem.engine.media_send import MediaSendChanged
 from tandem.engine.media_send import SendState as EngineSendState
@@ -134,6 +135,13 @@ class EngineAudio:
     # Sending media
 
     async def send_media(self, device_id: str, location: str) -> None:
+        device = self._engine.registry.get(device_id)
+        if device is None:
+            raise ui.MediaError(Problem.NOT_AVAILABLE)
+        if engine_pairing.services_to_pair(device):
+            raise ui.MediaError(Problem.PAIR_FIRST)
+        if not location.strip():
+            raise ui.MediaError(Problem.NO_LOCATION)
         try:
             await self._engine.play_media(device_id, location)
         except EngineMediaError as error:

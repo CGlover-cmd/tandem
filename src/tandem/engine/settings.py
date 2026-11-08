@@ -111,7 +111,9 @@ class SettingsChanged(Event):
 
 
 class SettingsStore:
-    def __init__(self, path: Path, bus: EventBus | None = None) -> None:
+    """The user's settings, in `path` (or only in memory when `path` is None: the demo)."""
+
+    def __init__(self, path: Path | None, bus: EventBus | None = None) -> None:
         self._path = path
         self._bus = bus
         self._settings = Settings()
@@ -122,6 +124,8 @@ class SettingsStore:
 
     def load(self) -> Settings:
         """Read the file. A missing or unreadable file gives defaults (and is left untouched)."""
+        if self._path is None:
+            return self._settings
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -157,6 +161,8 @@ class SettingsStore:
     def save(self, settings: Settings | None = None) -> None:
         """Write atomically, so a crash mid-write never leaves a half-written file."""
         settings = settings or self._settings
+        if self._path is None:
+            return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         text = json.dumps(settings.to_json(), indent=2) + "\n"
         fd, tmp = tempfile.mkstemp(prefix=".settings-", dir=self._path.parent)

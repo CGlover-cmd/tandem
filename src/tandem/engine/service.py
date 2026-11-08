@@ -158,7 +158,7 @@ class Engine:
             self._live_link,
             local_sink=backend.local_sink,
         )
-        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions())
+        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions(), clock=clock)
         self._media_server: MediaServer | None = None
         self._sends = MediaSends(self.bus.publish)
         self.outputs = Outputs(self, output_prefs, output_groups)

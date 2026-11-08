@@ -21,7 +21,6 @@ from tandem.ui.app_icons import AiohttpHttp, AppIconStore
 from tandem.ui.backend import Backend
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.file_picker import WindowFilePicker
 from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.platform import (
@@ -69,12 +68,10 @@ def build(
 ) -> tuple[AppController, UiServer]:
     backend: Backend
     icons: AppIconStore | None = None
-    if args.demo:  # invented apps: nothing to look up
-        from tandem.bridge import demo_commands
+    if args.demo:  # the real engine on invented devices; invented apps: nothing to look up
+        from tandem.bridge import DemoBackend
 
-        demo = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
-        demo.commands = demo_commands(demo)
-        backend = demo
+        backend = DemoBackend(settings_file=ui_data_dir() / "demo-settings.json")
     else:  # pragma: no cover - needs the network
         from tandem.bridge import create_engine_backend
 

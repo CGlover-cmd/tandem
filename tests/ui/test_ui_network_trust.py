@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from tandem.bridge import DemoBackend
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.network_trust import NetworkWatch, untrusted
 
 
