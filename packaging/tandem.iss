@@ -65,6 +65,9 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Lets AirPlay speakers and TVs on your trusted (Private) networks reach Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=private,domain remoteip=localsubnet"; StatusMsg: "Letting speakers on your network reach Tandem..."; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Keeps Tandem closed on Public networks; mark a network Private in Windows to trust it"" dir=in action=block program=""{app}\python\pythonw.exe"" enable=yes profile=public"; Flags: runhidden waituntilterminated
+; Compile Tandem's libraries once, here: under Program Files Python can't write its cache, so
+; without this it would recompile them on every start (about a third slower to open).
+Filename: "{app}\python\python.exe"; Parameters: "-m compileall -q -j 0 ""{app}\python\Lib\site-packages"""; StatusMsg: "Preparing Tandem..."; Flags: runhidden waituntilterminated
 ; Opens as the signed-in user, not as administrator (setup itself runs elevated).
 Filename: "{app}\python\pythonw.exe"; Parameters: "-m tandem.ui"; WorkingDir: "{app}"; Description: "Open Tandem"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
