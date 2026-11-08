@@ -38,6 +38,7 @@ function state(over: Partial<AppState> = {}): AppState {
       pcOutputsHidden: true,
       outputs: [],
       groups: [],
+      lineup: { state: "idle", output: null, problem: null },
       streaming: 0,
       canPickFiles: false,
       picking: false,

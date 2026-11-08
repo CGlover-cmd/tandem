@@ -1,6 +1,6 @@
 import { Button, Modal, Separator, Spinner, Switch } from "@heroui/react";
 
-import { delayLabel, delayOutputs } from "../audio";
+import { delayLabel, delayOutputs, lineUpText } from "../audio";
 import { strings } from "../strings";
 import type { Appearance, AudioPanel, Command, HomeBridge } from "../types";
 import { LiveSlider } from "./LiveSlider";
@@ -69,6 +69,28 @@ export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home
                 {words.delays}
               </h3>
               <p className="text-[12px] text-[var(--muted)]">{words.delaysDetail}</p>
+              <div className="flex flex-col items-start gap-1">
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isDisabled={audio.lineup.state === "listening"}
+                    onPress={() => send({ type: "lineUp" })}
+                  >
+                    {words.lineUp}
+                  </Button>
+                  {audio.lineup.state === "listening" && <Spinner size="sm" color="accent" />}
+                </div>
+                <p className="text-[12px] text-[var(--muted)]">{words.lineUpDetail}</p>
+                {lineUpText(audio.lineup) && (
+                  <p
+                    className={`text-[12px] ${audio.lineup.state === "failed" ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}
+                    role="status"
+                  >
+                    {lineUpText(audio.lineup)}
+                  </p>
+                )}
+              </div>
               {outputs.length === 0 ? (
                 <p className="text-[13px] text-[var(--muted)]">{words.noDelays}</p>
               ) : (

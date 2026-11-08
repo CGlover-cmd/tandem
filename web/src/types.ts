@@ -120,6 +120,12 @@ export interface AudioPanel {
   pcOutputsHidden: boolean;
   outputs: AudioOutput[];
   groups: SpeakerGroup[];
+  /** Automatic line-up with the microphone. `output` names the speaker being measured. */
+  lineup: {
+    state: "idle" | "listening" | "done" | "failed";
+    output: string | null;
+    problem: "tooFew" | "noMic" | "notHeard" | "noisy" | null;
+  };
   /** How many outputs Tandem is sending to (not counting the PC's default output). */
   streaming: number;
   /** The window can open a file picker (it can't in the browser preview). */
@@ -245,7 +251,7 @@ export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
-  | { type: "openUpdate" | "reportProblem" }
+  | { type: "openUpdate" | "reportProblem" | "lineUp" }
   | { type: "saveGroup"; name: string; outputs: string[] }
   | { type: "deleteGroup"; id: string }
   | { type: "setGroup"; id: string; on: boolean }

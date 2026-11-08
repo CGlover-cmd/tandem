@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from tandem.engine import diagnostics, pairing
+from tandem.engine import diagnostics, lineup, pairing
 from tandem.engine.audio import AudioError, AudioSink, AudioStats, PcmCapture, StreamState
 from tandem.engine.audio_hub import AudioHub, is_local
 from tandem.engine.control import Controller, DeviceControls
@@ -91,6 +91,10 @@ class Backend(Protocol):
 
     def media_sessions(self) -> MediaSessions:
         """Windows' media controls: what the PC's apps are playing."""
+        ...
+
+    def microphone(self) -> PcmCapture:
+        """The default microphone as 16 kHz mono PCM (for lining speakers up)."""
         ...
 
 
@@ -369,6 +373,26 @@ class Engine:
 
     async def set_output_volume(self, output_id: str, level: float) -> None:
         await self._audio.set_volume(output_id, level)
+
+    async def measure_lag(self, output_id: str) -> lineup.Measurement:
+        """How far behind one playing output is, heard through the microphone (milliseconds
+        from sending to hearing, less what was already queued for it)."""
+        recorded: list[bytes] = []
+        mic = self._backend.microphone()
+        # Opening a microphone can take a moment (Windows checks its privacy setting): not on
+        # the event loop.
+        await asyncio.to_thread(mic.start, recorded.append)
+        try:
+            await self._sleep(lineup.QUIET_MS / 1000)  # the room's noise floor
+            ahead = await self._audio.probe(output_id, lineup.chunks(lineup.beep_pattern(), 20), 20)
+            remaining = lineup.LISTEN_SECONDS - lineup.QUIET_MS / 1000 - 1.2
+            await self._sleep(max(0.0, remaining))
+        finally:
+            await asyncio.to_thread(mic.stop)
+        result = await asyncio.to_thread(lineup.find_pattern, b"".join(recorded))
+        if result.lag_ms is None:
+            return result
+        return lineup.Measurement(max(0, result.lag_ms - lineup.QUIET_MS - round(ahead)))
 
     def set_output_delay(self, output_id: str, delay_ms: int) -> None:
         self._audio.set_delay(output_id, delay_ms)

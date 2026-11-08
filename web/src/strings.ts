@@ -381,6 +381,18 @@ export const strings = {
     delaysDetail:
       "Speakers play a moment behind the PC, some more than others. Delay the faster ones until they all play together.",
     noDelays: "No speakers to line up yet.",
+    lineUp: "Line up automatically",
+    lineUpDetail:
+      "Turn on the speakers you want together and pause your music. Tandem plays three short beeps on each speaker in turn, listens with this PC's microphone, and sets the delays. Your PC's own speakers are left as they are.",
+    lineUpListening: (name: string) => `Listening for ${name}…`,
+    lineUpDone: "Done. Your speakers should now play together.",
+    lineUpProblem: {
+      tooFew: "Turn on at least two speakers first.",
+      noMic:
+        "Tandem couldn't use a microphone. Check one is connected, and that Windows lets desktop apps use it (Settings, Privacy & security, Microphone).",
+      notHeard: "Tandem couldn't hear the beeps from {name}. Move the PC closer, turn that speaker up, and try again.",
+      noisy: "It's too loud to hear the beeps. Pause any music and try again.",
+    } as Record<string, string>,
     back: "Back",
     appIcons: "App icons",
     appIconsDetail: "Shows each Apple TV app's real icon, looked up on the App Store. Turn off to show letters instead.",

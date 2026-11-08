@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 
@@ -98,6 +98,8 @@ class AudioHub:
         self._rng = rng
         self._outputs: dict[str, _Output] = {}
         self._buffers: tuple[PcmBuffer, ...] = ()  # read from the capture thread
+        self._probing: set[str] = set()
+        """Outputs playing a line-up probe instead of the shared source."""
         self._capture: PcmCapture | None = None
         bus.subscribe(ConnectionStateChanged, self._on_state)
 
@@ -168,6 +170,25 @@ class AudioHub:
             self._stop_capture()
             self._ensure_capture()
 
+    async def probe(self, output_id: str, pcm_chunks: Sequence[bytes], chunk_ms: int) -> float:
+        """Play `pcm_chunks` on one output instead of the shared source, at real-time pace.
+        Returns the milliseconds of audio queued ahead of the probe when it started (that
+        output's buffer, which `tandem.engine.lineup` takes off the measured lag)."""
+        output = self._outputs.get(output_id)
+        if output is None:
+            raise AudioError("not streaming")
+        self._probing.add(output_id)
+        self._refresh_buffers()
+        try:
+            ahead = frames_to_seconds(output.buffer.buffered_frames) * 1000
+            for chunk in pcm_chunks:
+                output.buffer.push(chunk)
+                await self._sleep(chunk_ms / 1000)
+            return ahead
+        finally:
+            self._probing.discard(output_id)
+            self._refresh_buffers()
+
     def stats(self, device_id: str) -> AudioStats | None:
         output = self._outputs.get(device_id)
         if output is None:
@@ -188,7 +209,7 @@ class AudioHub:
         return PcmBuffer(max_seconds=delay + 1.0, prime_seconds=delay)
 
     def _refresh_buffers(self) -> None:
-        self._buffers = tuple(o.buffer for o in self._outputs.values())
+        self._buffers = tuple(o.buffer for i, o in self._outputs.items() if i not in self._probing)
 
     def _fan_out(self, data: bytes) -> None:
         # Capture thread: whole frames only, to every output's buffer.

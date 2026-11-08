@@ -93,6 +93,13 @@ class AudioPanel:
             "source": self.audio.source.value,
             "pcOutputsHidden": self.audio.pc_outputs_hidden,
             "outputs": [_output_json(o) for o in self.audio.outputs],
+            "lineup": {
+                "state": self.audio.lineup.state.value,
+                "output": self.audio.lineup.output,
+                "problem": None
+                if self.audio.lineup.problem is None
+                else self.audio.lineup.problem.value,
+            },
             "groups": [
                 {"id": g.id, "name": g.name, "outputs": list(g.outputs), "state": g.state.value}
                 for g in self.audio.groups
@@ -142,6 +149,9 @@ class AudioPanel:
             self._run(self._backend.delete_group(output_id))
         elif kind == "setGroup" and has_id and isinstance(command.get("on"), bool):
             self._run(self._backend.set_group(output_id, command["on"]))
+        elif kind == "lineUp":
+            if self.audio.lineup.state.value != "listening":
+                self._run(self._backend.line_up())
         elif kind == "allOutputsOff":
             for output in self.audio.outputs:
                 if output.state in LIVE or output.state is OutputState.FAILED:

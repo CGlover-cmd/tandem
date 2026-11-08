@@ -21,6 +21,9 @@ from tandem.ui.backend import (
     GroupSnapshot,
     HomeSnapshot,
     HomeUpdated,
+    LineUpProblem,
+    LineUpSnapshot,
+    LineUpState,
     LinkState,
     MediaError,
     OutputKind,
@@ -62,6 +65,7 @@ class DemoAudio:
         self._sends: dict[str, SendSnapshot] = {}
         self.sent: list[tuple[str, str]] = []
         self._groups: dict[str, GroupSnapshot] = {}
+        self._lineup = LineUpSnapshot()
 
     def audio(self) -> AudioSnapshot:
         outputs: list[OutputSnapshot] = []
@@ -90,7 +94,22 @@ class DemoAudio:
             tuple(outputs),
             self._source is AudioSourceChoice.SYSTEM,
             group_snapshots(list(self._groups.values()), outputs),
+            self._lineup,
         )
+
+    async def line_up(self) -> None:
+        playing = [o for o in self.audio().outputs if o.state is OutputState.STREAMING]
+        if len(playing) < 2:
+            self._lineup = LineUpSnapshot(LineUpState.FAILED, problem=LineUpProblem.TOO_FEW)
+            self._publish(AudioChanged(self.audio()))
+            return
+        for index, output in enumerate(playing):
+            self._lineup = LineUpSnapshot(LineUpState.LISTENING, output.name)
+            self._publish(AudioChanged(self.audio()))
+            await self._sleep(self._delay)
+            await self.set_output_delay(output.id, 0 if index == 0 else 450 * index)
+        self._lineup = LineUpSnapshot(LineUpState.DONE)
+        self._publish(AudioChanged(self.audio()))
 
     async def save_group(self, name: str, outputs: Sequence[str]) -> None:
         name = " ".join(name.split())[:40]

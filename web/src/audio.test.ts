@@ -6,6 +6,7 @@ import {
   delayOutputs,
   groupOutputs,
   isLink,
+  lineUpText,
   masterChanges,
   masterVolume,
   outputDirect,
@@ -126,5 +127,16 @@ describe("why a speaker couldn't play", () => {
     expect(problemText(failed, true)).toContain("doesn't trust this network");
     expect(problemText(output({ state: "failed", problem: "unreachable" }), false)).toContain("No answer");
     expect(problemText(output(), false)).toBeNull();
+  });
+});
+
+describe("the line-up's status", () => {
+  it("names the speaker and the fix", () => {
+    expect(lineUpText({ state: "idle", output: null, problem: null })).toBeNull();
+    expect(lineUpText({ state: "listening", output: "Patio Speaker", problem: null })).toContain("Patio Speaker");
+    expect(lineUpText({ state: "failed", output: "Patio Speaker", problem: "notHeard" })).toContain(
+      "beeps from Patio Speaker",
+    );
+    expect(lineUpText({ state: "failed", output: null, problem: "noMic" })).toContain("Microphone");
   });
 });

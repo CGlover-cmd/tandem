@@ -1,7 +1,7 @@
 // The Audio panel's and Send sheet's small decisions, kept out of the components for Vitest.
 
 import { strings } from "./strings";
-import type { AudioOutput, Device, SendState } from "./types";
+import type { AudioOutput, AudioPanel, Device, SendState } from "./types";
 
 /** An output counts as on while it starts, plays or reconnects. */
 export function outputLive(output: AudioOutput): boolean {
@@ -16,6 +16,18 @@ export function outputDirect(output: AudioOutput): boolean {
 /** Outputs whose delay can be set (Advanced settings): everything Tandem sends to. */
 export function delayOutputs(outputs: AudioOutput[]): AudioOutput[] {
   return outputs.filter((o) => !o.needsPairing && !outputDirect(o));
+}
+
+/** The line-up's status line, or null when there's nothing to say. */
+export function lineUpText(lineup: AudioPanel["lineup"]): string | null {
+  const words = strings.settingsSheet;
+  if (lineup.state === "listening") return words.lineUpListening(lineup.output ?? "");
+  if (lineup.state === "done") return words.lineUpDone;
+  if (lineup.state === "failed") {
+    const text = words.lineUpProblem[lineup.problem ?? "notHeard"] ?? words.lineUpProblem.notHeard!;
+    return text.replace("{name}", lineup.output ?? "a speaker");
+  }
+  return null;
 }
 
 /** What a failed output's row says. On an untrusted network that comes first: it's the fix. */

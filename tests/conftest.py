@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from tandem.engine.audio import PcmBuffer
+from tandem.engine.audio import AudioError, PcmBuffer
 from tandem.engine.control import (
     App,
     Artwork,
@@ -186,6 +186,9 @@ class FakeBackend:
         self.tracks: dict[str, bytes] = {}
         """PCM that each track location decodes to; a missing location fails to open."""
         self.sessions = FakeSessions()
+        self.mic_recordings: list[bytes] = []
+        """What the microphone "hears", one recording per line-up measurement."""
+        self.mic_missing = False
 
     async def load(self) -> None:
         self.loaded = True
@@ -287,6 +290,11 @@ class FakeBackend:
 
     def media_sessions(self) -> FakeSessions:
         return self.sessions
+
+    def microphone(self) -> FakeMicrophone:
+        if self.mic_missing:
+            raise AudioError("no microphone")
+        return FakeMicrophone(self.mic_recordings.pop(0) if self.mic_recordings else b"")
 
 
 class FakeSender:
@@ -485,6 +493,21 @@ class FakeController:
     def push(self, update: ControlUpdate) -> None:
         assert self.on_update is not None
         self.on_update(update)
+
+
+class FakeMicrophone:
+    """Hands over its whole recording as soon as it starts."""
+
+    def __init__(self, recording: bytes) -> None:
+        self._recording = recording
+        self.stopped = False
+
+    def start(self, on_pcm: Callable[[bytes], None]) -> None:
+        if self._recording:
+            on_pcm(self._recording)
+
+    def stop(self) -> None:
+        self.stopped = True
 
 
 class FakeCapture:

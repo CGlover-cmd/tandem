@@ -10,6 +10,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Sequence
 
+from tandem.engine import lineup
 from tandem.engine import pairing as engine_pairing
 from tandem.engine.audio import AudioError as EngineAudioError
 from tandem.engine.audio import AudioStreamChanged, StreamState
@@ -68,6 +69,7 @@ class EngineAudio:
         self._last_reason: dict[str, str] = {}
         """Why each device's last connection attempt failed (an exception type name)."""
         self._starting: set[str] = set()
+        self._lineup = ui.LineUpSnapshot()
         """Outputs being turned on: shown as starting at once, before the engine reports."""
         self._sends: dict[str, ui.SendSnapshot] = {}
         self.last_outputs: list[str] = []
@@ -120,7 +122,45 @@ class EngineAudio:
             outputs=tuple(outputs),
             pc_outputs_hidden=system,
             groups=group_snapshots(self._groups.groups(), outputs),
+            lineup=self._lineup,
         )
+
+    async def line_up(self) -> None:
+        names = {o.id: o.name for o in self.audio().outputs}
+        playing = [
+            output_id
+            for output_id, (state, _volume, _delay) in self._engine.outputs_on().items()
+            if state is StreamState.STREAMING
+        ]
+        if len(playing) < 2:
+            self._set_lineup(ui.LineUpState.FAILED, problem=ui.LineUpProblem.TOO_FEW)
+            return
+        lags: dict[str, int] = {}
+        for output_id in playing:
+            self._set_lineup(ui.LineUpState.LISTENING, names.get(output_id))
+            try:
+                measured = await self._engine.measure_lag(output_id)
+            except (EngineAudioError, OSError) as exc:
+                _LOGGER.info("Line-up couldn't listen (%s)", type(exc).__name__)
+                self._set_lineup(ui.LineUpState.FAILED, problem=ui.LineUpProblem.NO_MIC)
+                return
+            if measured.lag_ms is None:
+                problem = ui.LineUpProblem.NOISY if measured.noisy else ui.LineUpProblem.NOT_HEARD
+                self._set_lineup(ui.LineUpState.FAILED, names.get(output_id), problem)
+                return
+            lags[output_id] = measured.lag_ms
+        for output_id, delay_ms in lineup.delays_for(lags).items():
+            await self.set_output_delay(output_id, delay_ms)
+        self._set_lineup(ui.LineUpState.DONE)
+
+    def _set_lineup(
+        self,
+        state: ui.LineUpState,
+        output: str | None = None,
+        problem: ui.LineUpProblem | None = None,
+    ) -> None:
+        self._lineup = ui.LineUpSnapshot(state, output, problem)
+        self._audio_changed()
 
     # Speaker groups
 

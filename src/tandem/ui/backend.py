@@ -280,6 +280,29 @@ def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
     )
 
 
+class LineUpState(Enum):
+    IDLE = "idle"
+    LISTENING = "listening"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class LineUpProblem(Enum):
+    TOO_FEW = "tooFew"  # fewer than two speakers playing
+    NO_MIC = "noMic"
+    NOT_HEARD = "notHeard"  # the beeps weren't heard from one speaker
+    NOISY = "noisy"
+
+
+@dataclass(frozen=True, slots=True)
+class LineUpSnapshot:
+    """Automatic line-up progress. `output` names the speaker being measured or not heard."""
+
+    state: LineUpState = LineUpState.IDLE
+    output: str | None = None
+    problem: LineUpProblem | None = None
+
+
 class GroupState(Enum):
     OFF = "off"
     ON = "on"  # every member that's around is playing
@@ -304,6 +327,7 @@ class AudioSnapshot:
     pc_outputs_hidden: bool = False
     """The PC's default output is left out because it would echo (system audio as source)."""
     groups: tuple[GroupSnapshot, ...] = ()
+    lineup: LineUpSnapshot = field(default_factory=LineUpSnapshot)
 
 
 @dataclass(frozen=True, slots=True)
@@ -572,6 +596,11 @@ class Backend(Protocol):
 
     async def set_home_bridge(self, on: bool) -> None:
         """Turn the Home bridge on or off; the choice is saved."""
+        ...
+
+    async def line_up(self) -> None:
+        """Measure each playing speaker's lag with the microphone and set the delays so they
+        all play together. Progress shows in `AudioSnapshot.lineup`."""
         ...
 
     # Speaker groups

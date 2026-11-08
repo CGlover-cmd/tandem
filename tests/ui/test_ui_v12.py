@@ -146,3 +146,24 @@ async def test_groups_from_the_window(backend: DemoBackend) -> None:
     await controller.runner.drain()
     assert controller.snapshot()["audio"]["groups"] == []
     await controller.stop()
+
+
+async def test_line_up_in_the_demo(backend: DemoBackend) -> None:
+    controller = AppController(backend)
+    await controller.start()
+    controller.handle({"type": "lineUp"})
+    await controller.runner.drain()
+    assert controller.snapshot()["audio"]["lineup"] == {
+        "state": "failed",
+        "output": None,
+        "problem": "tooFew",
+    }
+    for speaker in ("demo-speaker-1", "demo-speaker-2"):
+        controller.handle({"type": "setOutput", "id": speaker, "on": True})
+    await controller.runner.drain()
+    controller.handle({"type": "lineUp"})
+    await controller.runner.drain()
+    audio = controller.snapshot()["audio"]
+    assert audio["lineup"]["state"] == "done"
+    assert sorted(o["delayMs"] for o in audio["outputs"] if o["state"] == "streaming") == [0, 450]
+    await controller.stop()
