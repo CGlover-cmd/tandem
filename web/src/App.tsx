@@ -128,7 +128,7 @@ export function App() {
             <LogoMark size={30} />
             <div>
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
-                {view === "music" ? strings.music.title : strings.devicesTitle}
+                {strings.appName}
               </h1>
               <p className="text-[13px] text-[var(--muted)]">
                 {view === "music" ? strings.music.subtitle : strings.devicesSubtitle}

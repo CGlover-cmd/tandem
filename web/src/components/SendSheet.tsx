@@ -100,11 +100,6 @@ export function SendSheet({ device, canPickFiles, picking, onClose, send }: Prop
             </TextField>
             <p className="text-[12px] text-[var(--muted)]">{strings.sendSheet.formats}</p>
           </Modal.Body>
-          <Modal.Footer>
-            <Button variant="primary" onPress={onClose}>
-              {strings.sendSheet.done}
-            </Button>
-          </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

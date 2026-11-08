@@ -78,16 +78,18 @@ export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: P
           </p>
         )}
       </Card.Content>
-      <Card.Footer className="flex flex-row items-center gap-2">
-        <Button
-          size="sm"
-          variant={action.primary ? "primary" : "secondary"}
-          isDisabled={!action.enabled}
-          onPress={onActivate}
-          className="min-w-24"
-        >
-          {action.label}
-        </Button>
+      <Card.Footer className="flex flex-row flex-wrap items-center gap-2">
+        {!connected && (
+          <Button
+            size="sm"
+            variant={action.primary ? "primary" : "secondary"}
+            isDisabled={!action.enabled}
+            onPress={onActivate}
+            className="min-w-24"
+          >
+            {action.label}
+          </Button>
+        )}
         {controls && (
           <Button
             size="sm"
@@ -108,6 +110,11 @@ export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: P
           >
             <SendIcon size={16} />
             {strings.sendSheet.open}
+          </Button>
+        )}
+        {connected && (
+          <Button size="sm" variant="ghost" onPress={onActivate} className="card-quiet-action">
+            {action.label}
           </Button>
         )}
       </Card.Footer>

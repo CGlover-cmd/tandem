@@ -115,7 +115,6 @@ export const strings = {
     turnOn: "Turn on",
     nothingPlaying: "Nothing playing",
     keyboardHint: "Arrow keys move, Enter selects, Backspace goes back. Hold for a long press.",
-    done: "Done",
   },
 
   launcher: {
@@ -187,7 +186,6 @@ export const strings = {
     allOff: "Turn all off",
     master: "All speakers",
     masterOf: "Volume for all playing speakers",
-    done: "Done",
     badge: (count: number) => (count === 1 ? "1 playing" : `${count} playing`),
   },
 
@@ -272,7 +270,6 @@ export const strings = {
     ended: (title: string) => `Finished ${title}`,
     failed: (title: string) => `The TV couldn't play ${title}`,
     stop: "Stop",
-    done: "Done",
     connectFirst: "Connect the TV first.",
   },
 
@@ -366,6 +363,7 @@ export const strings = {
     changePhoto: "Change photo…",
     photoFailed: "Tandem couldn't use that picture. Try a JPEG or PNG photo.",
     advanced: "Advanced settings",
+    more: "More settings",
     photoBlur: "Blur",
     updateCheck: "Check for updates",
     updateCheckDetail: "When Tandem opens, it asks GitHub whether there's a newer version. Nothing about your PC or devices is sent.",
@@ -396,7 +394,6 @@ export const strings = {
     back: "Back",
     appIcons: "App icons",
     appIconsDetail: "Shows each Apple TV app's real icon, looked up on the App Store. Turn off to show letters instead.",
-    done: "Done",
   },
 };
 

@@ -37,6 +37,11 @@ describe("device cards", () => {
     expect(statusFor(device, 3).text).toBe(status);
   });
 
+  it("fill only the action that unblocks: pairing or a retry, not every Connect", () => {
+    expect(actionFor({ ...speaker, state: "disconnected" }).primary).toBe(false);
+    expect(actionFor({ ...speaker, state: "failed" }).primary).toBe(true);
+  });
+
   it("say when a retry is due now", () => {
     expect(statusFor({ ...speaker, state: "waiting" }, 0).text).toBe("Trying again…");
   });

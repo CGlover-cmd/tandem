@@ -2,7 +2,7 @@ import { Button, Modal, Separator, Spinner, ToggleButton, ToggleButtonGroup } fr
 import { useRef, useState } from "react";
 import { Label, Radio, RadioGroup } from "react-aria-components";
 
-import { CheckIcon } from "../icons";
+import { CheckIcon, ChevronIcon } from "../icons";
 import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
@@ -176,18 +176,20 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, ap
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            <nav className="flex flex-col gap-1" aria-label={words.more}>
+              <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenGuide}>
+                <span>{strings.onboarding.reopen}</span>
+                <ChevronIcon direction="right" size={16} />
+              </Button>
+              <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenAdvanced}>
+                <span>{words.advanced}</span>
+                <ChevronIcon direction="right" size={16} />
+              </Button>
+            </nav>
           </Modal.Body>
-          <Modal.Footer className="flex flex-wrap gap-2">
-            <Button variant="secondary" onPress={onOpenGuide}>
-              {strings.onboarding.reopen}
-            </Button>
-            <Button variant="secondary" onPress={onOpenAdvanced}>
-              {words.advanced}
-            </Button>
-            <Button variant="primary" onPress={onClose}>
-              {words.done}
-            </Button>
-          </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
