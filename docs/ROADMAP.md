@@ -14,6 +14,15 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **Architecture and UI review (2026-11-08, after 1.2.0; not released yet):** the review's 14
+  recommendations are on their own branch, on top of 1.2.0
+  ([ADR-0019](adr/0019-one-bridge-demo-on-the-engine.md)). The demo runs on the real engine
+  through a demo device adapter (the old demo backend is gone), audio outputs live in the
+  engine, play/pause and control errors are handled once, the bridge sends problem codes, and
+  `tools/write_contract.py` keeps `types.ts` checked against Python. Window polish: icons at
+  their real size, primary-colour row titles in sheets, card actions that wrap, quiet
+  scrollbars and sliders, a remote that fits without scrolling, one close per sheet. Nothing
+  here changes what talks to devices, but it should ride along with the next hardware retest.
 - **Current state (2026-11-06): 1.1.0, a pre-release, fixes the maintainer's 1.0.0 test.**
   The 1.0.0 installer shipped srptools 2.0, which broke every Apple handshake (pairing showed
   "wrong PIN"; HomePods and the soundbar failed). Library versions are now pinned
