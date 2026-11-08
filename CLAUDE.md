@@ -135,6 +135,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
   Bridge's `setup_message` is overridden (it is). Its state file is
   `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
+- Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
+  Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
+  the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 

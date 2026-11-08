@@ -8,6 +8,7 @@ import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { MusicPanel, NowPlayingBar } from "./components/Music";
+import { NetworkNote } from "./components/NetworkNote";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
@@ -41,6 +42,8 @@ export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [networkDismissed, setNetworkDismissed] = useState(false);
+  const showNetworkNote = (state?.network.untrusted ?? false) && !networkDismissed;
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [audioOpen, setAudioOpen] = useState(false);
@@ -174,6 +177,7 @@ export function App() {
         </header>
 
         <Tabs.Panel id="devices">
+          {showNetworkNote && <NetworkNote send={send} onDismiss={() => setNetworkDismissed(true)} />}
           {state && state.devices.length > 0 ? (
             <ul className="device-grid" aria-label={strings.devicesTitle}>
               {state.devices.map((device) => (

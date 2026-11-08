@@ -43,6 +43,7 @@ function state(over: Partial<AppState> = {}): AppState {
     home: { enabled: false, running: false, paired: false, setupCode: null, failed: false, switches: [] },
     message: null,
     appearance: { theme: "system", background: "sky", appIcons: true, onboarded: false, photo: null },
+    network: { untrusted: false },
     music: null,
     demo: true,
     reduceMotion: false,

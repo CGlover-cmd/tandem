@@ -23,6 +23,7 @@ from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.file_picker import WindowFilePicker
+from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.platform import reduce_motion, store_country, ui_data_dir
 from tandem.ui.server import UiServer
 
@@ -81,6 +82,7 @@ def build(
         icons=icons,
         picker=picker,
         photo=photo,
+        network=None if args.demo else NetworkWatch(),
     )
     server = UiServer(
         controller,

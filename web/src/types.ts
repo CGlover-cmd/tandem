@@ -210,6 +210,8 @@ export interface AppState {
   home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
+  /** Windows treats every connected network as Public, so the firewall keeps speakers out. */
+  network: { untrusted: boolean };
   demo: boolean;
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
@@ -219,7 +221,7 @@ export interface AppState {
 export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
-  | { type: "cancelPairing" | "closePairing" | "dismissMessage" }
+  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
   | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean; onboarded?: boolean }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }

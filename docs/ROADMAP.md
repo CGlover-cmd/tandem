@@ -22,9 +22,10 @@ _Update this section at the end of every working session._
   panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
   settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
   default background and a photo background.
-- **1.1.1 (2026-11-08):** the firewall rule covers every network type, local subnet only, so
-  Windows no longer asks "allow Python?" on networks it marks Public (maintainer's choice;
-  ADR-0017 addendum).
+- **1.1.1 (2026-11-08):** Windows' Private/Public setting is Tandem's per-network trust list:
+  allowed (local subnet) on Private, blocked on Public, so Windows no longer asks "allow
+  Python?"; on a Public network the window offers to mark it Private (maintainer's choice;
+  ADR-0017 addendum). The maintainer's own Wi-Fi is currently Public, so expect the note.
 - **1.0.0 (2026-11-04)** was built as a pre-release. Every phase except the
   shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
   and CI builds, installs and smoke-tests the Windows installer

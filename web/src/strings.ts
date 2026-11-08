@@ -194,6 +194,13 @@ export const strings = {
     switchOff: (name: string) => `${name}: off`,
   },
 
+  network: {
+    title: "Is this your network?",
+    body: "Windows treats this network as Public, so Tandem keeps your speakers and TV out. If it's your own network, mark it as trusted (Private) in Windows. Windows remembers your choice for each network.",
+    trust: "Trust this network…",
+    steps: "In Windows Settings, open this network's Properties and choose Private network.",
+    later: "Not now",
+  },
   onboarding: {
     title: "Getting started",
     subtitle: "Three quick steps. This list ticks itself off as you go.",

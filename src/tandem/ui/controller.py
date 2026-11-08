@@ -56,6 +56,7 @@ from tandem.ui.backend import (
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
+from tandem.ui.network_trust import NetworkWatch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -330,11 +331,14 @@ class AppController:
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
         photo: BackgroundPhoto | None = None,
+        network: NetworkWatch | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
         self.photo = photo
+        self.network = network
+        """Watches whether Windows trusts this network (Private) or not (Public)."""
         """The user's background photo, if this window offers one."""
         self._clock = clock
         self.music: MusicSnapshot | None = None
@@ -407,6 +411,7 @@ class AppController:
                 "onboarded": self.appearance.onboarded,
                 "photo": None if self.photo is None else self.photo.version,
             },
+            "network": {"untrusted": self.network is not None and self.network.untrusted},
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
             "music": _music_json(self.music, self._clock()),
@@ -425,6 +430,8 @@ class AppController:
         self.audio.audio = self._backend.audio()
         self.home = self._backend.home()
         self._changed()
+        if self.network is not None:
+            self.network.start(self._changed)
         await self._backend.start()
 
     async def stop(self) -> None:
@@ -432,6 +439,8 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
+        if self.network is not None:
+            await self.network.stop()
         await self.runner.drain()
         if self._icons is not None:
             await self._icons.close()
@@ -561,6 +570,9 @@ class AppController:
             self.pairing.close()
         elif kind == "dismissMessage":
             self.dismiss_message()
+        elif kind == "openNetworkSettings":
+            if self.network is not None:
+                self.network.open_settings()
         elif kind == "press" and has_id:
             key, action = (
                 _enum(RemoteKey, command.get("key")),

@@ -10,9 +10,13 @@ of logs with names, addresses and identifiers replaced.
 ## New in 1.1.1
 
 - **One prompt to install.** On a network Windows marks as Public (often home Wi-Fi), 1.1.0
-  also asked "allow Python through the firewall?" the first time Tandem opened. The installer's
-  firewall rule now covers every network type but only lets in devices on your own local
-  network, so that second prompt no longer appears.
+  also asked "allow Python through the firewall?" the first time Tandem opened. That prompt is
+  gone.
+- **Trusted networks.** Tandem now uses Windows' own Private/Public setting, which Windows
+  remembers for each network. On Private networks your speakers and TV can reach Tandem; on
+  Public ones Tandem stays closed, and the window shows "Is this your network?" with a button
+  to Windows' network settings, where you mark it Private. If your home Wi-Fi is set to Public,
+  you'll see this note once after installing.
 
 ## Fixed in 1.1.0
 
@@ -62,9 +66,7 @@ of logs with names, addresses and identifiers replaced.
 - **Not code-signed yet.** Windows SmartScreen warns about the installer (choose More info, then
   Run anyway). With **Smart App Control** on, Windows blocks it outright; install with Python
   instead (see the README).
-- **On a shared network** (a café, a hotel), other devices on the same Wi-Fi can reach Tandem's
-  network ports, as they can at home. Each one is guarded (see "Network and security" in the README), but quit Tandem
-  from the tray there if you'd rather not.
+- On a Public network Tandem can't find or reach your speakers until you trust the network.
 - No screen mirroring (FairPlay; see ADR-0006). No Spotify or Apple Music browsing inside
   Tandem yet: use their apps, and Tandem sends their sound and shows what's playing.
 - Windows' volume and mute also affect what Tandem sends (it captures what Windows plays), and

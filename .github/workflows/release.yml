@@ -71,14 +71,20 @@ jobs:
           Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $rule = (netsh advfirewall firewall show rule name="Tandem") -join "`n"
-          if ($LASTEXITCODE -ne 0) { Write-Error "The installer didn't add the firewall rule"; exit 1 }
-          # Every network type, local subnet only (ADR-0017, 1.1.1 addendum).
-          if ($rule -notmatch "Domain,Private,Public" -or $rule -notmatch "LocalSubnet") {
-            Write-Output $rule; Write-Error "The firewall rule isn't limited to the local subnet on every network type"; exit 1
+          # Allowed from the local subnet on Private and Domain networks, blocked on Public
+          # (ADR-0017, 1.1.1 addendum).
+          $rules = @(Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue)
+          $allow = @($rules | Where-Object { $_.Action -eq "Allow" })
+          $block = @($rules | Where-Object { $_.Action -eq "Block" })
+          if ($allow.Count -ne 1 -or $block.Count -ne 1) { $rules | Format-List; Write-Error "Expected one allow and one block rule"; exit 1 }
+          $remote = ($allow[0] | Get-NetFirewallAddressFilter).RemoteAddress
+          if ("$($allow[0].Profile)" -ne "Domain, Private" -or "$remote" -ne "LocalSubnet") {
+            $allow[0] | Format-List; Write-Error "The allow rule isn't Private/Domain and local subnet only"; exit 1
           }
+          if ("$($block[0].Profile)" -ne "Public") { $block[0] | Format-List; Write-Error "The block rule isn't for Public networks"; exit 1 }
           Start-Process "$env:ProgramFiles\Tandem\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
           if (Test-Path "$env:ProgramFiles\Tandem\python") { Write-Error "Uninstall left files"; exit 1 }
+          if (Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue) { Write-Error "Uninstall left firewall rules"; exit 1 }
 
       - name: Portable zip
         shell: pwsh
