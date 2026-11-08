@@ -7,6 +7,7 @@ import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
 import type { Appearance, Command, ThemeChoice } from "../types";
+import { LiveSlider } from "./LiveSlider";
 
 interface Props {
   isOpen: boolean;
@@ -161,6 +162,19 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, ap
                 )}
               </RadioGroup>
               <PhotoPicker hasPhoto={appearance.photo !== null} />
+              {appearance.photo !== null && appearance.background === PHOTO_BACKGROUND && (
+                <div className="flex items-center gap-3">
+                  <span className="w-12 text-[12px] text-[var(--muted)]">{words.photoBlur}</span>
+                  <LiveSlider
+                    label={words.photoBlur}
+                    value={appearance.photoBlur}
+                    min={0}
+                    max={24}
+                    step={1}
+                    onCommit={(photoBlur) => send({ type: "setAppearance", photoBlur })}
+                  />
+                </div>
+              )}
             </section>
           </Modal.Body>
           <Modal.Footer className="flex flex-wrap gap-2">

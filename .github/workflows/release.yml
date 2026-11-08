@@ -17,6 +17,10 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write # only used by the release step, which runs for tags
+      actions: read # SignPath reads the unsigned installer artifact
+    env:
+      # Code signing turns on once the SignPath secrets exist (docs/signing.md).
+      SIGNING: ${{ secrets.SIGNPATH_API_TOKEN != '' && startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,17 +68,49 @@ jobs:
           & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" packaging\tandem.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Upload the unsigned installer for signing
+        id: unsigned
+        if: env.SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-setup
+          path: dist/Tandem-${{ steps.version.outputs.version }}-setup.exe
+
+      - name: Sign the installer (SignPath Foundation)
+        if: env.SIGNING == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: tandem
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist
+
       - name: Install, smoke-test and uninstall
         shell: pwsh
         run: |
           $setup = "dist\Tandem-${{ steps.version.outputs.version }}-setup.exe"
           Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          # Setup compiles the libraries (checked before anything else runs Python there).
+          if (-not (Test-Path "$env:ProgramFiles\Tandem\python\Lib\site-packages\tandem\__pycache__")) { Write-Error "Setup didn't compile Tandem's libraries"; exit 1 }
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          netsh advfirewall firewall show rule name="Tandem" | Out-Null
-          if ($LASTEXITCODE -ne 0) { Write-Error "The installer didn't add the firewall rule"; exit 1 }
+          # Allowed from the local subnet on Private and Domain networks, blocked on Public
+          # (ADR-0017, 1.1.1 addendum).
+          $rules = @(Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue)
+          $allow = @($rules | Where-Object { $_.Action -eq "Allow" })
+          $block = @($rules | Where-Object { $_.Action -eq "Block" })
+          if ($allow.Count -ne 1 -or $block.Count -ne 1) { $rules | Format-List; Write-Error "Expected one allow and one block rule"; exit 1 }
+          $remote = ($allow[0] | Get-NetFirewallAddressFilter).RemoteAddress
+          if ("$($allow[0].Profile)" -ne "Domain, Private" -or "$remote" -ne "LocalSubnet") {
+            $allow[0] | Format-List; Write-Error "The allow rule isn't Private/Domain and local subnet only"; exit 1
+          }
+          if ("$($block[0].Profile)" -ne "Public") { $block[0] | Format-List; Write-Error "The block rule isn't for Public networks"; exit 1 }
           Start-Process "$env:ProgramFiles\Tandem\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
           if (Test-Path "$env:ProgramFiles\Tandem\python") { Write-Error "Uninstall left files"; exit 1 }
+          if (Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue) { Write-Error "Uninstall left firewall rules"; exit 1 }
 
       - name: Portable zip
         shell: pwsh

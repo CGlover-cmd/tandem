@@ -15,18 +15,23 @@ log.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
+import platform
 import re
 import time
+import urllib.parse
+import webbrowser
 from collections.abc import Callable, Coroutine
 from enum import Enum
+from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from tandem import __version__
 from tandem.ui.audio_panel import AudioPanel, FilePicker
 from tandem.ui.backend import (
     MAX_TEXT,
     PHOTO_BACKGROUND,
-    Appearance,
     AppearanceChanged,
     AppInfo,
     AudioChanged,
@@ -61,6 +66,9 @@ from tandem.ui.backend import (
 )
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.library_panel import FolderPicker, LibraryPanel
+from tandem.ui.network_trust import NetworkWatch
+from tandem.ui.updates import GetJson, Update
+from tandem.ui.updates import check as check_for_update
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -323,6 +331,32 @@ class CommandBar:
         self._on_change()
 
 
+ISSUES_URL = "https://github.com/CGlover-cmd/tandem/issues/new"
+
+
+def issue_url(version: str = __version__, windows: str | None = None) -> str:
+    """A new GitHub issue with the facts that help and nothing personal."""
+    windows = platform.version() if windows is None else windows
+    body = (
+        f"Tandem {version} on Windows {windows}\n\n"
+        "**What happened:**\n\n\n"
+        "**What I expected:**\n\n\n"
+        "Tandem just saved a diagnostics zip and showed it in File Explorer. Names, addresses "
+        "and identifiers in it are replaced, but have a look first, then drag it here."
+    )
+    query = urllib.parse.urlencode({"title": "Problem: ", "body": body})
+    return f"{ISSUES_URL}?{query}"
+
+
+_APPEARANCE_FLAGS = {
+    "appIcons": "app_icons",
+    "onboarded": "onboarded",
+    "updateCheck": "update_check",
+    "restoreOutputs": "restore_outputs",
+}
+"""The window's names for the on/off appearance and Advanced settings."""
+
+
 class AppController:
     """Everything the window and the tray menu show, and the commands they send."""
 
@@ -336,11 +370,27 @@ class AppController:
         picker: FilePicker | None = None,
         folder_picker: FolderPicker | None = None,
         photo: BackgroundPhoto | None = None,
+        network: NetworkWatch | None = None,
+        get_json: GetJson | None = None,
+        open_url: Callable[[str], object] = webbrowser.open,
+        reveal: Callable[[Path], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
         self.photo = photo
+        self.network = network
+        self._get_json = get_json
+        """Fetches GitHub's releases list for the update check; None turns it off."""
+        self._open_url = open_url
+        self._reveal = reveal
+        self.update: Update | None = None
+        """A newer Tandem on GitHub, if the update check found one."""
+        self.reporting = False
+        """A diagnostics zip is being written for "Report a problem"."""
+        self.commands_requested = 0
+        """Bumped by the global hotkey: the window opens its command bar when it changes."""
+        """Watches whether Windows trusts this network (Private) or not (Public)."""
         """The user's background photo, if this window offers one."""
         self._clock = clock
         self.music: MusicSnapshot | None = None
@@ -415,8 +465,17 @@ class AppController:
                 "background": self.appearance.background,
                 "appIcons": self.appearance.app_icons,
                 "onboarded": self.appearance.onboarded,
+                "updateCheck": self.appearance.update_check,
+                "restoreOutputs": self.appearance.restore_outputs,
+                "photoBlur": self.appearance.photo_blur,
                 "photo": None if self.photo is None else self.photo.version,
             },
+            "network": {"untrusted": self.network is not None and self.network.untrusted},
+            "update": None
+            if self.update is None
+            else {"version": self.update.version, "url": self.update.url},
+            "reporting": self.reporting,
+            "commandsRequested": self.commands_requested,
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
             "music": _music_json(self.music, self._clock()),
@@ -436,6 +495,10 @@ class AppController:
         self.library.load()
         self.home = self._backend.home()
         self._changed()
+        if self.network is not None:
+            self.network.start(self._changed)
+        if self._get_json is not None and self.appearance.update_check:
+            self.runner.run(self._check_for_update(self._get_json))
         await self._backend.start()
 
     async def stop(self) -> None:
@@ -443,6 +506,8 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
+        if self.network is not None:
+            await self.network.stop()
         await self.runner.drain()
         if self._icons is not None:
             await self._icons.close()
@@ -510,14 +575,42 @@ class AppController:
         """Use `data` (a JPEG the window made) as the background. False if it was refused."""
         if self.photo is None or not self.photo.save(data):
             return False
-        self.set_appearance(
-            self.appearance.theme.value,
-            PHOTO_BACKGROUND,
-            self.appearance.app_icons,
-            self.appearance.onboarded,
-        )
+        self.set_appearance(background=PHOTO_BACKGROUND)
         self._changed()  # the photo's version changed even if the choice didn't
         return True
+
+    def report_problem(self) -> None:
+        """Write a redacted diagnostics zip, show it in Explorer, and open a new GitHub issue
+        for the user to describe the problem and attach the zip. Nothing is sent by Tandem."""
+        if not self.reporting:
+            self.reporting = True
+            self._changed()
+            self.runner.run(self._report_problem())
+
+    async def _report_problem(self) -> None:
+        try:
+            bundle = await self._backend.write_diagnostics()
+        finally:
+            self.reporting = False
+            self._changed()
+        if bundle is not None and self._reveal is not None:
+            self._reveal(bundle)
+        self._open_url(issue_url())
+
+    def set_window_visible(self, visible: bool) -> None:
+        """Called from the window thread's owner when the window is shown or hidden."""
+        self.runner.run(self._backend.set_window_visible(visible))
+
+    def request_commands(self) -> None:
+        """The global hotkey: the window (brought to the front by the caller) opens Commands."""
+        self.commands_requested += 1
+        self._changed()
+
+    async def _check_for_update(self, get_json: GetJson) -> None:
+        update = await check_for_update(get_json, __version__)
+        if update != self.update:
+            self.update = update
+            self._changed()
 
     def music_artwork(self) -> MusicArtwork | None:
         """The artwork for what's playing, for the window only."""
@@ -551,16 +644,40 @@ class AppController:
             self.runner.run(self._send_text(device_id))
 
     def set_appearance(
-        self, theme: str, background: str, app_icons: bool = True, onboarded: bool | None = None
+        self, theme: str | None = None, background: str | None = None, **changes: Any
     ) -> None:
-        if onboarded is None:
-            onboarded = self.appearance.onboarded
+        """Change some appearance and Advanced settings; the rest stay as they are."""
+        if theme is not None:
+            try:
+                changes["theme"] = Theme(theme)
+            except ValueError:
+                _LOGGER.warning("Ignoring an unknown appearance choice")
+                return
+        if background is not None:
+            changes["background"] = background
         try:
-            appearance = Appearance(Theme(theme), background, app_icons, onboarded)
-        except ValueError:
+            appearance = dataclasses.replace(self.appearance, **changes)
+        except (ValueError, TypeError):
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
         self.runner.run(self._backend.set_appearance(appearance))
+
+    def _set_appearance_from(self, command: dict[str, Any]) -> None:
+        theme, background = command.get("theme"), command.get("background")
+        if not isinstance(theme, str | None) or not isinstance(background, str | None):
+            return
+        changes: dict[str, Any] = {}
+        for key, field in _APPEARANCE_FLAGS.items():
+            if key in command:
+                if not isinstance(command[key], bool):
+                    return
+                changes[field] = command[key]
+        if "photoBlur" in command:
+            blur = command["photoBlur"]
+            if isinstance(blur, bool) or not isinstance(blur, int):
+                return
+            changes["photo_blur"] = blur
+        self.set_appearance(theme, background, **changes)
 
     def handle(self, command: dict[str, Any]) -> None:
         """Run one command from the front end. Unknown or malformed commands are ignored."""
@@ -583,6 +700,14 @@ class AppController:
             self.pairing.close()
         elif kind == "dismissMessage":
             self.dismiss_message()
+        elif kind == "openUpdate":
+            if self.update is not None:
+                self._open_url(self.update.url)
+        elif kind == "reportProblem":
+            self.report_problem()
+        elif kind == "openNetworkSettings":
+            if self.network is not None:
+                self.network.open_settings()
         elif kind == "press" and has_id:
             key, action = (
                 _enum(RemoteKey, command.get("key")),
@@ -625,17 +750,7 @@ class AppController:
         elif kind == "clearCommand":
             self.commands.clear()
         elif kind == "setAppearance":
-            theme = command.get("theme", self.appearance.theme.value)
-            background = command.get("background", self.appearance.background)
-            app_icons = command.get("appIcons", self.appearance.app_icons)
-            onboarded = command.get("onboarded", self.appearance.onboarded)
-            if (
-                isinstance(theme, str)
-                and isinstance(background, str)
-                and isinstance(app_icons, bool)
-                and isinstance(onboarded, bool)
-            ):
-                self.set_appearance(theme, background, app_icons, onboarded)
+            self._set_appearance_from(command)
         elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
             self.runner.run(self._backend.set_home_bridge(command["on"]))
         elif isinstance(kind, str) and (

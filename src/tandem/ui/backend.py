@@ -10,9 +10,10 @@ logs them.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Protocol
 
 
@@ -58,6 +59,7 @@ PHOTO_BACKGROUND = "photo"
 BACKGROUNDS = (*NEUTRAL_BACKGROUNDS, *GRADIENT_BACKGROUNDS, PHOTO_BACKGROUND)
 """Window backgrounds the user can pick in Settings. The front end defines their colours."""
 DEFAULT_BACKGROUND = "sky"
+MAX_PHOTO_BLUR = 24
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,10 +70,18 @@ class Appearance:
     """Show real app icons in the launcher, looked up on the App Store (ADR-0012)."""
     onboarded: bool = False
     """The first-run checklist has been closed (it opens by itself until then)."""
+    update_check: bool = True
+    """Look for a newer Tandem on GitHub when the window opens (Advanced settings)."""
+    restore_outputs: bool = False
+    """Turn the speakers that were on back on when Tandem starts (Advanced settings)."""
+    photo_blur: int = 0
+    """Blur over the user's background photo, in pixels."""
 
     def __post_init__(self) -> None:
         if self.background not in BACKGROUNDS:
             raise ValueError("unknown background")
+        if not 0 <= self.photo_blur <= MAX_PHOTO_BLUR:
+            raise ValueError("photo blur out of range")
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +235,14 @@ class OutputState(Enum):
     DIRECT = "direct"  # the PC's default output: Windows plays there itself, not Tandem
 
 
+class OutputProblem(Enum):
+    """Why an output couldn't play; the window words each one with its fix."""
+
+    UNREACHABLE = "unreachable"  # no answer: off, asleep, or on another network
+    ACCESS = "access"  # it answered and refused: the Home app's speaker access setting
+    FAILED = "failed"  # anything else
+
+
 class AudioSourceChoice(Enum):
     SYSTEM = "system"  # whatever the PC plays
     PLAYER = "player"  # Tandem's own player (files and radio)
@@ -247,6 +265,8 @@ class OutputSnapshot:
     """Extra delay for this output, to line it up with the others by ear."""
     device_kind: DeviceKind | None = None
     needs_pairing: bool = False
+    problem: OutputProblem | None = None
+    """Why it couldn't play, while `state` is FAILED."""
 
 
 def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
@@ -260,12 +280,54 @@ def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
     )
 
 
+class LineUpState(Enum):
+    IDLE = "idle"
+    LISTENING = "listening"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class LineUpProblem(Enum):
+    TOO_FEW = "tooFew"  # fewer than two speakers playing
+    NO_MIC = "noMic"
+    NOT_HEARD = "notHeard"  # the beeps weren't heard from one speaker
+    NOISY = "noisy"
+
+
+@dataclass(frozen=True, slots=True)
+class LineUpSnapshot:
+    """Automatic line-up progress. `output` names the speaker being measured or not heard."""
+
+    state: LineUpState = LineUpState.IDLE
+    output: str | None = None
+    problem: LineUpProblem | None = None
+
+
+class GroupState(Enum):
+    OFF = "off"
+    ON = "on"  # every member that's around is playing
+    PARTLY = "partly"  # some members are playing
+    STARTING = "starting"
+
+
+@dataclass(frozen=True, slots=True)
+class GroupSnapshot:
+    """A saved set of outputs turned on together. `name` is shown, never logged."""
+
+    id: str
+    name: str
+    outputs: tuple[str, ...]
+    state: GroupState = GroupState.OFF
+
+
 @dataclass(frozen=True, slots=True)
 class AudioSnapshot:
     source: AudioSourceChoice = AudioSourceChoice.SYSTEM
     outputs: tuple[OutputSnapshot, ...] = ()
     pc_outputs_hidden: bool = False
     """The PC's default output is left out because it would echo (system audio as source)."""
+    groups: tuple[GroupSnapshot, ...] = ()
+    lineup: LineUpSnapshot = field(default_factory=LineUpSnapshot)
 
 
 @dataclass(frozen=True, slots=True)
@@ -676,6 +738,33 @@ class Backend(Protocol):
 
     async def set_home_bridge(self, on: bool) -> None:
         """Turn the Home bridge on or off; the choice is saved."""
+        ...
+
+    async def line_up(self) -> None:
+        """Measure each playing speaker's lag with the microphone and set the delays so they
+        all play together. Progress shows in `AudioSnapshot.lineup`."""
+        ...
+
+    # Speaker groups
+
+    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
+        """Save outputs as a named group (a group with the same name is replaced)."""
+        ...
+
+    async def delete_group(self, group_id: str) -> None: ...
+
+    async def set_group(self, group_id: str, on: bool) -> None:
+        """Turn every member on or off. Raises AudioError only if none would play."""
+        ...
+
+    # Housekeeping
+
+    async def set_window_visible(self, visible: bool) -> None:
+        """The window was shown or hidden: scan less often while hidden and nothing plays."""
+        ...
+
+    async def write_diagnostics(self) -> Path | None:
+        """Write a redacted diagnostics zip for a bug report; None if there's nothing to write."""
         ...
 
     # The music library, radio and Tandem's player (Phase 6)

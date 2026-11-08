@@ -23,6 +23,8 @@ MAX_OUTPUTS = 200
 class OutputPrefs:
     volume: float | None = None
     delay_ms: int = 0
+    on: bool = False
+    """The user had it on (for "turn my speakers back on" at the next start)."""
 
 
 class OutputPrefsStore:
@@ -32,6 +34,10 @@ class OutputPrefsStore:
 
     def get(self, output_id: str) -> OutputPrefs:
         return self._prefs.get(output_id, OutputPrefs())
+
+    def were_on(self) -> list[str]:
+        """Outputs the user left on."""
+        return [output_id for output_id, prefs in self._prefs.items() if prefs.on]
 
     def load(self) -> None:
         if self._path is None:
@@ -57,15 +63,22 @@ class OutputPrefsStore:
             self._prefs[key] = OutputPrefs(
                 None if volume is None else float(volume),  # pyright: ignore[reportUnknownArgumentType]
                 delay,
+                value.get("on") is True,  # pyright: ignore[reportUnknownMemberType]
             )
 
     def update(
-        self, output_id: str, *, volume: float | None = None, delay_ms: int | None = None
+        self,
+        output_id: str,
+        *,
+        volume: float | None = None,
+        delay_ms: int | None = None,
+        on: bool | None = None,
     ) -> OutputPrefs:
         current = self.get(output_id)
         updated = OutputPrefs(
             current.volume if volume is None else volume,
             current.delay_ms if delay_ms is None else delay_ms,
+            current.on if on is None else on,
         )
         if updated != current:
             self._prefs[output_id] = updated
@@ -75,7 +88,10 @@ class OutputPrefsStore:
     def _save(self) -> None:
         if self._path is None:
             return
-        data = {k: {"volume": v.volume, "delay_ms": v.delay_ms} for k, v in self._prefs.items()}
+        data = {
+            k: {"volume": v.volume, "delay_ms": v.delay_ms, "on": v.on}
+            for k, v in self._prefs.items()
+        }
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(prefix=".outputs-", dir=self._path.parent)

@@ -102,6 +102,16 @@ export interface AudioOutput {
   delayMs: number;
   deviceKind: DeviceKind | null;
   needsPairing: boolean;
+  /** Why it couldn't play, while `state` is "failed". */
+  problem: "unreachable" | "access" | "failed" | null;
+}
+
+/** A saved set of outputs turned on together. `name` is the user's own: never log it. */
+export interface SpeakerGroup {
+  id: string;
+  name: string;
+  outputs: string[];
+  state: "off" | "on" | "partly" | "starting";
 }
 
 export interface AudioPanel {
@@ -109,6 +119,13 @@ export interface AudioPanel {
   /** The PC's default output is hidden while its own sound is the source (it would echo). */
   pcOutputsHidden: boolean;
   outputs: AudioOutput[];
+  groups: SpeakerGroup[];
+  /** Automatic line-up with the microphone. `output` names the speaker being measured. */
+  lineup: {
+    state: "idle" | "listening" | "done" | "failed";
+    output: string | null;
+    problem: "tooFew" | "noMic" | "notHeard" | "noisy" | null;
+  };
   /** How many outputs Tandem is sending to (not counting the PC's default output). */
   streaming: number;
   /** The window can open a file picker (it can't in the browser preview). */
@@ -141,6 +158,12 @@ export interface Appearance {
   onboarded: boolean;
   /** Changes whenever the user's background photo does; null when there's none. */
   photo: number | null;
+  /** Look for a newer Tandem on GitHub when the window opens. */
+  updateCheck: boolean;
+  /** Turn the speakers that were on back on when Tandem starts. */
+  restoreOutputs: boolean;
+  /** Blur over the background photo, in pixels (0 to 24). */
+  photoBlur: number;
 }
 
 export type CommandStatus =
@@ -308,6 +331,14 @@ export interface AppState {
   home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
+  /** Windows treats every connected network as Public, so the firewall keeps speakers out. */
+  network: { untrusted: boolean };
+  /** A newer Tandem on GitHub, found by the update check. */
+  update: { version: string; url: string } | null;
+  /** A diagnostics zip is being written for "Report a problem". */
+  reporting: boolean;
+  /** Goes up when Ctrl+Alt+K is pressed anywhere: open the command bar. */
+  commandsRequested: number;
   demo: boolean;
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
@@ -321,8 +352,21 @@ export interface AppState {
 export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
   | { type: "submitPin"; pin: string }
-  | { type: "cancelPairing" | "closePairing" | "dismissMessage" }
-  | { type: "setAppearance"; theme?: ThemeChoice; background?: string; appIcons?: boolean; onboarded?: boolean }
+  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
+  | { type: "openUpdate" | "reportProblem" | "lineUp" }
+  | { type: "saveGroup"; name: string; outputs: string[] }
+  | { type: "deleteGroup"; id: string }
+  | { type: "setGroup"; id: string; on: boolean }
+  | {
+      type: "setAppearance";
+      theme?: ThemeChoice;
+      background?: string;
+      appIcons?: boolean;
+      onboarded?: boolean;
+      updateCheck?: boolean;
+      restoreOutputs?: boolean;
+      photoBlur?: number;
+    }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }
   | { type: "media"; id: string; command: MediaCommand }
   | { type: "setVolume"; id: string; level: number }

@@ -24,6 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 SETTINGS_VERSION = 1
 
 _NAME = re.compile(r"[a-z][a-z0-9-]{0,31}")
+MAX_PHOTO_BLUR = 24
 
 
 class Theme(Enum):
@@ -46,12 +47,20 @@ class Settings:
     """The first-run checklist has been closed."""
     home_bridge: bool = False
     """Show Tandem in the Home app as a bridge with switches (ADR-0016). Off by default."""
+    update_check: bool = True
+    """Look for a newer Tandem on GitHub's releases page when the window opens."""
+    restore_outputs: bool = False
+    """Turn the speakers that were on back on when Tandem starts."""
+    photo_blur: int = 0
+    """Blur over the user's background photo, in pixels (0 to 24)."""
 
     def __post_init__(self) -> None:
         if not 2.0 <= self.discovery_interval_s <= 300.0:
             raise ValueError("discovery_interval_s must be between 2 and 300 seconds")
         if not _NAME.fullmatch(self.background):
             raise ValueError("background must be a short lowercase name")
+        if not 0 <= self.photo_blur <= MAX_PHOTO_BLUR:
+            raise ValueError("photo_blur must be between 0 and 24")
 
     def to_json(self) -> dict[str, Any]:
         data: dict[str, Any] = {"version": SETTINGS_VERSION}

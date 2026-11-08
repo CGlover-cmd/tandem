@@ -43,3 +43,21 @@ missed it because they fake pyatv. Now:
   tests what ships. `pyproject.toml` also caps srptools below 2 for pip installs.
 - `tests/test_dependencies.py` runs pyatv's real SRP code against srptools' server side.
 - Moving a pin is a deliberate change: update the file, run the tests, check on hardware.
+
+## Addendum (1.1.1): Windows' Private/Public setting is the trust list
+Windows often marks home Wi-Fi as Public. With a Private-only allow rule, Windows then asked
+"allow Python on this network?" on first run, a second prompt after setup's own. Opening Public
+networks too would remove the prompt but expose Tandem's listeners (AirPlay timing ports while
+streaming, the token-path media server after a send, the HomeKit bridge if enabled) on café
+and hotel Wi-Fi. The maintainer chose per-network trust instead:
+- The installer adds an allow rule (Private and Domain profiles, `remoteip=localsubnet`) and a
+  block rule (Public profile) for Tandem's pythonw.exe. With a rule on every profile, Windows
+  never prompts. The release workflow checks both rules and that uninstall removes them.
+- Windows remembers each network's category, so it is the trust list; Tandem keeps none of its
+  own. A Tandem-side list would need an admin prompt per change, and firewall rules can't tell
+  two networks apart by name (many share the same subnet).
+- `tandem.ui.network_trust` reads the connected networks' categories through
+  `INetworkListManager` (ctypes, no admin). When all are Public, the window shows "Is this your
+  network?" with a button to `ms-settings:network-status`.
+- Consequence: on a Public network Tandem can't find or reach speakers until the user marks it
+  Private. The UI server stays loopback-only either way.

@@ -80,6 +80,9 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "background": "sky",
         "appIcons": True,
         "onboarded": False,
+        "updateCheck": True,
+        "restoreOutputs": False,
+        "photoBlur": 0,
         "photo": None,
     }
     assert snapshot["pairing"]["state"] == "closed"
@@ -327,6 +330,9 @@ async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
         "background": "dusk",
         "appIcons": True,
         "onboarded": False,
+        "updateCheck": True,
+        "restoreOutputs": False,
+        "photoBlur": 0,
         "photo": None,
     }
 
@@ -345,6 +351,9 @@ async def test_unknown_appearance_is_ignored(
         "background": "sky",
         "appIcons": True,
         "onboarded": False,
+        "updateCheck": True,
+        "restoreOutputs": False,
+        "photoBlur": 0,
         "photo": None,
     }
     assert "unknown appearance" in caplog.text

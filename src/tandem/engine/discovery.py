@@ -20,6 +20,10 @@ Scanner = Callable[[float], Awaitable[Sequence[Device]]]
 Sleep = Callable[[float], Awaitable[None]]
 
 
+IDLE_INTERVAL = 60.0
+"""Seconds between scans while the window is hidden and nothing is playing."""
+
+
 class Discovery:
     """Runs `scanner` repeatedly and feeds the results into the registry.
 
@@ -45,7 +49,9 @@ class Discovery:
         self._scanner = scanner
         self._interval = interval
         self._scan_timeout = scan_timeout
-        self._max_age = lost_after_scans * (interval + scan_timeout)
+        self._lost_after_scans = lost_after_scans
+        self.idle = False
+        """Scan every `IDLE_INTERVAL` instead (nobody is looking and nothing is playing)."""
         self._backoff = backoff or Backoff(initial=1.0, maximum=interval * 3)
         self._sleep = sleep
         self._rng = rng
@@ -60,8 +66,21 @@ class Discovery:
         found = list(await self._scanner(self._scan_timeout))
         for device in found:
             self._registry.upsert(device)
-        self._registry.expire(self._max_age)
+        self._registry.expire(
+            self._lost_after_scans * (self._current_interval + self._scan_timeout)
+        )
         return found
+
+    @property
+    def _current_interval(self) -> float:
+        return max(self._interval, IDLE_INTERVAL) if self.idle else self._interval
+
+    async def set_idle(self, idle: bool) -> None:
+        """Scan less often while idle. Waking up scans at once, so the list is fresh."""
+        was_idle, self.idle = self.idle, idle
+        if was_idle and not idle and self.running:
+            await self.stop()
+            self.start()
 
     def start(self) -> None:
         if not self.running:
@@ -91,4 +110,4 @@ class Discovery:
                 continue
             failures = 0
             _LOGGER.debug("Discovery scan found %d device(s)", len(found))
-            await self._sleep(self._interval)
+            await self._sleep(self._current_interval)

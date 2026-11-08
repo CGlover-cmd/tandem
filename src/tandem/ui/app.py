@@ -23,7 +23,14 @@ from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
 from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.file_picker import WindowFilePicker
-from tandem.ui.platform import reduce_motion, store_country, ui_data_dir
+from tandem.ui.network_trust import NetworkWatch
+from tandem.ui.platform import (
+    GlobalHotkey,
+    reduce_motion,
+    reveal_in_explorer,
+    store_country,
+    ui_data_dir,
+)
 from tandem.ui.server import UiServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,6 +80,7 @@ def build(
 
         backend = create_engine_backend()
         icons = AppIconStore(ui_data_dir() / "app-icons", AiohttpHttp(), country=store_country())
+    http = None if args.demo else AiohttpHttp()  # the demo never goes online
     photo = BackgroundPhoto(ui_data_dir() / ("demo-photo" if args.demo else "photo"))
     controller = AppController(
         backend,
@@ -82,6 +90,9 @@ def build(
         picker=picker,
         folder_picker=picker,
         photo=photo,
+        network=None if args.demo else NetworkWatch(),
+        get_json=None if http is None else http.get_json,
+        reveal=reveal_in_explorer,
     )
     server = UiServer(
         controller,
@@ -175,6 +186,7 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
     def show_window() -> None:
         window.show()
         window.restore()
+        loop.call_soon_threadsafe(controller.set_window_visible, True)
 
     def quit_app() -> None:
         quitting.set()
@@ -187,15 +199,28 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
         if quitting.is_set():
             return True
         threading.Thread(target=window.hide, daemon=True).start()
+        loop.call_soon_threadsafe(controller.set_window_visible, False)
         tray.told_hidden()
         return False
 
     window.events.closing += on_closing
+    window.events.minimized += lambda: loop.call_soon_threadsafe(
+        controller.set_window_visible, False
+    )
+    window.events.restored += lambda: loop.call_soon_threadsafe(controller.set_window_visible, True)
+
+    def on_hotkey() -> None:  # Ctrl+Alt+K from anywhere: bring Tandem up with Commands open
+        show_window()
+        loop.call_soon_threadsafe(controller.request_commands)
+
+    hotkey = GlobalHotkey(on_hotkey)
+    hotkey.start()
     tray.start()
     icon = write_ico(ui_data_dir() / "tandem.ico")
     wv.start(icon=str(icon), private_mode=True)
 
     tray.stop()
+    hotkey.stop()
     loop.call_soon_threadsafe(loop.stop)
     stopped.wait(timeout=5)
     return 0

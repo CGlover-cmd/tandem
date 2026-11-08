@@ -135,6 +135,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
   Bridge's `setup_message` is overridden (it is). Its state file is
   `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
+- Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
+  Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
+  the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
@@ -199,6 +202,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   through Tandem's server (`/catalog-art`, `/apple-music-badge`, sandboxing CSP), are fetched
   at run time and stay in memory: never commit or save them. No previews. Keep the 20-a-minute
   limit. Don't open a real song link without the maintainer's OK (it plays from their account).
+- Groups and line-up (ADR-0018): groups in `engine/output_groups.py`, shared UI logic in
+  `ui/groups.py`; line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
+  The microphone on this PC refuses desktop apps right now (miniaudio init -6, access denied),
+  so a hardware line-up check needs the maintainer to allow it in Windows' privacy settings.
+  Open the mic off the event loop (`asyncio.to_thread`): opening it can block.
+- `tools/update_constraints.py` rewrites `packaging/constraints.txt` from the installed set; the
+  monthly `dependencies.yml` workflow runs it after the tests pass on the newest versions.
 - Library versions: `packaging/constraints.txt` pins every runtime library; the app folder, the
   release workflow and CI install with `-c` it. Move a pin only on purpose, after the tests and
   a hardware check (1.0.0 shipped an unpinned srptools 2.0 that broke all Apple handshakes).
