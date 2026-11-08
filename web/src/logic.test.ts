@@ -70,9 +70,9 @@ describe("problems", () => {
   it("have words for every code", () => {
     expect(problemText({ code: "wrongPin" })).toMatch(/didn't match/);
     expect(problemText({ code: "pinFormat" })).toMatch(/4-digit/);
-    expect(problemText({ code: "pairingFailed", text: "Busy." })).toBe("Busy.");
     expect(problemText({ code: "pairingFailed" })).toMatch(/Pairing didn't work/);
-    expect(problemText({ code: "backend" })).toMatch(/went wrong/);
+    expect(problemText({ code: "pinExpired" })).toMatch(/expired/);
+    expect(problemText({ code: "noSuchCode" })).toMatch(/went wrong/);
     expect(problemText({ code: "taskFailed" })).toMatch(/went wrong/);
   });
 });

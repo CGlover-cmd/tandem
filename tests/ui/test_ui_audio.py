@@ -67,7 +67,7 @@ async def test_unpaired_tv_output_says_pair_first(backend: DemoBackend) -> None:
     assert _output(controller, "demo-tv")["needsPairing"]
     controller.handle({"type": "setOutput", "id": "demo-tv", "on": True})
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Pair this device first."}
+    assert controller.message == {"code": "pairFirst"}
     with pytest.raises(AudioError):
         await backend.set_output("nope", True)
 
@@ -89,7 +89,7 @@ async def test_send_a_link_to_the_tv(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "https://x.example/a.mp4"})
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Connect the TV first."}
+    assert controller.message == {"code": "connectFirst"}
     await _connected_tv(controller)
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "   "})  # empty: ignored
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "x" * 3000})  # too long
@@ -103,9 +103,9 @@ async def test_send_a_link_to_the_tv(backend: DemoBackend) -> None:
     await controller.runner.drain()
     tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
     assert tv["send"] is None
-    with pytest.raises(MediaError, match="Apple TV"):
+    with pytest.raises(MediaError, match="notATv"):
         await backend.send_media("demo-speaker-1", "https://x.example/a.mp4")
-    with pytest.raises(MediaError, match="Paste a link"):
+    with pytest.raises(MediaError, match="noLocation"):
         await backend.send_media("demo-tv", " ")
 
 

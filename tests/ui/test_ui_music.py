@@ -116,7 +116,7 @@ async def test_nothing_playing(controller: AppController, demo: DemoBackend) -> 
 
     controller.music_command(MusicCommand.NEXT)
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Nothing is playing on this PC."}
+    assert controller.message == {"code": "nothingPlaying"}
     with pytest.raises(ControlError):
         await demo.music_seek(1.0)
     assert demo.music_artwork() is None

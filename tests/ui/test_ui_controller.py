@@ -241,8 +241,7 @@ async def test_pairing_that_cannot_start_shows_failed(backend: DemoBackend) -> N
     assert controller.pairing.state == "failed"
     error = controller.pairing.error
     assert error is not None
-    assert error["code"] == "pairingFailed"
-    assert error["text"] == "This device doesn't need pairing."
+    assert error == {"code": "noPairingNeeded"}
 
 
 async def test_device_leaving_closes_its_pairing_sheet(backend: DemoBackend) -> None:
@@ -313,7 +312,7 @@ async def test_backend_pairing_errors_are_shown_as_given(backend: DemoBackend) -
     controller.connect("demo-tv")  # not paired yet
     await controller.runner.drain()
 
-    assert controller.message == {"code": "backend", "text": "Pair this device first."}
+    assert controller.message == {"code": "pairFirst"}
 
 
 # Appearance
@@ -527,13 +526,13 @@ async def test_control_errors_show_their_words(backend: DemoBackend) -> None:
 
     controller.press("demo-speaker-1", RemoteKey.UP)  # not connected
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+    assert controller.message == {"code": "notConnected"}
 
     controller.connect("demo-speaker-1")
     await controller.runner.drain()
     controller.press("demo-speaker-1", RemoteKey.UP)  # a HomePod has no remote pad
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device can't do that right now."}
+    assert controller.message == {"code": "cantDoThat"}
 
 
 # App launcher and text entry
@@ -597,7 +596,7 @@ async def test_apps_on_a_device_without_them_fail_with_words(backend: DemoBacken
     assert speaker["apps"] == {
         "state": "failed",
         "items": [],
-        "error": {"code": "backend", "text": "This device can't do that right now."},
+        "error": {"code": "cantDoThat"},
     }
     assert controller.message is None  # shown in the launcher, not as a banner
 
@@ -640,7 +639,7 @@ async def test_late_apps_result_after_reload_is_ignored(backend: DemoBackend) ->
     class Slow(DemoBackend):
         async def apps(self, device_id: str) -> list[AppInfo]:
             await release.wait()
-            raise ControlError("This device can't do that right now.")
+            raise ControlError("cantDoThat")
 
     slow = Slow(sleep=backend._sleep)  # pyright: ignore[reportPrivateUsage]
     controller = await _started(slow)
@@ -689,7 +688,7 @@ async def test_text_failure_shows_words_and_typing_recovers(backend: DemoBackend
     controller = await _started(backend)
     controller.set_text("demo-tv", "hello")  # not connected yet
     await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+    assert controller.message == {"code": "notConnected"}
 
     await _paired_tv(controller)
     controller.set_text("demo-tv", "hello")
@@ -778,7 +777,7 @@ class _Commands:
         if self.gate is not None:
             await self.gate.wait()
         if self.fail:
-            raise ControlError("This device isn't connected.")
+            raise ControlError("notConnected")
         self.ran.append(text)
         return CommandOutcome("done", "pause", {"device": text}, ("next",))
 
@@ -858,5 +857,6 @@ async def test_a_backend_error_while_running_is_a_result(backend: DemoBackend) -
 
     result = controller.snapshot()["commands"]["result"]
     assert result["status"] == "failed"
-    assert result["params"] == {"text": "This device isn't connected."}
+    assert result["code"] == "problem"
+    assert result["params"] == {"problem": "notConnected"}
     assert controller.message is None

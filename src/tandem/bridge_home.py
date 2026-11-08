@@ -74,12 +74,12 @@ class EngineHome:
 
     async def set_home_bridge(self, on: bool) -> None:
         if self._home is None:
-            raise ui.HomeError("The Home bridge isn't available on this PC.")
+            raise ui.HomeError(ui.Problem.HOME_UNAVAILABLE)
         self._settings.update(home_bridge=on)
         if on:
             await self._home.start()
             if not self._home.running:
-                raise ui.HomeError("Tandem couldn't start its Home bridge. Try again.")
+                raise ui.HomeError(ui.Problem.HOME_FAILED)
         else:
             await self._home.stop()
 

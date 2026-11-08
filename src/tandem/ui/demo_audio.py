@@ -29,20 +29,21 @@ from tandem.ui.backend import (
     OutputKind,
     OutputSnapshot,
     OutputState,
+    Problem,
     SendChanged,
     SendSnapshot,
     SendState,
     output_order,
 )
-from tandem.ui.groups import BAD_GROUP, GONE, group_snapshots, set_members
+from tandem.ui.groups import group_snapshots, set_members
 
 # Invented PC outputs. The first is the "Windows default", which echoes with system audio.
 DEMO_PC_OUTPUTS = (("demo-pc-speakers", "Speakers"), ("demo-pc-headphones", "Headphones"))
 DEMO_DEFAULT_PC_OUTPUT = "demo-pc-speakers"
-PAIR_FIRST = "Pair this device first."
-NOT_A_TV = "Only an Apple TV can play videos and links."
-CONNECT_FIRST = "Connect the TV first."
-EMPTY = "Paste a link or choose a file first."
+PAIR_FIRST = Problem.PAIR_FIRST
+NOT_A_TV = Problem.NOT_A_TV
+CONNECT_FIRST = Problem.CONNECT_FIRST
+EMPTY = Problem.NO_LOCATION
 DEMO_SETUP_CODE = "123-45-678"
 DEMO_SWITCHES = (
     ("audio", "Tandem Audio", False),
@@ -115,7 +116,7 @@ class DemoAudio:
         name = " ".join(name.split())[:40]
         members = tuple(dict.fromkeys(o for o in outputs if o))
         if not name or not members:
-            raise AudioError(BAD_GROUP)
+            raise AudioError(Problem.BAD_GROUP)
         same = next(
             (g for g in self._groups.values() if g.name.casefold() == name.casefold()), None
         )
@@ -130,7 +131,7 @@ class DemoAudio:
     async def set_group(self, group_id: str, on: bool) -> None:
         group = self._groups.get(group_id)
         if group is None:
-            raise AudioError(GONE)
+            raise AudioError(Problem.GROUP_GONE)
         await set_members(self, group.outputs, on)
 
     def send(self, device_id: str) -> SendSnapshot | None:
@@ -197,7 +198,7 @@ class DemoAudio:
     def _find(self, output_id: str) -> OutputSnapshot:
         output = next((o for o in self.audio().outputs if o.id == output_id), None)
         if output is None:
-            raise AudioError("That speaker is no longer available.")
+            raise AudioError(Problem.SPEAKER_GONE)
         return output
 
     def _store(self, output: OutputSnapshot) -> None:

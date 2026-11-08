@@ -53,6 +53,7 @@ from tandem.ui.backend import (
     NowPlayingSnapshot,
     PairingError,
     PairingFlow,
+    Problem,
     RemoteKey,
     Theme,
     Unsubscribe,
@@ -77,8 +78,8 @@ DEMO_DEVICES = (
 )
 FLAKY_DEVICE = "demo-soundbar"
 
-NOT_CONNECTED = "This device isn't connected."
-CANT_DO_THAT = "This device can't do that right now."
+NOT_CONNECTED = Problem.NOT_CONNECTED
+CANT_DO_THAT = Problem.CANT_DO_THAT
 
 # What each kind of demo device can do once connected (invented media, docs/PRIVACY.md).
 _ALL_MEDIA = frozenset(MediaCommand)
@@ -140,7 +141,7 @@ DEMO_TRACKS = (
     ("Paper Boats", "The Example Band", "Daybreak", 187.0, ("#FF8A5B", "#FFC85B")),
     ("Night Bus", "Imaginary Orchestra", "City Hours", 242.0, ("#2BB673", "#2B7BB6")),
 )
-NOTHING_PLAYING = "Nothing is playing on this PC."
+NOTHING_PLAYING = Problem.NOTHING_PLAYING
 
 
 def _demo_artwork(colours: tuple[str, str]) -> bytes:
@@ -220,7 +221,7 @@ class DemoBackend(DemoAudio):
     async def connect(self, device_id: str) -> None:
         device = self._get(device_id)
         if device.needs_pairing:
-            raise PairingError("Pair this device first.")
+            raise PairingError(Problem.PAIR_FIRST)
         if device_id in self._connecting or device.state is LinkState.CONNECTED:
             return
         task = asyncio.get_running_loop().create_task(self._connect(device_id))
@@ -242,7 +243,7 @@ class DemoBackend(DemoAudio):
     async def begin_pairing(self, device_id: str) -> PairingFlow:
         device = self._get(device_id)
         if not device.needs_pairing:
-            raise PairingError("This device doesn't need pairing.")
+            raise PairingError(Problem.NO_PAIRING_NEEDED)
         await self._sleep(self._delay)
         return _DemoPairing(
             TV_PIN_STEPS, lambda pin, last: self._finish_pairing(device_id, pin, last)
@@ -273,7 +274,7 @@ class DemoBackend(DemoAudio):
     async def _finish_pairing(self, device_id: str, pin: str, last: bool) -> None:
         await self._sleep(self._delay)
         if pin == WRONG_PIN:
-            raise WrongPinError("That PIN didn't match.")
+            raise WrongPinError(Problem.WRONG_PIN)
         if last:
             self._update(device_id, needs_pairing=False)
 
@@ -281,7 +282,7 @@ class DemoBackend(DemoAudio):
         try:
             return self._devices[device_id]
         except KeyError:
-            raise PairingError("That device is no longer available.") from None
+            raise PairingError(Problem.NOT_AVAILABLE) from None
 
     def _update(
         self,

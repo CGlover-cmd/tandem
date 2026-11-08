@@ -133,10 +133,9 @@ export interface AudioPanel {
   picking: boolean;
 }
 
-/** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
+/** Something to tell the user. `code` picks the words (`problems` in strings.ts). */
 export interface Problem {
-  code: "pinFormat" | "wrongPin" | "pairingFailed" | "backend" | "taskFailed" | string;
-  text?: string;
+  code: string;
 }
 
 export interface Pairing {

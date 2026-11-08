@@ -18,11 +18,8 @@ from tandem.ui.backend import (
     GroupState,
     OutputSnapshot,
     OutputState,
+    Problem,
 )
-
-BAD_GROUP = "A group needs a name and at least one speaker."
-NONE_PLAYED = "None of the speakers in that group could play."
-GONE = "That group is no longer available."
 
 _LIVE = {OutputState.STARTING, OutputState.STREAMING, OutputState.WAITING}
 
@@ -48,12 +45,12 @@ async def set_members(backend: Outputs, members: Sequence[str], on: bool) -> Non
     available = {o.id: o for o in backend.audio().outputs}
     targets = [m for m in members if m in available and not available[m].needs_pairing]
     if not targets:
-        raise AudioError(NONE_PLAYED if on else GONE)
+        raise AudioError(Problem.GROUP_NONE_PLAYED if on else Problem.GROUP_GONE)
     results = await asyncio.gather(
         *(backend.set_output(m, on) for m in targets), return_exceptions=True
     )
     if on and all(isinstance(r, BaseException) for r in results):
-        raise AudioError(NONE_PLAYED)
+        raise AudioError(Problem.GROUP_NONE_PLAYED)
 
 
 def group_snapshots(

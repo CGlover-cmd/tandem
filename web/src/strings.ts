@@ -340,7 +340,7 @@ export const strings = {
         `There's no device called “${p.name}”. Home switches aren't in Tandem yet.`,
       unknownSwitch: (p) => `There's no switch or device called “${p.name}”.`,
       noResponse: (p) => (p.device ? `${p.device} didn't respond. Try again.` : "No response. Try again."),
-      backend: (p) => p.text || "Something went wrong. Try again.",
+      problem: (p) => problemText({ code: p.problem ?? "" }),
       noCommands: () => "Commands aren't available here.",
     } satisfies Record<string, Words>,
     runKey: "to run",
@@ -397,17 +397,41 @@ export const strings = {
   },
 };
 
+/** Words for every problem code Python sends (`tandem.ui.backend.Problem` and the controller's
+ * own). A contract test checks that every Python code has an entry here. */
+export const problems: Record<string, string> = {
+  pinFormat: "Enter the 4-digit PIN shown on the TV.",
+  wrongPin: "That PIN didn't match. Check the TV and try again.",
+  pairingFailed: "Pairing didn't work. Try again.",
+  taskFailed: "Something went wrong. Try again.",
+  notAvailable: "That device is no longer available.",
+  pairFirst: "Pair this device first.",
+  noPairingNeeded: "This device doesn't need pairing.",
+  pinExpired: "The PIN expired. Try again.",
+  couldNotPair: "Tandem couldn't pair with this device. Make sure it's on and try again.",
+  notConnected: "This device isn't connected.",
+  cantDoThat: "This device can't do that right now.",
+  noResponse: "The device didn't respond. Try again.",
+  noTextField: "Select a search box or text field on the TV first, then type.",
+  nothingPlaying: "Nothing is playing on this PC.",
+  appCant: "The app that's playing doesn't allow that right now.",
+  appDidntRespond: "The app didn't respond. Try again, or use the app itself.",
+  speakerGone: "That speaker is no longer available.",
+  noAudio: "Tandem couldn't send audio there. Make sure it's on and try again.",
+  noSend: "The TV couldn't play that. Try an MP4 or MOV file, or a direct link to one.",
+  notATv: "Only an Apple TV can play videos and links.",
+  fileGone: "That file isn't there any more.",
+  connectFirst: "Connect the TV first.",
+  noLocation: "Paste a link or choose a file first.",
+  homeUnavailable: "The Home bridge isn't available on this PC.",
+  homeFailed: "Tandem couldn't start its Home bridge. Try again.",
+  badGroup: "A group needs a name and at least one speaker.",
+  groupNonePlayed: "None of the speakers in that group could play.",
+  groupGone: "That group is no longer available.",
+};
+
 export function problemText(problem: Problem): string {
-  switch (problem.code) {
-    case "pinFormat":
-      return "Enter the 4-digit PIN shown on the TV.";
-    case "wrongPin":
-      return "That PIN didn't match. Check the TV and try again.";
-    case "pairingFailed":
-      return problem.text || "Pairing didn't work. Try again.";
-    case "backend":
-      return problem.text || "Something went wrong. Try again.";
-    default:
-      return "Something went wrong. Try again.";
-  }
+  return Object.prototype.hasOwnProperty.call(problems, problem.code)
+    ? problems[problem.code]!
+    : problems.taskFailed!;
 }

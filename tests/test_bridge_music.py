@@ -106,23 +106,23 @@ async def test_commands(h: Harness) -> None:
 
 
 async def test_command_problems_are_words_for_the_window(h: Harness) -> None:
-    with pytest.raises(ui.ControlError, match="doesn't allow"):
+    with pytest.raises(ui.ControlError, match="appCant"):
         await h.backend.music_command(ui.MusicCommand.PREVIOUS)  # the app has it off
-    with pytest.raises(ui.ControlError, match="doesn't allow"):
+    with pytest.raises(ui.ControlError, match="appCant"):
         await h.backend.music_seek(-5.0)
 
     h.fake.sessions.react = False  # the app accepts and does nothing
-    with pytest.raises(ui.ControlError, match="didn't respond"):
+    with pytest.raises(ui.ControlError, match="appDidntRespond"):
         await h.backend.music_command(ui.MusicCommand.NEXT)
-    with pytest.raises(ui.ControlError, match="didn't respond"):
+    with pytest.raises(ui.ControlError, match="appDidntRespond"):
         await h.backend.music_seek(30.0)
 
     h.fake.sessions.now = None
     h.fake.sessions.change(ChangeKind.SESSION)
     await _settle()
-    with pytest.raises(ui.ControlError, match="Nothing is playing"):
+    with pytest.raises(ui.ControlError, match="nothingPlaying"):
         await h.backend.music_command(ui.MusicCommand.PLAY_PAUSE)
-    with pytest.raises(ui.ControlError, match="Nothing is playing"):
+    with pytest.raises(ui.ControlError, match="nothingPlaying"):
         await h.backend.music_seek(1.0)
 
 
@@ -135,5 +135,5 @@ async def test_live_streams_cant_seek(h: Harness) -> None:
     music = h.backend.music()
     assert music is not None
     assert not music.can_seek
-    with pytest.raises(ui.ControlError, match="doesn't allow"):
+    with pytest.raises(ui.ControlError, match="appCant"):
         await h.backend.music_seek(10.0)

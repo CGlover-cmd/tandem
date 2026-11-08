@@ -420,13 +420,13 @@ class Engine:
         link = await self.connect(device_id, timeout=timeout)
         sender = self._backend.media_sender(link)
         if sender is None:
-            raise MediaError("This device can't play videos or links.")
+            raise MediaError("This device can't play videos or links.", MediaError.NOT_A_TV)
         if is_link(location):
             url = location
         else:
             path = Path(location)
             if not await asyncio.to_thread(path.is_file):
-                raise MediaError("That file isn't there any more.")
+                raise MediaError("That file isn't there any more.", MediaError.FILE_GONE)
             if self._media_server is None:
                 self._media_server = MediaServer()
             await self._media_server.start()

@@ -5,8 +5,8 @@ everything that needs testing (sorting, the pairing state machine, which action 
 offers) lives here and runs under pytest without a window.
 
 Messages for the user are sent as codes (`{"code": "wrongPin"}`); the front end holds the
-words, so translations live in one place. Text that comes from the backend (a
-`BackendError`) is safe to show and is passed through as `text`.
+words, so translations live in one place. A `BackendError` carries a `Problem` code too,
+which goes to the window as it is.
 
 Now-playing titles and typed commands are personal: they go to the window only, never to a
 log.
@@ -192,7 +192,7 @@ class PairingController:
             flow = await self._backend.begin_pairing(self.device_id)
         except PairingError as error:
             if attempt == self._attempt:
-                self._fail(str(error))
+                self._fail(error.code)
             return
         if attempt != self._attempt:
             await flow.cancel()
@@ -211,7 +211,7 @@ class PairingController:
             return
         except PairingError as error:
             if attempt == self._attempt:
-                self._fail(str(error))
+                self._fail(error.code)
             return
         if attempt != self._attempt:
             return
@@ -224,9 +224,9 @@ class PairingController:
         self._set_state("done")
         self._on_paired(self.device_id)
 
-    def _fail(self, text: str) -> None:
+    def _fail(self, code: str) -> None:
         self._flow = None
-        self.error = {"code": "pairingFailed", "text": text} if text else {"code": "pairingFailed"}
+        self.error = {"code": code or "pairingFailed"}
         self._set_state("failed", force=True)
 
     def _set_state(self, state: str, *, force: bool = False) -> None:
@@ -315,7 +315,7 @@ class CommandBar:
         try:
             outcome = await self._backend.run_command(text)
         except BackendError as error:
-            outcome = CommandOutcome("failed", "backend", {"text": str(error)})
+            outcome = CommandOutcome("failed", "problem", {"problem": error.code})
         finally:
             if attempt == self._attempt:
                 self.running = False
@@ -781,8 +781,8 @@ class AppController:
             if self._apps.get(device_id) is not apps:
                 return  # disconnected or reloaded meanwhile
             apps.state = "failed"
-            if isinstance(error, BackendError) and str(error):
-                apps.error = {"code": "backend", "text": str(error)}
+            if isinstance(error, BackendError) and error.code:
+                apps.error = {"code": error.code}
             else:
                 _LOGGER.error("Loading apps failed: %s", type(error).__name__)
                 apps.error = {"code": "taskFailed"}
@@ -825,8 +825,8 @@ class AppController:
             self._text_sending.discard(device_id)
 
     def _on_task_error(self, error: BaseException) -> None:
-        if isinstance(error, BackendError) and str(error):
-            self.message = {"code": "backend", "text": str(error)}
+        if isinstance(error, BackendError) and error.code:
+            self.message = {"code": error.code}
         else:
             # Type name only: exception messages can contain addresses (docs/PRIVACY.md).
             _LOGGER.error("UI task failed: %s", type(error).__name__)

@@ -183,6 +183,6 @@ async def test_a_failing_bridge_is_reported(tmp_path: Path) -> None:
         SettingsStore(tmp_path / "s.json", bus),
         home_server=lambda: FakeServer(OSError("port busy")),
     )
-    with pytest.raises(ui.HomeError, match="couldn't start"):
+    with pytest.raises(ui.HomeError, match="homeFailed"):
         await backend.set_home_bridge(True)
     assert backend.home().failed

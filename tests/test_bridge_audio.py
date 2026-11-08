@@ -107,11 +107,11 @@ async def test_turning_outputs_on_and_off(harness: Harness) -> None:
 
 
 async def test_output_problems_are_worded(harness: Harness) -> None:
-    with pytest.raises(ui.AudioError, match="Pair this device first"):
+    with pytest.raises(ui.AudioError, match="pairFirst"):
         await harness.backend.set_output(UNPAIRED.id, True)
-    with pytest.raises(ui.AudioError, match="no longer available"):
+    with pytest.raises(ui.AudioError, match="speakerGone"):
         await harness.backend.set_output("AA:BB:CC:00:00:99", True)
-    with pytest.raises(ui.AudioError, match="couldn't send audio"):
+    with pytest.raises(ui.AudioError, match="noAudio"):
         await harness.backend.set_output("local:speakers", True)  # would echo: not offered
     assert harness.output("local:headphones").state is ui.OutputState.OFF
 
@@ -146,9 +146,9 @@ async def test_send_media_and_stop(harness: Harness, tmp_path: Path) -> None:
     assert ui.SendChanged(TV.id, None) in harness.events
     await harness.backend.stop_media(TV.id)  # nothing to stop: no event
 
-    with pytest.raises(ui.MediaError, match="isn't there"):
+    with pytest.raises(ui.MediaError, match="fileGone"):
         await harness.backend.send_media(TV.id, str(tmp_path / "gone.mp4"))
-    with pytest.raises(ui.MediaError, match="no longer available"):
+    with pytest.raises(ui.MediaError, match="speakerGone"):
         await harness.backend.send_media("AA:BB:CC:00:00:99", "https://media.example/a.mp4")
 
 
@@ -159,7 +159,7 @@ async def test_send_network_failure_is_worded(harness: Harness) -> None:
     harness.engine.play_media = refuse  # type: ignore[method-assign]
     with pytest.raises(ui.MediaError) as failed:
         await harness.backend.send_media(TV.id, "https://media.example/a.mp4")
-    assert str(failed.value) == bridge_audio.NO_SEND
+    assert str(failed.value) == ui.Problem.NO_SEND
 
 
 def test_prefs_store_survives_bad_files(tmp_path: Path) -> None:

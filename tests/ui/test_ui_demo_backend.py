@@ -169,7 +169,7 @@ async def test_demo_controls_follow_the_connection(backend: DemoBackend) -> None
 
 async def test_demo_controls_refuse_what_a_device_cannot_do(backend: DemoBackend) -> None:
     await backend.start()
-    with pytest.raises(ControlError, match="isn't connected"):
+    with pytest.raises(ControlError, match="notConnected"):
         await backend.media("demo-soundbar", MediaCommand.NEXT)
 
     await backend.connect("demo-soundbar")
@@ -178,7 +178,7 @@ async def test_demo_controls_refuse_what_a_device_cannot_do(backend: DemoBackend
         backend.media("demo-soundbar", MediaCommand.NEXT),
         backend.set_power("demo-soundbar", False),
     ):
-        with pytest.raises(ControlError, match="can't do that"):
+        with pytest.raises(ControlError, match="cantDoThat"):
             await attempt
     await backend.press("demo-soundbar", RemoteKey.VOLUME_UP, KeyAction.TAP)
     await backend.set_volume("demo-soundbar", 250)
@@ -191,5 +191,5 @@ async def test_demo_speaker_volume_keys_need_a_volume(backend: DemoBackend) -> N
     await backend.start()
     await backend.connect("demo-speaker-2")
     await backend.press("demo-speaker-2", RemoteKey.VOLUME_DOWN, KeyAction.TAP)
-    with pytest.raises(ControlError, match="isn't connected"):
+    with pytest.raises(ControlError, match="notConnected"):
         await backend.set_volume("demo-tv", 10)

@@ -59,20 +59,7 @@ MAX_ATTEMPTS = 6
 # How pyatv reports a PIN the device rejected (an exception type name, or the engine's own).
 _WRONG_PIN = {engine_pairing.NOT_PAIRED, "PairingError", "AuthenticationError"}
 
-# Words the window shows. Safe to show: no names, addresses or PINs.
-NOT_AVAILABLE = "That device is no longer available."
-PAIR_FIRST = "Pair this device first."
-NO_PAIRING_NEEDED = "This device doesn't need pairing."
-PIN_EXPIRED = "The PIN expired. Try again."
-COULD_NOT_PAIR = "Tandem couldn't pair with this device. Make sure it's on and try again."
-WRONG_PIN = "That PIN didn't match."
-NOT_CONNECTED = "This device isn't connected."
-CANT_DO_THAT = "This device can't do that right now."
-NO_RESPONSE = "The device didn't respond. Try again."
-NO_TEXT_FIELD = "Select a search box or text field on the TV first, then type."
-NOTHING_PLAYING = "Nothing is playing on this PC."
-APP_CANT = "The app that's playing doesn't allow that right now."
-APP_DIDNT_RESPOND = "The app didn't respond. Try again, or use the app itself."
+Problem = ui.Problem
 
 _PC_MEDIA = {
     ui.MusicCommand.PLAY_PAUSE: PcMediaCommand.PLAY_PAUSE,
@@ -216,7 +203,7 @@ class EngineBackend(EngineAudio, EngineHome):
     async def connect(self, device_id: str) -> None:
         device = self._device(device_id)
         if engine_pairing.services_to_pair(device):
-            raise ui.PairingError(PAIR_FIRST)
+            raise ui.PairingError(Problem.PAIR_FIRST)
         # Start and return: progress arrives as ConnectionStateChanged events.
         self._engine.session(device_id, max_attempts=self._max_attempts).start()
 
@@ -228,7 +215,7 @@ class EngineBackend(EngineAudio, EngineHome):
         device = self._device(device_id)
         services = engine_pairing.services_to_pair(device)
         if not services:
-            raise ui.PairingError(NO_PAIRING_NEEDED)
+            raise ui.PairingError(Problem.NO_PAIRING_NEEDED)
         flow = _EnginePairing(self._engine, device_id, services, self._pin_timeout)
         await flow.start()
         return flow
@@ -270,20 +257,20 @@ class EngineBackend(EngineAudio, EngineHome):
     async def music_command(self, command: ui.MusicCommand) -> None:
         music = self.music()
         if music is None:
-            raise ui.ControlError(NOTHING_PLAYING)
+            raise ui.ControlError(Problem.NOTHING_PLAYING)
         if command not in music.commands:
-            raise ui.ControlError(APP_CANT)
+            raise ui.ControlError(Problem.APP_CANT)
         if not await self._engine.pc_media.command(_PC_MEDIA[command]):
-            raise ui.ControlError(APP_DIDNT_RESPOND)
+            raise ui.ControlError(Problem.APP_DIDNT_RESPOND)
 
     async def music_seek(self, position: float) -> None:
         music = self.music()
         if music is None:
-            raise ui.ControlError(NOTHING_PLAYING)
+            raise ui.ControlError(Problem.NOTHING_PLAYING)
         if not music.can_seek or position < 0:
-            raise ui.ControlError(APP_CANT)
+            raise ui.ControlError(Problem.APP_CANT)
         if not await self._engine.pc_media.seek(position):
-            raise ui.ControlError(APP_DIDNT_RESPOND)
+            raise ui.ControlError(Problem.APP_DIDNT_RESPOND)
 
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
@@ -373,7 +360,7 @@ class EngineBackend(EngineAudio, EngineHome):
         try:
             return self._engine.device(device_id)
         except UnknownDeviceError:
-            raise ui.PairingError(NOT_AVAILABLE) from None
+            raise ui.PairingError(Problem.NOT_AVAILABLE) from None
 
     def _set_link(self, device_id: str, link: _Link) -> None:
         self._links[device_id] = link
@@ -433,7 +420,7 @@ class _EnginePairing:
         except engine_pairing.PairingError as error:
             if error.reason in _WRONG_PIN:
                 await self._show_next_pin()  # the same service again: the device shows a new PIN
-                raise ui.WrongPinError(WRONG_PIN) from None
+                raise ui.WrongPinError(Problem.WRONG_PIN) from None
             raise ui.PairingError(_message(error.reason)) from None
         self._index += 1
         return await self._show_next_pin()
@@ -483,18 +470,18 @@ class _EnginePairing:
 
 
 async def _control(command: Awaitable[T]) -> T:
-    """Run a control command, turning engine errors into words the window can show."""
+    """Run a control command, turning engine errors into problem codes for the window."""
     try:
         return await command
     except ec.NotConnectedError:
-        raise ui.ControlError(NOT_CONNECTED) from None
+        raise ui.ControlError(Problem.NOT_CONNECTED) from None
     except ec.NoTextFieldError:
-        raise ui.ControlError(NO_TEXT_FIELD) from None
+        raise ui.ControlError(Problem.NO_TEXT_FIELD) from None
     except (ec.UnsupportedError, ValueError):
-        raise ui.ControlError(CANT_DO_THAT) from None
+        raise ui.ControlError(Problem.CANT_DO_THAT) from None
     except (ec.ControlError, OSError, TimeoutError) as exc:
         _LOGGER.info("A control command failed (%s)", type(exc).__name__)
-        raise ui.ControlError(NO_RESPONSE) from None
+        raise ui.ControlError(Problem.NO_RESPONSE) from None
 
 
 def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
@@ -693,12 +680,12 @@ async def _demo(command: Awaitable[None]) -> None:
     try:
         await command
     except ui.ControlError as error:
-        code = Code.NOT_CONNECTED if str(error) == NOT_CONNECTED else Code.CANT_DO_THAT
+        code = Code.NOT_CONNECTED if error.code == Problem.NOT_CONNECTED else Code.CANT_DO_THAT
         raise ActionError(code) from None
 
 
 def _message(reason: str) -> str:
-    return PIN_EXPIRED if reason == engine_pairing.PIN_TIMEOUT else COULD_NOT_PAIR
+    return Problem.PIN_EXPIRED if reason == engine_pairing.PIN_TIMEOUT else Problem.COULD_NOT_PAIR
 
 
 def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the network

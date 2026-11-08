@@ -24,17 +24,17 @@ from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 from tandem.ui import backend as ui
-from tandem.ui.groups import BAD_GROUP, group_snapshots, set_members
+from tandem.ui.groups import group_snapshots, set_members
 
 _LOGGER = logging.getLogger(__name__)
 
-# Words the window shows. Safe to show: no names, addresses or paths.
-PAIR_FIRST = "Pair this device first."
-GONE = "That speaker is no longer available."
-NO_AUDIO = "Tandem couldn't send audio there. Make sure it's on and try again."
-NO_SEND = "The TV couldn't play that. Try an MP4 or MOV file, or a direct link to one."
-NOT_STREAMING = "Turn this output on first."
+Problem = ui.Problem
 
+
+_MEDIA_PROBLEM = {
+    EngineMediaError.NOT_A_TV: Problem.NOT_A_TV,
+    EngineMediaError.FILE_GONE: Problem.FILE_GONE,
+}
 
 _STATE = {
     StreamState.STARTING: ui.OutputState.STARTING,
@@ -172,7 +172,7 @@ class EngineAudio:
         try:
             self._groups.save(name, outputs)
         except ValueError:
-            raise ui.AudioError(BAD_GROUP) from None
+            raise ui.AudioError(Problem.BAD_GROUP) from None
         self._audio_changed()
 
     async def delete_group(self, group_id: str) -> None:
@@ -182,7 +182,7 @@ class EngineAudio:
     async def set_group(self, group_id: str, on: bool) -> None:
         group = self._groups.get(group_id)
         if group is None:
-            raise ui.AudioError(GONE)
+            raise ui.AudioError(Problem.GROUP_GONE)
         await set_members(self, group.outputs, on)
 
     def send(self, device_id: str) -> ui.SendSnapshot | None:
@@ -234,9 +234,9 @@ class EngineAudio:
             try:
                 device = self._engine.device(output_id)
             except UnknownDeviceError:
-                raise ui.AudioError(GONE) from None
+                raise ui.AudioError(Problem.SPEAKER_GONE) from None
             if engine_pairing.services_to_pair(device):
-                raise ui.AudioError(PAIR_FIRST)
+                raise ui.AudioError(Problem.PAIR_FIRST)
         prefs = self._prefs.get(output_id)
         self._failed.pop(output_id, None)
         self._last_reason.pop(output_id, None)
@@ -248,7 +248,7 @@ class EngineAudio:
             _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
             self._failed[output_id] = classify(self._last_reason.get(output_id), exc)
             self._audio_changed()
-            raise ui.AudioError(NO_AUDIO) from None
+            raise ui.AudioError(Problem.NO_AUDIO) from None
         finally:
             self._starting.discard(output_id)
         self._prefs.update(output_id, on=True)
@@ -265,7 +265,7 @@ class EngineAudio:
                 await self._engine.set_output_volume(output_id, level)
             except (EngineAudioError, OSError, TimeoutError) as exc:
                 _LOGGER.info("Setting an output's volume failed (%s)", type(exc).__name__)
-                raise ui.AudioError(NO_AUDIO) from None
+                raise ui.AudioError(Problem.NO_AUDIO) from None
         self._audio_changed()
 
     async def set_output_delay(self, output_id: str, delay_ms: int) -> None:
@@ -283,12 +283,12 @@ class EngineAudio:
         try:
             await self._engine.play_media(device_id, location)
         except EngineMediaError as error:
-            raise ui.MediaError(str(error)) from None
+            raise ui.MediaError(_MEDIA_PROBLEM.get(error.reason, Problem.NO_SEND)) from None
         except UnknownDeviceError:
-            raise ui.MediaError(GONE) from None
+            raise ui.MediaError(Problem.SPEAKER_GONE) from None
         except (OSError, TimeoutError) as exc:
             _LOGGER.info("Sending media failed (%s)", type(exc).__name__)
-            raise ui.MediaError(NO_SEND) from None
+            raise ui.MediaError(Problem.NO_SEND) from None
 
     async def stop_media(self, device_id: str) -> None:
         await self._engine.stop_media(device_id)
