@@ -562,11 +562,14 @@ class EngineCommandServices:
 
     async def media(self, device_id: str, action: MediaAction) -> None:
         controls = self._engine.controls(device_id)
-        status = controls.status()
-        command = _media_command(action, status)
-        if command is None:
-            return  # already playing, or already paused
-        await _act(controls.media(command))
+        if action is MediaAction.PLAY:
+            await _act(controls.play())
+        elif action is MediaAction.PAUSE:
+            await _act(controls.pause())
+        elif action is MediaAction.NEXT:
+            await _act(controls.media(ec.MediaCommand.NEXT))
+        else:
+            await _act(controls.media(ec.MediaCommand.PREVIOUS))
 
     async def set_volume(self, device_id: str, level: int) -> None:
         await _act(self._engine.controls(device_id).set_volume(float(level)))
@@ -601,9 +604,9 @@ def abilities(status: ec.ControlStatus) -> frozenset[Ability]:
     """What the dispatcher can do with a connected device, from its controls."""
     caps = status.capabilities
     found: set[Ability] = set()
-    if caps & {ec.Capability.PLAY, ec.Capability.PLAY_PAUSE}:
+    if status.can_play:
         found.add(Ability.PLAY)
-    if caps & {ec.Capability.PAUSE, ec.Capability.PLAY_PAUSE}:
+    if status.can_pause:
         found.add(Ability.PAUSE)
     if ec.Capability.NEXT in caps:
         found.add(Ability.NEXT)
@@ -618,25 +621,6 @@ def abilities(status: ec.ControlStatus) -> frozenset[Ability]:
     elif status.volume_control is ec.VolumeControl.STEPS:
         found.add(Ability.VOLUME_STEPS)
     return frozenset(found)
-
-
-def _media_command(action: MediaAction, status: ec.ControlStatus) -> ec.MediaCommand | None:
-    """The engine command for an action. Some apps offer only play/pause (a toggle), so
-    "pause" on something already paused does nothing rather than start it."""
-    caps = status.capabilities
-    playing = status.now_playing.state is ec.PlayState.PLAYING
-    if action is MediaAction.NEXT:
-        return ec.MediaCommand.NEXT
-    if action is MediaAction.PREVIOUS:
-        return ec.MediaCommand.PREVIOUS
-    wanted, exact = (
-        (True, ec.Capability.PLAY) if action is MediaAction.PLAY else (False, ec.Capability.PAUSE)
-    )
-    if exact in caps:
-        return ec.MediaCommand.PLAY if wanted else ec.MediaCommand.PAUSE
-    if playing is wanted:
-        return None
-    return ec.MediaCommand.PLAY_PAUSE
 
 
 async def _act(command: Awaitable[None]) -> None:
@@ -654,13 +638,16 @@ def _audio_error(error: Exception) -> ActionError:
     return ActionError(Code.NO_RESPONSE)
 
 
+_FAILURE_CODE = {
+    ec.Failure.NOT_CONNECTED: Code.NOT_CONNECTED,
+    ec.Failure.NO_TEXT_FIELD: Code.CANT_DO_THAT,
+    ec.Failure.CANT_DO_THAT: Code.CANT_DO_THAT,
+    ec.Failure.NO_RESPONSE: Code.NO_RESPONSE,
+}
+
+
 def _action_error(error: Exception) -> ActionError:
-    if isinstance(error, ec.NotConnectedError):
-        return ActionError(Code.NOT_CONNECTED)
-    if isinstance(error, ec.UnsupportedError | ValueError):
-        return ActionError(Code.CANT_DO_THAT)
-    if isinstance(error, ec.ControlError | OSError | TimeoutError):
-        # Type name only: exception messages can hold addresses (docs/PRIVACY.md).
-        _LOGGER.info("A typed command failed (%s)", type(error).__name__)
-        return ActionError(Code.NO_RESPONSE)
-    raise error
+    failure = ec.failure_of(error)
+    if failure is None:
+        raise error
+    return ActionError(_FAILURE_CODE[failure])

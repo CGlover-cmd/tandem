@@ -79,7 +79,12 @@ _MEDIA_NEEDS = {
     ui.MediaCommand.SKIP_FORWARD: ec.Capability.SKIP_FORWARD,
     ui.MediaCommand.SKIP_BACKWARD: ec.Capability.SKIP_BACKWARD,
 }
-_PLAY_PAUSE = {ec.Capability.PLAY_PAUSE, ec.Capability.PLAY, ec.Capability.PAUSE}
+_FAILURE = {
+    ec.Failure.NOT_CONNECTED: Problem.NOT_CONNECTED,
+    ec.Failure.NO_TEXT_FIELD: Problem.NO_TEXT_FIELD,
+    ec.Failure.CANT_DO_THAT: Problem.CANT_DO_THAT,
+    ec.Failure.NO_RESPONSE: Problem.NO_RESPONSE,
+}
 
 _LINK = {
     ConnectionState.DISCONNECTED: ui.LinkState.DISCONNECTED,
@@ -226,17 +231,10 @@ class EngineBackend(EngineAudio, EngineHome):
 
     async def media(self, device_id: str, command: ui.MediaCommand) -> None:
         controls = self._engine.controls(device_id)
-        if command is not ui.MediaCommand.PLAY_PAUSE:
-            await _control(controls.media(_MEDIA[command]))
-            return
-        # Some apps offer only play or only pause; pick what fits.
-        status = controls.status()
-        if ec.Capability.PLAY_PAUSE in status.capabilities:
-            await _control(controls.media(ec.MediaCommand.PLAY_PAUSE))
-        elif status.now_playing.state is ec.PlayState.PLAYING:
-            await _control(controls.media(ec.MediaCommand.PAUSE))
+        if command is ui.MediaCommand.PLAY_PAUSE:
+            await _control(controls.play_pause())
         else:
-            await _control(controls.media(ec.MediaCommand.PLAY))
+            await _control(controls.media(_MEDIA[command]))
 
     async def set_volume(self, device_id: str, level: float) -> None:
         await _control(self._engine.controls(device_id).set_volume(level))
@@ -473,21 +471,17 @@ async def _control(command: Awaitable[T]) -> T:
     """Run a control command, turning engine errors into problem codes for the window."""
     try:
         return await command
-    except ec.NotConnectedError:
-        raise ui.ControlError(Problem.NOT_CONNECTED) from None
-    except ec.NoTextFieldError:
-        raise ui.ControlError(Problem.NO_TEXT_FIELD) from None
-    except (ec.UnsupportedError, ValueError):
-        raise ui.ControlError(Problem.CANT_DO_THAT) from None
-    except (ec.ControlError, OSError, TimeoutError) as exc:
-        _LOGGER.info("A control command failed (%s)", type(exc).__name__)
-        raise ui.ControlError(Problem.NO_RESPONSE) from None
+    except Exception as error:
+        failure = ec.failure_of(error)
+        if failure is None:
+            raise
+        raise ui.ControlError(_FAILURE[failure]) from None
 
 
 def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
     caps = status.capabilities
     media = {command for command, needs in _MEDIA_NEEDS.items() if needs in caps}
-    if caps & _PLAY_PAUSE:
+    if status.can_play or status.can_pause:
         media.add(ui.MediaCommand.PLAY_PAUSE)
     playing = status.now_playing
     now_playing = None
