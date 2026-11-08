@@ -1,0 +1,50 @@
+name: Dependency check
+
+# Once a month, try the newest versions of Tandem's libraries (within pyproject.toml's ranges)
+# against the tests. If they pass and anything moved, open a pull request that updates
+# packaging/constraints.txt, so the pinned set doesn't go stale (ADR-0017 addendum). A pin only
+# lands after review and a hardware check. If the tests fail, the run fails and says so.
+#
+# GitHub doesn't run other workflows on a pull request this job opens: close and reopen it (or
+# push to its branch) to run CI and the installer build before merging.
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+      - name: Install the newest allowed versions
+        run: python -m pip install --upgrade -e ".[dev,ui]"
+      - name: Test
+        run: python -m pytest -q
+      - name: Update the pins
+        run: python tools/update_constraints.py
+      - name: Open a pull request if anything moved
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet packaging/constraints.txt; then
+            echo "Every pin is current."
+            exit 0
+          fi
+          branch="deps/update-$(date +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "Update pinned library versions"
+          git push -u origin "$branch"
+          gh pr create --draft --base main --head "$branch" \
+            --title "Update pinned library versions" \
+            --body "The tests pass with these newer library versions. Before merging: close and reopen this pull request so CI and the installer build run, and check pairing and audio on the reference devices (CLAUDE.md, ADR-0017)."

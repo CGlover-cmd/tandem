@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import ctypes
 import os
+import subprocess
 import sys
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 _SPI_GETCLIENTAREAANIMATION = 0x1042
@@ -65,3 +68,52 @@ def claim_single_instance(name: str = r"Local\TandemApp") -> bool:
         return False
     _held.append(handle)
     return True
+
+
+def reveal_in_explorer(path: Path) -> None:  # pragma: no cover - opens a window
+    """Open File Explorer with `path` selected."""
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer.exe", f"/select,{path}"])
+
+
+_MOD_ALT, _MOD_CONTROL, _MOD_NOREPEAT = 0x1, 0x2, 0x4000
+_VK_K = 0x4B
+_WM_HOTKEY, _WM_QUIT = 0x0312, 0x0012
+
+
+class GlobalHotkey:  # pragma: no cover - needs a desktop; checked by hand
+    """Ctrl+Alt+K anywhere in Windows calls `on_press` (on this class's own thread).
+
+    RegisterHotKey delivers to the thread that registered it, so the thread owns a message
+    loop. If another app already holds the combination, Tandem simply goes without it.
+    """
+
+    def __init__(self, on_press: Callable[[], None]) -> None:
+        self._on_press = on_press
+        self._thread_id = 0
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if sys.platform != "win32" or self._thread is not None:
+            return
+        self._thread = threading.Thread(target=self._run, name="tandem-hotkey", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        if self._thread_id:
+            ctypes.windll.user32.PostThreadMessageW(self._thread_id, _WM_QUIT, 0, 0)
+
+    def _run(self) -> None:
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        self._thread_id = ctypes.windll.kernel32.GetCurrentThreadId()
+        if not user32.RegisterHotKey(None, 1, _MOD_CONTROL | _MOD_ALT | _MOD_NOREPEAT, _VK_K):
+            return
+        message = wintypes.MSG()
+        try:
+            while user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
+                if message.message == _WM_HOTKEY:
+                    self._on_press()
+        finally:
+            user32.UnregisterHotKey(None, 1)

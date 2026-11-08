@@ -206,6 +206,12 @@ class DemoBackend(DemoAudio):
             self._set(device)
         self._publish(DiscoveryChanged(active=False))
 
+    async def set_window_visible(self, visible: bool) -> None:
+        self.window_visible = visible
+
+    async def write_diagnostics(self) -> Path | None:
+        return None  # invented devices: nothing worth reporting
+
     async def stop(self) -> None:
         for task in list(self._connecting.values()):
             task.cancel()
@@ -480,6 +486,9 @@ def _load_appearance(path: Path | None) -> Appearance:
             str(data["background"]),
             bool(data.get("appIcons", True)),
             bool(data.get("onboarded", False)),
+            update_check=bool(data.get("updateCheck", True)),
+            restore_outputs=bool(data.get("restoreOutputs", False)),
+            photo_blur=int(data.get("photoBlur", 0)),
         )
     except (OSError, ValueError, KeyError, TypeError):
         _LOGGER.warning("Ignoring an unreadable appearance file; using the defaults")
@@ -492,6 +501,9 @@ def _save_appearance(path: Path, appearance: Appearance) -> None:
         "background": appearance.background,
         "appIcons": appearance.app_icons,
         "onboarded": appearance.onboarded,
+        "updateCheck": appearance.update_check,
+        "restoreOutputs": appearance.restore_outputs,
+        "photoBlur": appearance.photo_blur,
     }
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

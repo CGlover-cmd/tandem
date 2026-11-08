@@ -66,9 +66,12 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
         [*pip, str(site_packages), "--no-binary", "zeroconf", "zeroconf"], check=True, env=env
     )
     subprocess.run([*pip, str(site_packages), f"{wheel}[ui]"], check=True, env=env)
-    for junk in site_packages.glob("*/__pycache__"):
+    for junk in site_packages.rglob("__pycache__"):
         shutil.rmtree(junk, ignore_errors=True)
     shutil.rmtree(site_packages / "bin", ignore_errors=True)
+    _prune(runtime, site_packages)
+    # No compiled bytecode in the folder (it would add about 16 MB to the download). The
+    # installer compiles it on the PC instead (tandem.iss); the portable copy caches it itself.
 
     from tandem.ui.icon import write_ico
 
@@ -76,6 +79,29 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
     shutil.copy(ROOT / "LICENSE", out / "LICENSE.txt")
     shutil.copy(ROOT / "README.md", out / "README.md")
     print(f"Built {out}")
+
+
+# Parts of the runtime and libraries Tandem never uses, left out of the download.
+_UNUSED_RUNTIME = ("sqlite3.dll", "_sqlite3.pyd", "_msi.pyd")
+_UNUSED_LIBRARY_PARTS = (
+    "webview/lib/runtimes/win-x86",
+    "webview/lib/runtimes/win-arm64",
+    "pythonnet/runtime/Python.Runtime.xml",
+)
+
+
+def _prune(runtime: Path, site_packages: Path) -> None:
+    for name in _UNUSED_RUNTIME:
+        (runtime / name).unlink(missing_ok=True)
+    for part in _UNUSED_LIBRARY_PARTS:
+        path = site_packages / part
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+    for tests in [*site_packages.glob("*/tests"), *site_packages.glob("*/test")]:
+        if tests.is_dir():
+            shutil.rmtree(tests)
 
 
 def smoke(out: Path) -> None:
@@ -87,6 +113,8 @@ def smoke(out: Path) -> None:
         "import winrt.windows.media.control; print(tandem.__version__)"
     )
     subprocess.run([str(python), "-c", imports], check=True)
+    # The Apple handshake with the libraries as shipped: 1.0.0's broke here (ADR-0017).
+    subprocess.run([str(python), "-I", str(ROOT / "packaging" / "check_handshake.py")], check=True)
     subprocess.run([str(python), "-m", "tandem", "--help"], check=True, stdout=subprocess.DEVNULL)
 
     process = subprocess.Popen(
