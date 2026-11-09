@@ -98,6 +98,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `pc-mute.json` in the data folder. COM vtable calls: raise on failed HRESULTs via
   `WINFUNCTYPE(HRESULT, ...)`; call `CoUninitialize`/`CoTaskMemFree` through `WinDLL`, never
   `OleDLL` (they return nothing). pyright here: add `--pythonplatform Windows` off Windows.
+- Tests that wait on a worker thread (`asyncio.to_thread`) must wait by time, not by a count
+  of short sleeps: on Windows `asyncio.sleep(0.01)` can return at once (timers are as coarse
+  as the clock), so a count runs out early. Use `demo_harness.until` or a deadline.
 - The test Pi answers at its mDNS name (`<host>.local`); the maintainer's spike scripts read it
   from `TANDEM_PI_HOST`. The Phase 4 Pi check needs numpy in the venv.
 - Front end (ADR-0010): Node 24 and npm are installed. Smart App Control can block a native npm
