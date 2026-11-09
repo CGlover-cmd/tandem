@@ -30,12 +30,15 @@ async def _engine(**kwargs: object) -> tuple[Engine, FakeSpeakerMute]:
     return engine, backend.speakers
 
 
-async def _until(check: Callable[[], bool]) -> None:
-    for _ in range(200):
-        if check():
-            return
-        await asyncio.sleep(0.01)
-    raise AssertionError("never happened")
+async def _until(check: Callable[[], bool], timeout: float = 3.0) -> None:
+    """Wait in real time: the mute runs on a worker thread, and on Windows a short
+    `asyncio.sleep` can return at once (its timers are as coarse as the clock)."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout
+    while not check():
+        if loop.time() > end:
+            raise AssertionError("never happened")
+        await asyncio.sleep(0.02)
 
 
 def _pc(engine: Engine) -> OutputState:

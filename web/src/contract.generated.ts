@@ -207,7 +207,7 @@ export const demoSnapshot: AppState = {
         "id": "local:demo-speakers",
         "name": "Speakers",
         "kind": "pc",
-        "state": "direct",
+        "state": "muted",
         "volume": null,
         "delayMs": 0,
         "deviceKind": null,
