@@ -292,6 +292,12 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 - [x] Audio panel in the window; command-bar "send audio" and "stop streaming"
 - [ ] Exit check on the reference devices (lined up by ear with the delay sliders; no automatic
   sync yet)
+- [ ] Spike G: shared-clock (PTP) timing, so AirPlay 2 speakers lock to one clock the way
+  Apple's senders do (the maintainer's go, 2026-11-09). Research done: every reference speaker
+  advertises PTP, and OwnTone (open source) shows how a sender does it
+  ([findings](spikes/spike-g-ptp-timing.md)). **Exit:** a prototype plays the click test to
+  the soundbar and a HomePod mini on one clock with no audible gap, for 10 minutes; then an ADR
+  and the engine work.
 
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries
