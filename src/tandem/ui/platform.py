@@ -47,6 +47,19 @@ def ui_data_dir() -> Path:
     return Path.home() / ".tandem" / "ui"
 
 
+_MB_ICONERROR = 0x10
+START_ERROR = (
+    "Tandem couldn't open its window. Reinstalling Tandem usually fixes this. If it doesn't, "
+    "please report it at github.com/CGlover-cmd/tandem/issues."
+)
+
+
+def show_start_error() -> None:  # pragma: no cover - opens a dialog
+    """Say the window failed. A native box: the page that holds Tandem's words never loaded."""
+    if sys.platform == "win32":
+        ctypes.windll.user32.MessageBoxW(None, START_ERROR, "Tandem", _MB_ICONERROR)
+
+
 _ERROR_ALREADY_EXISTS = 183
 _held: list[int] = []
 
