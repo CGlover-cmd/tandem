@@ -189,6 +189,7 @@ class FakeBackend:
         self.mic_recordings: list[bytes] = []
         """What the microphone "hears", one recording per line-up measurement."""
         self.mic_missing = False
+        self.speakers: FakeSpeakerMute | None = FakeSpeakerMute()
 
     async def load(self) -> None:
         self.loaded = True
@@ -290,6 +291,9 @@ class FakeBackend:
 
     def media_sessions(self) -> FakeSessions:
         return self.sessions
+
+    def speaker_mute(self) -> FakeSpeakerMute | None:
+        return self.speakers
 
     def microphone(self) -> FakeMicrophone:
         if self.mic_missing:
@@ -508,6 +512,32 @@ class FakeMicrophone:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+class FakeSpeakerMute:
+    """The PC's speaker mute. `outputs` maps endpoint ids to muted; `default` is Windows'."""
+
+    def __init__(self) -> None:
+        self.default: str | None = "endpoint-speakers"
+        self.outputs: dict[str, bool] = {"endpoint-speakers": False}
+        self.allowed = True
+        self.fail: OSError | None = None
+        self.calls: list[tuple[str, bool]] = []
+
+    def available(self) -> bool:
+        return self.allowed
+
+    def default_output(self) -> str | None:
+        return self.default
+
+    def muted(self, endpoint: str) -> bool:
+        return self.outputs.get(endpoint, False)
+
+    def set_muted(self, endpoint: str, on: bool) -> None:
+        if self.fail is not None:
+            raise self.fail
+        self.calls.append((endpoint, on))
+        self.outputs[endpoint] = on
 
 
 class FakeCapture:

@@ -45,3 +45,8 @@ shaped the design:
   compensate yet.
 - The hook depends on a pyatv internal. Moving the pyatv pin means re-checking it. The
   alternative, a pyatv change to accept an `AudioSource`, is worth offering upstream.
+
+## Addendum (2026-11-09)
+The PC's audio is now captured with process loopback (every app but Tandem, before the output's
+volume and mute), falling back to this classic loopback if it can't open
+([ADR-0020](0020-mute-the-pc-while-airplay-plays.md)).

@@ -296,6 +296,7 @@ export const demoSnapshot: AppState = {
     "onboarded": false,
     "updateCheck": true,
     "restoreOutputs": false,
+    "mutePc": true,
     "photoBlur": 0,
     "photo": null
   },

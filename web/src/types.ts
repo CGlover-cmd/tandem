@@ -87,8 +87,19 @@ export interface SendState {
 }
 
 export type OutputKind = "airplay" | "pc";
-/** "direct": the PC's default output. Windows plays there itself, so it's always on. */
-export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed" | "direct";
+/**
+ * The PC's default output, where Windows plays itself, is "direct" (always on), "muted" (Tandem
+ * muted it while AirPlay plays) or "ahead" (kept on while AirPlay plays, so it plays ahead).
+ */
+export type OutputState =
+  | "off"
+  | "starting"
+  | "streaming"
+  | "waiting"
+  | "failed"
+  | "direct"
+  | "muted"
+  | "ahead";
 export type AudioSource = "system" | "player";
 
 /** One place the sound can go: an AirPlay device or one of the PC's own sound outputs. */
@@ -162,6 +173,8 @@ export interface Appearance {
   updateCheck: boolean;
   /** Turn the speakers that were on back on when Tandem starts. */
   restoreOutputs: boolean;
+  /** Mute the PC's own speakers while AirPlay plays its sound. */
+  mutePc: boolean;
   /** Blur over the background photo, in pixels (0 to 24). */
   photoBlur: number;
 }
@@ -263,6 +276,7 @@ export type Command =
       onboarded?: boolean;
       updateCheck?: boolean;
       restoreOutputs?: boolean;
+      mutePc?: boolean;
       photoBlur?: number;
     }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }

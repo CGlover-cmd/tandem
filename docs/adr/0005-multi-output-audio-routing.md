@@ -46,3 +46,9 @@ Option 3, hybrid:
   which onboarding must explain.
 - Open: Windows 11 per-app capture (process loopback) might give "AirPlay only, PC silent"
   without a driver on Windows 11. Try it in Phase 4; it can't help Windows 10 22H2.
+
+## Addendum (2026-11-09)
+The open question is answered: process loopback exists from Windows 10 2004, so it covers
+Windows 10 22H2 too. Tandem now captures that way and mutes the PC's speakers while AirPlay
+plays, with no driver ([ADR-0020](0020-mute-the-pc-while-airplay-plays.md)). A virtual cable is
+still needed to hear the PC's own speakers in step with AirPlay.

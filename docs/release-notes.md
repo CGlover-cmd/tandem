@@ -7,6 +7,13 @@ Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To 
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
 
+## Coming next (not released yet)
+
+- **Your PC goes quiet while AirPlay plays.** Tandem mutes Windows' default output while your
+  speakers play the PC's sound, so there's no echo, and unmutes it when they stop. Turn the
+  PC's switch on in the Audio panel to hear both (the PC plays a little ahead), or turn this off
+  in Advanced settings. No virtual audio cable needed for that any more.
+
 ## Fixed in 1.2.1
 
 - **The window opens again.** In 1.2.0 the window never appeared: a "Python" process ran in

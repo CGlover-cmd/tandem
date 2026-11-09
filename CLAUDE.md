@@ -91,6 +91,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
   On this laptop loopback follows the Windows volume and mute (Spike C). Loopback delivers
   nothing at all while nothing plays (Phase 4), so the audio pipeline fills silence itself.
+- PC mute (ADR-0020): the app captures with process loopback (`adapters/process_loopback.py`,
+  own ctypes; miniaudio's `loopbackProcessID` fails on desktop with -2), which ignores the
+  output's mute, so `engine/pc_mute.py` mutes Windows' default output while AirPlay plays.
+  Per-app session mute is refused here (E_NOINTERFACE). A leftover mute is undone at start from
+  `pc-mute.json` in the data folder. COM vtable calls: raise on failed HRESULTs via
+  `WINFUNCTYPE(HRESULT, ...)`; call `CoUninitialize`/`CoTaskMemFree` through `WinDLL`, never
+  `OleDLL` (they return nothing). pyright here: add `--pythonplatform Windows` off Windows.
 - The test Pi answers at its mDNS name (`<host>.local`); the maintainer's spike scripts read it
   from `TANDEM_PI_HOST`. The Phase 4 Pi check needs numpy in the venv.
 - Front end (ADR-0010): Node 24 and npm are installed. Smart App Control can block a native npm

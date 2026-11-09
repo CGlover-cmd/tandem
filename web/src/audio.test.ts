@@ -9,6 +9,7 @@ import {
   lineUpText,
   masterChanges,
   masterVolume,
+  directSwitch,
   outputDirect,
   outputLive,
   outputVolume,
@@ -92,6 +93,15 @@ describe("the PC's default output", () => {
     const direct = output({ id: "demo-pc-speakers", kind: "pc", state: "direct" });
     expect(outputDirect(direct)).toBe(true);
     expect(outputLive(direct)).toBe(false);
+  });
+
+  it("can be switched only while Tandem has it muted or kept on for AirPlay", () => {
+    const pc = (state: AudioOutput["state"]) => output({ id: "demo-pc-speakers", kind: "pc", state });
+    expect(directSwitch(pc("direct"))).toEqual({ on: true, enabled: false });
+    expect(directSwitch(pc("muted"))).toEqual({ on: false, enabled: true });
+    expect(directSwitch(pc("ahead"))).toEqual({ on: true, enabled: true });
+    expect(outputDirect(pc("muted"))).toBe(true);
+    expect(outputLive(pc("ahead"))).toBe(false);
   });
 
   it("has no delay to set, nor does a device that needs pairing", () => {

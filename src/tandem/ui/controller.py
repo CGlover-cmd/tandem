@@ -348,6 +348,7 @@ _APPEARANCE_FLAGS = {
     "onboarded": "onboarded",
     "updateCheck": "update_check",
     "restoreOutputs": "restore_outputs",
+    "mutePc": "mute_pc",
 }
 """The window's names for the on/off appearance and Advanced settings."""
 
@@ -458,6 +459,7 @@ class AppController:
                 "onboarded": self.appearance.onboarded,
                 "updateCheck": self.appearance.update_check,
                 "restoreOutputs": self.appearance.restore_outputs,
+                "mutePc": self.appearance.mute_pc,
                 "photoBlur": self.appearance.photo_blur,
                 "photo": None if self.photo is None else self.photo.version,
             },
