@@ -202,6 +202,8 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   through Tandem's server (`/catalog-art`, `/apple-music-badge`, sandboxing CSP), are fetched
   at run time and stay in memory: never commit or save them. No previews. Keep the 20-a-minute
   limit. Don't open a real song link without the maintainer's OK (it plays from their account).
+  A song link opens its album page in the Apple Music app and doesn't start it (checked
+  2026-11-09): keep the button "Open", not "Play".
 - Groups and line-up (ADR-0018): groups in `engine/output_groups.py`, shared UI logic in
   `ui/groups.py`; line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
   The microphone on this PC refuses desktop apps right now (miniaudio init -6, access denied),

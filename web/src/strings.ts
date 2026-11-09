@@ -107,12 +107,12 @@ export const strings = {
     search: "Search the Apple Music catalog",
     songs: "Songs",
     albums: "Albums",
-    // TODO(link test): whether a song link starts playing or only opens its page in the Apple
-    // Music app is still to check; until then the words stay neutral.
+    // A song link opens its page in the Apple Music app without starting it (checked
+    // 2026-11-09), so the button says "Open", not "Play".
     open: (title: string) => `Open ${title} in Apple Music`,
     openShort: "Open in Apple Music",
     about:
-      "Search Apple Music's catalog and open a song or album in the Apple Music app on this PC. The app plays it; to hear it on your speakers, send the PC's audio to them in Audio.",
+      "Search Apple Music's catalog and open a song or album in the Apple Music app on this PC, then press play there. To hear it on your speakers, send the PC's audio to them in Audio.",
     credit: "Results, artwork and badge from Apple. Apple Music is a trademark of Apple Inc.",
     searching: "Searching…",
     noMatch: (text: string) => `Nothing in Apple Music matches "${text}".`,

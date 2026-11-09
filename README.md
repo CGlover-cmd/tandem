@@ -204,8 +204,8 @@ save; **Queue** shows what plays next. Pick the speakers in **Audio**: Tandem's 
 straight to them, gaplessly. Only your search words go to the radio directory.
 
 **Apple Music** in the Music tab searches Apple Music's catalog (no Apple account or key
-needed) and opens a song or album in the Apple Music app on this PC, which plays it; send the
-PC's audio to your speakers in **Audio** to hear it there. Only your search words go to Apple,
+needed) and opens a song or album in the Apple Music app on this PC, where you press play;
+send the PC's audio to your speakers in **Audio** to hear it there. Only your search words go to Apple,
 and Apple allows about 20 searches a minute. Your own Apple Music library and playlists aren't
 available yet.
 

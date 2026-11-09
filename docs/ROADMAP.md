@@ -121,8 +121,8 @@ _Update this section at the end of every working session._
   are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
   still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
   open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
-  Music:** the speaker check, the catalog search's link check (does a song link play, or only
-  open its page?), then Connections and Spotify.
+  Music:** the speaker check's one-hour radio run, a decision on the catalog search's exit
+  (a link opens the song's page but doesn't play it), then Connections and Spotify.
 
 ## Scope
 
@@ -334,9 +334,11 @@ one.)
   fetched at run time, kept in memory), no previews, at most 20 searches a minute; a result
   opens in the Apple Music app through its `music://` link. **Exit:** a search finds a known
   song and opening it plays it in the Apple Music app, heard on the speakers through the
-  router. Built, with tests on fakes and a demo source. **To run:** the link check (with the
-  maintainer's OK, since it plays from their account); until then the button says "Open in
-  Apple Music".
+  router. Built, with tests on fakes and a demo source. **Link check (2026-11-09): shows.**
+  Opening a song showed its album page in the Apple Music app and left playback paused, so the
+  button says "Open in Apple Music" and the user presses play there. Playing straight from a
+  link isn't possible this way; whether "opens it, the user presses play" meets the exit is
+  the maintainer's call.
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
