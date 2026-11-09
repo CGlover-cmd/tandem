@@ -12,10 +12,10 @@ There's nothing else to buy or set up. Tandem talks straight from your PC to you
 your home Wi-Fi: no extra box, no account, no sign-up, and nothing collected about you.
 
 **[Download Tandem](https://github.com/CGlover-cmd/tandem/releases/latest)** ·
-[What's new in 1.2.0](docs/release-notes.md) ·
+[What's new in 1.2.1](docs/release-notes.md) ·
 [Report a bug](https://github.com/CGlover-cmd/tandem/issues)
 
-> **Tandem 1.2.0 is a pre-release.** Everything below is built and tested in code, but a few
+> **Tandem 1.2.1 is a pre-release.** Everything below is built and tested in code, but a few
 > features haven't been tried on real speakers yet; the [release notes](docs/release-notes.md)
 > list which. If something doesn't work, please
 > [tell us](https://github.com/CGlover-cmd/tandem/issues).
