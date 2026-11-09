@@ -210,14 +210,6 @@ class CommandOutcome:
     """Whole commands to offer instead, or examples."""
 
 
-class CommandRunner(Protocol):
-    def preview_command(self, text: str) -> CommandOutcome:
-        """What running `text` would do. Touches no device, so it can run on every keystroke."""
-        ...
-
-    async def run_command(self, text: str) -> CommandOutcome: ...
-
-
 # --- Audio outputs (Phases 4 and 5) and sending media (Phase 7) -------------------------
 
 
@@ -624,8 +616,49 @@ Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
 
 
+class Problem:
+    """What went wrong, as a code. The window holds the words (`problemText` in strings.ts)."""
+
+    NOT_AVAILABLE = "notAvailable"
+    PAIR_FIRST = "pairFirst"
+    NO_PAIRING_NEEDED = "noPairingNeeded"
+    PIN_EXPIRED = "pinExpired"
+    COULD_NOT_PAIR = "couldNotPair"
+    WRONG_PIN = "wrongPin"
+    NOT_CONNECTED = "notConnected"
+    CANT_DO_THAT = "cantDoThat"
+    NO_RESPONSE = "noResponse"
+    NO_TEXT_FIELD = "noTextField"
+    NOTHING_PLAYING = "nothingPlaying"
+    APP_CANT = "appCant"
+    APP_DIDNT_RESPOND = "appDidntRespond"
+    SPEAKER_GONE = "speakerGone"
+    NO_AUDIO = "noAudio"
+    NO_SEND = "noSend"
+    NOT_A_TV = "notATv"
+    FILE_GONE = "fileGone"
+    CONNECT_FIRST = "connectFirst"
+    NO_LOCATION = "noLocation"
+    HOME_UNAVAILABLE = "homeUnavailable"
+    HOME_FAILED = "homeFailed"
+    BAD_GROUP = "badGroup"
+    GROUP_NONE_PLAYED = "groupNonePlayed"
+    GROUP_GONE = "groupGone"
+    NOT_IN_LIBRARY = "notInLibrary"
+    STATION_GONE = "stationGone"
+    FOLDER_NOT_ADDED = "folderNotAdded"
+    APPLE_MUSIC_DIDNT_OPEN = "appleMusicDidntOpen"
+
+
 class BackendError(Exception):
-    """A command didn't work. `str(error)` is safe to show the user; it holds no private data."""
+    """A command didn't work. `code` is a `Problem` value; the window turns it into words.
+
+    `str(error)` is the code, so it holds no private data and is safe to log.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 class HomeError(BackendError):

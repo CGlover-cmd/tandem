@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import sys
 import threading
@@ -21,13 +22,14 @@ from tandem.ui.app_icons import AiohttpHttp, AppIconStore
 from tandem.ui.backend import Backend
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.file_picker import WindowFilePicker
 from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.platform import (
     GlobalHotkey,
+    on_quit_request,
     reduce_motion,
     reveal_in_explorer,
+    show_start_error,
     store_country,
     ui_data_dir,
 )
@@ -69,12 +71,10 @@ def build(
 ) -> tuple[AppController, UiServer]:
     backend: Backend
     icons: AppIconStore | None = None
-    if args.demo:  # invented apps: nothing to look up
-        from tandem.bridge import demo_commands
+    if args.demo:  # the real engine on invented devices; invented apps: nothing to look up
+        from tandem.bridge import DemoBackend
 
-        demo = DemoBackend(appearance_file=ui_data_dir() / "demo-appearance.json")
-        demo.commands = demo_commands(demo)
-        backend = demo
+        backend = DemoBackend(settings_file=ui_data_dir() / "demo-settings.json")
     else:  # pragma: no cover - needs the network
         from tandem.bridge import create_engine_backend
 
@@ -120,8 +120,16 @@ async def _serve_only(args: argparse.Namespace) -> int:
     print(f"Tandem is running. Open {server.url}", flush=True)
     for origin in args.dev_origin:
         print(f"  or, from the dev server: {origin}/?token={server.token}", flush=True)
+    quit_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def stop_soon() -> None:  # setup is about to replace Tandem's files
+        with contextlib.suppress(RuntimeError):  # the loop already closed
+            loop.call_soon_threadsafe(quit_requested.set)
+
+    on_quit_request(stop_soon)
     try:
-        await asyncio.Event().wait()
+        await quit_requested.wait()
     finally:
         await server.stop()
         await controller.stop()
@@ -194,6 +202,12 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
 
     tray = Tray(controller, loop, show_window=show_window, quit_app=quit_app)
 
+    def quit_for_setup() -> None:  # the installer or uninstaller is about to change our files
+        window.events.shown.wait()  # destroy() needs the window up
+        quit_app()
+
+    on_quit_request(quit_for_setup)
+
     def on_closing() -> bool:
         # Closing the window keeps Tandem running in the tray; Quit in the tray ends it.
         if quitting.is_set():
@@ -217,10 +231,18 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
     hotkey.start()
     tray.start()
     icon = write_ico(ui_data_dir() / "tandem.ico")
-    wv.start(icon=str(icon), private_mode=True)
-
-    tray.stop()
-    hotkey.stop()
-    loop.call_soon_threadsafe(loop.stop)
-    stopped.wait(timeout=5)
-    return 0
+    code = 0
+    try:
+        wv.start(icon=str(icon), private_mode=True)
+    except Exception as error:
+        # Without this, the tray's thread kept a windowless Tandem running, holding the
+        # single-instance lock, so every later launch quietly quit too (1.2.0).
+        _LOGGER.error("Tandem couldn't open its window: %s", type(error).__name__)
+        show_start_error()
+        code = 1
+    finally:
+        tray.stop()
+        hotkey.stop()
+        loop.call_soon_threadsafe(loop.stop)
+        stopped.wait(timeout=5)
+    return code

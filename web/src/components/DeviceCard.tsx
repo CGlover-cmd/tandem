@@ -1,9 +1,8 @@
 import { Button, Card, Spinner } from "@heroui/react";
 import { useEffect, useState } from "react";
 
-import { actionFor, statusFor, type Tone } from "../devices";
-import { canSend } from "../audio";
-import { DeviceIcon, RemoteIcon, SendIcon } from "../icons";
+import { cardButtons, statusFor, type Tone } from "../devices";
+import { DeviceIcon, RemoteIcon, SendIcon, WavesIcon } from "../icons";
 import { strings } from "../strings";
 import type { Device } from "../types";
 
@@ -34,19 +33,22 @@ function useCountdown(device: Device): number {
 
 interface Props {
   device: Device;
+  onAudio: () => void;
+  onVideo: () => void;
+  onRemote: () => void;
+  /** The fallback Pair/Connect button, Disconnect and Cancel. */
   onActivate: () => void;
-  onOpenControls: () => void;
-  onOpenSend: () => void;
 }
 
-export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: Props) {
+export function DeviceCard({ device, onAudio, onVideo, onRemote, onActivate }: Props) {
   const secondsLeft = useCountdown(device);
-  const action = actionFor(device);
+  const buttons = cardButtons(device);
   const status = statusFor(device, secondsLeft);
   const connected = device.state === "connected" && !device.needsPairing;
-  const controls = connected ? device.controls : null;
-  const playing = controls?.nowPlaying;
-  const showPlaying = playing && playing.title && playing.state !== "idle";
+  const playing = connected ? device.controls?.nowPlaying : null;
+  // While the device plays this PC's sound, what it reports playing is that stream, not news.
+  const showPlaying = playing && playing.title && playing.state !== "idle" && device.audio !== "on";
+  const audio = buttons.audio;
 
   return (
     <Card
@@ -59,6 +61,11 @@ export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: P
           <DeviceIcon kind={device.kind} size={26} />
         </span>
         {device.state === "connecting" && <Spinner size="sm" color="accent" />}
+        {buttons.quiet && (
+          <Button size="sm" variant="ghost" onPress={onActivate} className="card-quiet-action">
+            {buttons.quiet.label}
+          </Button>
+        )}
       </Card.Header>
       <Card.Content className="gap-1">
         <Card.Title className="text-[15px] font-semibold leading-snug truncate">
@@ -78,36 +85,57 @@ export function DeviceCard({ device, onActivate, onOpenControls, onOpenSend }: P
           </p>
         )}
       </Card.Content>
-      <Card.Footer className="flex flex-row items-center gap-2">
-        <Button
-          size="sm"
-          variant={action.primary ? "primary" : "secondary"}
-          isDisabled={!action.enabled}
-          onPress={onActivate}
-          className="min-w-24"
-        >
-          {action.label}
-        </Button>
-        {controls && (
+      <Card.Footer className="flex flex-row flex-wrap items-center gap-2">
+        {audio && (
+          <Button
+            size="sm"
+            variant={audio.on ? "primary" : "secondary"}
+            isDisabled={!audio.enabled}
+            aria-pressed={audio.on}
+            aria-label={audio.on ? strings.action.audioOff(device.name) : strings.action.audioOn(device.name)}
+            onPress={onAudio}
+            className="card-media-button"
+            data-on={audio.on || undefined}
+          >
+            {audio.state === "starting" ? <Spinner size="sm" color="current" /> : <WavesIcon size={16} />}
+            {strings.action.audio}
+          </Button>
+        )}
+        {buttons.video && (
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={device.state === "connecting"}
+            aria-label={strings.action.videoOn(device.name)}
+            onPress={onVideo}
+            className="card-media-button"
+          >
+            <SendIcon size={16} />
+            {strings.action.video}
+          </Button>
+        )}
+        {buttons.fallback && (
+          <Button
+            size="sm"
+            variant={buttons.fallback.primary ? "primary" : "secondary"}
+            isDisabled={!buttons.fallback.enabled}
+            onPress={onActivate}
+            className="min-w-24"
+          >
+            {buttons.fallback.label}
+          </Button>
+        )}
+        {buttons.remote && (
           <Button
             size="sm"
             variant="tertiary"
-            onPress={onOpenControls}
+            isIconOnly={buttons.video}
+            onPress={onRemote}
             aria-label={`${strings.remote.open}: ${device.name}`}
           >
             <RemoteIcon size={16} />
-            {strings.remote.open}
-          </Button>
-        )}
-        {canSend(device) && (
-          <Button
-            size="sm"
-            variant="tertiary"
-            onPress={onOpenSend}
-            aria-label={`${strings.sendSheet.open}: ${device.name}`}
-          >
-            <SendIcon size={16} />
-            {strings.sendSheet.open}
+            {/* Three buttons don't fit a card's width: a TV's remote is shown by its icon. */}
+            {!buttons.video && strings.remote.open}
           </Button>
         )}
       </Card.Footer>

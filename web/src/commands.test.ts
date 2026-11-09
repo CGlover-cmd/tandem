@@ -68,8 +68,8 @@ describe("outcomeText", () => {
       "There's no device called “garden”.",
     );
     expect(outcomeText(outcome({ status: "failed", code: "noResponse", params: {} }))).toBe("No response. Try again.");
-    expect(outcomeText(outcome({ status: "failed", code: "backend", params: { text: "Safe text." } }))).toBe(
-      "Safe text.",
+    expect(outcomeText(outcome({ status: "failed", code: "problem", params: { problem: "noAudio" } }))).toMatch(
+      /couldn't send audio/,
     );
   });
 

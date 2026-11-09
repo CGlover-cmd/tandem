@@ -130,6 +130,15 @@ def _parser() -> argparse.ArgumentParser:
             "--nth", type=int, help="pick the Nth match when several devices match"
         )
 
+    privacy = commands.add_parser(
+        "privacy", help="turn Tandem's two online lookups on or off (the installer uses this)"
+    )
+    for flag, help_text in (
+        ("--app-icons", "look up App Store icons for the Apple TV's apps"),
+        ("--update-check", "look for a newer Tandem on GitHub when the window opens"),
+    ):
+        privacy.add_argument(flag, choices=("on", "off"), help=help_text)
+
     discover = commands.add_parser("discover", help="scan the network once and list devices")
     add_scan_timeout(discover, 3.0)
 
@@ -482,7 +491,11 @@ async def _remote(engine: Engine, args: argparse.Namespace, printer: _Printer) -
 
 async def _media(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
     async def send(controls: DeviceControls, _status: ControlStatus) -> int:
-        await controls.media(MediaCommand(args.media_command))
+        command = MediaCommand(args.media_command)
+        if command is MediaCommand.PLAY_PAUSE:
+            await controls.play_pause()  # some apps offer only play or only pause
+        else:
+            await controls.media(command)
         printer.line(f"  {args.media_command}: sent")
         return 0
 
@@ -658,6 +671,23 @@ async def _run(
         await engine.close()
 
 
+def _privacy(args: argparse.Namespace, printer: _Printer) -> int:
+    """Set the online lookups without scanning the network (no engine, no devices)."""
+    changes = {
+        name: value == "on"
+        for name, value in (("app_icons", args.app_icons), ("update_check", args.update_check))
+        if value is not None
+    }
+    store = SettingsStore(paths.settings_file())
+    store.load()
+    if changes:
+        store.update(**changes)
+    settings = store.settings
+    printer.line(f"App Store icon lookup: {'on' if settings.app_icons else 'off'}")
+    printer.line(f"Update check: {'on' if settings.update_check else 'off'}")
+    return 0
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -673,6 +703,8 @@ def main(
         console_level=logging.DEBUG if args.verbose else logging.WARNING,
     )
     printer = _Printer(redactor, args.show_private, out or sys.stdout)
+    if args.command == "privacy":
+        return _privacy(args, printer)
     try:
         return asyncio.run(_run(backend_factory(), args, printer, redactor))
     except KeyboardInterrupt:

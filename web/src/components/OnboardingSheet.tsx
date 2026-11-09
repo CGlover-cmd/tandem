@@ -48,7 +48,6 @@ export function OnboardingSheet({ isOpen, state, onClose, onOpenAudio, onPair }:
     >
       <Modal.Container placement="center" size="md">
         <Modal.Dialog className="sheet">
-          <Modal.CloseTrigger />
           <Modal.Header className="flex flex-col items-start gap-1">
             <Modal.Heading className="text-[20px] font-semibold">{words.title}</Modal.Heading>
             <p className="text-[13px] text-[var(--muted)]">{words.subtitle}</p>
@@ -90,7 +89,7 @@ export function OnboardingSheet({ isOpen, state, onClose, onOpenAudio, onPair }:
             </section>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="primary" onPress={onClose}>
+            <Button variant={allDone(steps) ? "primary" : "tertiary"} onPress={onClose}>
               {allDone(steps) ? words.finish : words.later}
             </Button>
           </Modal.Footer>

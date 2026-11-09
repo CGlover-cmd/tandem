@@ -1,4 +1,4 @@
-# Tandem 1.2.0 (pre-release)
+# Tandem 1.2.1 (pre-release)
 
 A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
 controls them from your PC. It's still
@@ -6,6 +6,28 @@ a **pre-release**: some features haven't been tried on real speakers yet (listed
 Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To attach
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
+
+## Coming next (not released yet)
+
+- **Audio and Video buttons on every card.** Press **Audio** to play your PC's sound on that
+  device, or press it again to stop. You don't need to visit the Audio panel. Apple TVs also get
+  **Video**, which sends a video file or link. An unpaired device pairs first, then carries on.
+  These replace the Pair, Connect and Send buttons.
+- **A speaker's remote is audio only:** play, pause, skip back and forward, and volume. There's
+  no touch pad any more. While the speaker plays your PC's sound, the buttons control the app
+  playing on your PC.
+
+## Fixed in 1.2.1
+
+- **The window opens again.** In 1.2.0 the window never appeared: a "Python" process ran in
+  Task Manager, and every later launch quietly did nothing. Install 1.2.1 over it. If Tandem's
+  window ever fails to open again, it now says so and closes, instead of staying stuck.
+- **Installing over a running Tandem just works.** Setup asks Tandem to close (and closes
+  older copies itself), installs, and opens it again, with no "unable to close applications"
+  prompt. Uninstalling closes it too.
+- **Window polish:** icons at their real size, clearer row titles in sheets, card buttons
+  that wrap on a narrow window, quieter scrollbars and sliders, a remote that fits without
+  scrolling, and one close button per sheet.
 
 ## New in 1.2.0
 
@@ -108,3 +130,12 @@ Media keys need nothing from Tandem: Windows already sends them to the app that'
   they are (Windows plays them directly).
 - Tandem tells you about updates but doesn't install them: download the new setup from the
   [releases page](https://github.com/CGlover-cmd/tandem/releases).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). Until the first signed release, the installer is
+unsigned. Tandem has one maintainer, [CGlover-cmd](https://github.com/CGlover-cmd), who is its
+committer, reviewer and approver. Tandem sends nothing about you or your PC to anyone, apart
+from two lookups you can turn off: see the
+[privacy policy](https://github.com/CGlover-cmd/tandem/blob/main/docs/privacy-policy.md).

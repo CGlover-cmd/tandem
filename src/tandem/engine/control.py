@@ -12,12 +12,15 @@ Apple TV with no volume path; the UI should hide the slider and point at the TV 
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
 from tandem.engine.events import Event
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RemoteKey(Enum):
@@ -198,6 +201,19 @@ class ControlStatus:
     keyboard: bool = False
     """True while the device shows an on-screen keyboard waiting for text (a search box)."""
 
+    @property
+    def can_play(self) -> bool:
+        """Play works: a play command, or a play/pause toggle."""
+        return bool(self.capabilities & {Capability.PLAY, Capability.PLAY_PAUSE})
+
+    @property
+    def can_pause(self) -> bool:
+        return bool(self.capabilities & {Capability.PAUSE, Capability.PLAY_PAUSE})
+
+    @property
+    def playing(self) -> bool:
+        return self.now_playing.state is PlayState.PLAYING
+
 
 # --- Events ---------------------------------------------------------------------------
 
@@ -272,6 +288,32 @@ class UnsupportedError(ControlError):
     def __init__(self, what: str) -> None:
         super().__init__(f"not supported right now: {what}")
         self.what = what
+
+
+class Failure(Enum):
+    """Why a control command failed, in the terms every caller (window, command bar,
+    developer tool) words for the user."""
+
+    NOT_CONNECTED = "not_connected"
+    NO_TEXT_FIELD = "no_text_field"
+    CANT_DO_THAT = "cant_do_that"
+    NO_RESPONSE = "no_response"
+
+
+def failure_of(error: BaseException) -> Failure | None:
+    """Classify an error from a control command; None for errors that aren't about the
+    device (programming errors), which callers should let propagate."""
+    if isinstance(error, NotConnectedError):
+        return Failure.NOT_CONNECTED
+    if isinstance(error, NoTextFieldError):
+        return Failure.NO_TEXT_FIELD
+    if isinstance(error, UnsupportedError | ValueError):
+        return Failure.CANT_DO_THAT
+    if isinstance(error, ControlError | OSError | TimeoutError):
+        # Type name only: exception messages can hold addresses (docs/PRIVACY.md).
+        _LOGGER.info("A control command failed (%s)", type(error).__name__)
+        return Failure.NO_RESPONSE
+    return None
 
 
 # --- What a backend provides -----------------------------------------------------------
@@ -369,6 +411,35 @@ class DeviceControls:
         controller = self._live()
         self._require(controller, MEDIA_CAPABILITY[command])
         await controller.media(command)
+
+    # Intents: what the user means, whichever commands this app offers. Some apps offer only
+    # play/pause (a toggle), others only play or only pause.
+
+    async def play(self) -> None:
+        """Start playing. Does nothing when it already plays and only a toggle exists."""
+        await self._play_or_pause(want_playing=True)
+
+    async def pause(self) -> None:
+        """Pause. Does nothing when it is already paused and only a toggle exists."""
+        await self._play_or_pause(want_playing=False)
+
+    async def play_pause(self) -> None:
+        """Toggle between playing and paused."""
+        status = self.status()
+        if Capability.PLAY_PAUSE in status.capabilities:
+            await self.media(MediaCommand.PLAY_PAUSE)
+        elif status.playing:
+            await self.media(MediaCommand.PAUSE)
+        else:
+            await self.media(MediaCommand.PLAY)
+
+    async def _play_or_pause(self, *, want_playing: bool) -> None:
+        status = self.status()
+        exact = Capability.PLAY if want_playing else Capability.PAUSE
+        if exact in status.capabilities:
+            await self.media(MediaCommand.PLAY if want_playing else MediaCommand.PAUSE)
+        elif status.playing is not want_playing:
+            await self.media(MediaCommand.PLAY_PAUSE)
 
     async def seek(self, position: float) -> None:
         if position < 0:

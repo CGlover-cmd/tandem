@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import dataclasses
 
-from tandem.ui.backend import LinkState, MusicSnapshot
+from demo_harness import settle, until
+
+from tandem.bridge import DemoBackend
+from tandem.ui.backend import MusicSnapshot
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.tray import SEPARATOR, Entry, menu_entries, music_entries
 
 
@@ -16,7 +18,7 @@ async def test_menu_says_when_no_devices_are_found(backend: DemoBackend) -> None
         SEPARATOR,
         Entry("Looking for devices…", enabled=False),
         Entry("Play the PC's sound on", enabled=False),
-        Entry("    Headphones", "output", "demo-pc-headphones"),
+        Entry("    Headphones", "output", "local:demo-headphones"),
         SEPARATOR,
         SEPARATOR,
         Entry("Report a problem…", "report"),
@@ -30,11 +32,10 @@ async def test_menu_lists_devices_with_their_state(backend: DemoBackend) -> None
     controller = AppController(backend)
     await controller.start()
     controller.connect("demo-speaker-1")
-    await controller.runner.drain()
-    backend._update("demo-soundbar", state=LinkState.CONNECTING)  # pyright: ignore[reportPrivateUsage]
+    await settle(controller)
 
     controller.handle({"type": "setOutput", "id": "demo-speaker-1", "on": True})
-    await controller.runner.drain()
+    await settle(controller)
 
     devices = menu_entries(controller)[2 + len(music_entries(controller)) : -3]
 
@@ -44,7 +45,7 @@ async def test_menu_lists_devices_with_their_state(backend: DemoBackend) -> None
         Entry("    Den Soundbar", "output", "demo-soundbar"),
         Entry("    Office Speaker", "output", "demo-speaker-2"),
         Entry("    Patio Speaker", "output", "demo-speaker-1", checked=True),
-        Entry("    Headphones", "output", "demo-pc-headphones"),
+        Entry("    Headphones", "output", "local:demo-headphones"),
         SEPARATOR,
         Entry("Living Room TV (pair to use)", "pair", "demo-tv"),
     ]
@@ -53,6 +54,7 @@ async def test_menu_lists_devices_with_their_state(backend: DemoBackend) -> None
 async def test_menu_shows_what_the_pc_is_playing(backend: DemoBackend) -> None:
     controller = AppController(backend)
     await controller.start()
+    await settle(controller)
 
     assert menu_entries(controller)[2:6] == [
         Entry("Morning Light · The Example Band", enabled=False),
@@ -76,4 +78,5 @@ async def test_menu_shows_what_the_pc_is_playing(backend: DemoBackend) -> None:
     assert music_entries(controller)[0].label == "Demo Player"
 
     backend.stop_music()
+    await until(lambda: controller.music is None)
     assert music_entries(controller) == []

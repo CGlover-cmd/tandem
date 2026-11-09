@@ -1,47 +1,41 @@
 """The Audio and Send to TV panels on the real engine (part of `tandem.bridge`, ADR-0008).
 
-Kept apart from `bridge.py` so each panel's mapping reads on its own. `EngineAudio` is mixed
-into `EngineBackend`; it needs the engine, the output preferences and the backend's publisher.
+The engine's `Outputs` owns the outputs: saved volume and delay, starting and failed states,
+groups, "turn my speakers back on" and line-up. This module only maps it to the window's
+contract. `EngineAudio` is mixed into `EngineBackend`; it needs the engine and the backend's
+publisher.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from typing import TypeVar
 
-from tandem.engine import lineup
+from tandem.engine import outputs as eo
 from tandem.engine import pairing as engine_pairing
-from tandem.engine.audio import AudioError as EngineAudioError
-from tandem.engine.audio import AudioStreamChanged, StreamState
-from tandem.engine.audio_hub import is_local
 from tandem.engine.media_send import MediaError as EngineMediaError
 from tandem.engine.media_send import MediaSendChanged
 from tandem.engine.media_send import SendState as EngineSendState
-from tandem.engine.output_groups import GroupStore
-from tandem.engine.output_prefs import OutputPrefsStore
-from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import AudioSource, Engine, UnknownDeviceError
-from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 from tandem.ui import backend as ui
-from tandem.ui.groups import BAD_GROUP, group_snapshots, set_members
 
 _LOGGER = logging.getLogger(__name__)
 
-# Words the window shows. Safe to show: no names, addresses or paths.
-PAIR_FIRST = "Pair this device first."
-GONE = "That speaker is no longer available."
-NO_AUDIO = "Tandem couldn't send audio there. Make sure it's on and try again."
-NO_SEND = "The TV couldn't play that. Try an MP4 or MOV file, or a direct link to one."
-NOT_STREAMING = "Turn this output on first."
+Problem = ui.Problem
+T = TypeVar("T")
 
-
-_STATE = {
-    StreamState.STARTING: ui.OutputState.STARTING,
-    StreamState.STREAMING: ui.OutputState.STREAMING,
-    StreamState.WAITING: ui.OutputState.WAITING,
-    StreamState.STOPPED: ui.OutputState.OFF,
-    StreamState.FAILED: ui.OutputState.FAILED,
+_PROBLEM = {
+    eo.OutputError.GONE: Problem.SPEAKER_GONE,
+    eo.OutputError.PAIR_FIRST: Problem.PAIR_FIRST,
+    eo.OutputError.NO_AUDIO: Problem.NO_AUDIO,
+    eo.OutputError.BAD_GROUP: Problem.BAD_GROUP,
+    eo.OutputError.GROUP_GONE: Problem.GROUP_GONE,
+    eo.OutputError.GROUP_NONE_PLAYED: Problem.GROUP_NONE_PLAYED,
+}
+_MEDIA_PROBLEM = {
+    EngineMediaError.NOT_A_TV: Problem.NOT_A_TV,
+    EngineMediaError.FILE_GONE: Problem.FILE_GONE,
 }
 _SEND = {
     EngineSendState.STARTING: ui.SendState.STARTING,
@@ -51,244 +45,112 @@ _SEND = {
 }
 
 
+async def _switch(step: Awaitable[T]) -> T:
+    try:
+        return await step
+    except eo.OutputError as error:
+        raise ui.AudioError(_PROBLEM[error.reason]) from None
+
+
 class EngineAudio:
     """Audio outputs, the source choice and media sending, for `EngineBackend`."""
 
     _engine: Engine
     _publish: Callable[[ui.BackendEvent], None]
 
-    def _init_audio(
-        self, prefs: OutputPrefsStore, groups: GroupStore | None = None
-    ) -> list[Callable[[], None]]:
-        self._prefs = prefs
-        self._groups = groups or GroupStore(None)
-        self._restoring: set[str] = set()
-        """Outputs to turn back on when they appear ("turn my speakers back on")."""
-        self._restore_tasks: set[asyncio.Task[None]] = set()
-        self._failed: dict[str, ui.OutputProblem] = {}
-        self._last_reason: dict[str, str] = {}
-        """Why each device's last connection attempt failed (an exception type name)."""
-        self._starting: set[str] = set()
-        self._lineup = ui.LineUpSnapshot()
-        """Outputs being turned on: shown as starting at once, before the engine reports."""
+    def _init_audio(self) -> list[Callable[[], None]]:
         self._sends: dict[str, ui.SendSnapshot] = {}
-        self.last_outputs: list[str] = []
-        """Outputs turned on most recently, for the Home app's audio switch."""
         bus = self._engine.bus
         return [
-            bus.subscribe(AudioStreamChanged, self._on_stream),
+            bus.subscribe(eo.OutputsChanged, lambda _event: self._audio_changed()),
             bus.subscribe(MediaSendChanged, self._on_send),
-            bus.subscribe(DeviceEvent, self._on_device_for_audio),
-            bus.subscribe(ConnectionStateChanged, self._on_connection_for_audio),
         ]
+
+    @property
+    def _outputs(self) -> eo.Outputs:
+        return self._engine.outputs
 
     # Reading
 
     def audio(self) -> ui.AudioSnapshot:
-        on = self._engine.outputs_on()
-        outputs: list[ui.OutputSnapshot] = []
-        for device in self._engine.registry.devices():
-            if not device.can_play_audio:
-                continue
-            outputs.append(
-                self._output(
-                    device.id,
-                    device.name,
-                    ui.OutputKind.AIRPLAY,
-                    on,
-                    device_kind=ui.DeviceKind(device.kind.value),
-                    needs_pairing=bool(engine_pairing.services_to_pair(device)),
-                )
-            )
-        direct = self._engine.direct_output()
-        if direct is not None:
-            prefs = self._prefs.get(direct.id)
-            outputs.append(
-                ui.OutputSnapshot(
-                    direct.id,
-                    direct.name,
-                    ui.OutputKind.PC,
-                    ui.OutputState.DIRECT,
-                    None,
-                    prefs.delay_ms,
-                )
-            )
-        for local in self._engine.local_outputs():
-            outputs.append(self._output(local.id, local.name, ui.OutputKind.PC, on))
-        outputs.sort(key=ui.output_order)
+        outputs = self._outputs
+        statuses = outputs.statuses()
+        snapshots = sorted((_output(s) for s in statuses), key=ui.output_order)
+        names = {s.id: s.name for s in statuses}
+        line = outputs.lineup
         system = self._engine.audio_source is AudioSource.SYSTEM
         return ui.AudioSnapshot(
             source=ui.AudioSourceChoice.SYSTEM if system else ui.AudioSourceChoice.PLAYER,
-            outputs=tuple(outputs),
+            outputs=tuple(snapshots),
             pc_outputs_hidden=system,
-            groups=group_snapshots(self._groups.groups(), outputs),
-            lineup=self._lineup,
+            groups=tuple(
+                ui.GroupSnapshot(g.id, g.name, g.outputs, ui.GroupState(g.state.value))
+                for g in outputs.group_statuses(statuses)
+            ),
+            lineup=ui.LineUpSnapshot(
+                ui.LineUpState(line.state.value),
+                None if line.output is None else names.get(line.output),
+                None if line.problem is None else ui.LineUpProblem(line.problem.value),
+            ),
         )
-
-    async def line_up(self) -> None:
-        names = {o.id: o.name for o in self.audio().outputs}
-        playing = [
-            output_id
-            for output_id, (state, _volume, _delay) in self._engine.outputs_on().items()
-            if state is StreamState.STREAMING
-        ]
-        if len(playing) < 2:
-            self._set_lineup(ui.LineUpState.FAILED, problem=ui.LineUpProblem.TOO_FEW)
-            return
-        lags: dict[str, int] = {}
-        for output_id in playing:
-            self._set_lineup(ui.LineUpState.LISTENING, names.get(output_id))
-            try:
-                measured = await self._engine.measure_lag(output_id)
-            except (EngineAudioError, OSError) as exc:
-                _LOGGER.info("Line-up couldn't listen (%s)", type(exc).__name__)
-                self._set_lineup(ui.LineUpState.FAILED, problem=ui.LineUpProblem.NO_MIC)
-                return
-            if measured.lag_ms is None:
-                problem = ui.LineUpProblem.NOISY if measured.noisy else ui.LineUpProblem.NOT_HEARD
-                self._set_lineup(ui.LineUpState.FAILED, names.get(output_id), problem)
-                return
-            lags[output_id] = measured.lag_ms
-        for output_id, delay_ms in lineup.delays_for(lags).items():
-            await self.set_output_delay(output_id, delay_ms)
-        self._set_lineup(ui.LineUpState.DONE)
-
-    def _set_lineup(
-        self,
-        state: ui.LineUpState,
-        output: str | None = None,
-        problem: ui.LineUpProblem | None = None,
-    ) -> None:
-        self._lineup = ui.LineUpSnapshot(state, output, problem)
-        self._audio_changed()
-
-    # Speaker groups
-
-    @property
-    def groups(self) -> GroupStore:
-        return self._groups
-
-    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
-        try:
-            self._groups.save(name, outputs)
-        except ValueError:
-            raise ui.AudioError(BAD_GROUP) from None
-        self._audio_changed()
-
-    async def delete_group(self, group_id: str) -> None:
-        if self._groups.delete(group_id):
-            self._audio_changed()
-
-    async def set_group(self, group_id: str, on: bool) -> None:
-        group = self._groups.get(group_id)
-        if group is None:
-            raise ui.AudioError(GONE)
-        await set_members(self, group.outputs, on)
 
     def send(self, device_id: str) -> ui.SendSnapshot | None:
         return self._sends.get(device_id)
 
-    # Commands
-
-    def restore_outputs(self) -> None:
-        """Turn back on the outputs the user left on: PC outputs now, speakers as they appear."""
-        self._restoring = set(self._prefs.were_on())
-        for local in self._engine.local_outputs():
-            self._restore(local.id)
-        for device in self._engine.registry.devices():
-            self._restore(device.id)
-
-    def _restore(self, output_id: str) -> None:
-        if output_id not in self._restoring:
-            return
-        self._restoring.discard(output_id)
-
-        async def turn_on() -> None:
-            try:
-                await self.set_output(output_id, True)
-            except ui.BackendError as error:
-                _LOGGER.info("A speaker didn't come back on (%s)", type(error).__name__)
-
-        task = asyncio.get_running_loop().create_task(turn_on())
-        self._restore_tasks.add(task)
-        task.add_done_callback(self._restore_tasks.discard)
-
-    def _on_connection_for_audio(self, event: ConnectionStateChanged) -> None:
-        if event.reason is not None:
-            self._last_reason[event.device_id] = event.reason
-
-    def _on_device_for_audio(self, event: DeviceEvent) -> None:
-        if not isinstance(event, DeviceLost):
-            self._restore(event.device.id)
-        self._audio_changed()
+    # Outputs
 
     async def set_output(self, output_id: str, on: bool) -> None:
-        if not on:
-            self._failed.pop(output_id, None)
-            self._starting.discard(output_id)
-            self._prefs.update(output_id, on=False)
-            await self._engine.stop_output(output_id)
-            self._audio_changed()
-            return
-        if not is_local(output_id):
-            try:
-                device = self._engine.device(output_id)
-            except UnknownDeviceError:
-                raise ui.AudioError(GONE) from None
-            if engine_pairing.services_to_pair(device):
-                raise ui.AudioError(PAIR_FIRST)
-        prefs = self._prefs.get(output_id)
-        self._failed.pop(output_id, None)
-        self._last_reason.pop(output_id, None)
-        self._starting.add(output_id)
-        self._audio_changed()  # the switch shows a spinner at once, not after the connection
-        try:
-            await self._engine.start_output(output_id, volume=prefs.volume, delay_ms=prefs.delay_ms)
-        except (EngineAudioError, ConnectionFailedError, OSError, TimeoutError, ValueError) as exc:
-            _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
-            self._failed[output_id] = classify(self._last_reason.get(output_id), exc)
-            self._audio_changed()
-            raise ui.AudioError(NO_AUDIO) from None
-        finally:
-            self._starting.discard(output_id)
-        self._prefs.update(output_id, on=True)
-        if output_id in self.last_outputs:
-            self.last_outputs.remove(output_id)
-        self.last_outputs = [output_id, *self.last_outputs][:8]
-        self._audio_changed()
+        await _switch(self._outputs.start(output_id) if on else self._outputs.stop(output_id))
 
     async def set_output_volume(self, output_id: str, level: float) -> None:
-        level = max(0.0, min(100.0, float(level)))
-        self._prefs.update(output_id, volume=level)
-        if output_id in self._engine.outputs_on():
-            try:
-                await self._engine.set_output_volume(output_id, level)
-            except (EngineAudioError, OSError, TimeoutError) as exc:
-                _LOGGER.info("Setting an output's volume failed (%s)", type(exc).__name__)
-                raise ui.AudioError(NO_AUDIO) from None
-        self._audio_changed()
+        await _switch(self._outputs.set_volume(output_id, level))
 
     async def set_output_delay(self, output_id: str, delay_ms: int) -> None:
-        delay_ms = max(0, min(ui.MAX_DELAY_MS, int(delay_ms)))
-        self._prefs.update(output_id, delay_ms=delay_ms)
-        if output_id in self._engine.outputs_on():
-            self._engine.set_output_delay(output_id, delay_ms)
-        self._audio_changed()
+        await _switch(self._outputs.set_delay(output_id, delay_ms))
 
     async def set_audio_source(self, source: ui.AudioSourceChoice) -> None:
         await self._engine.set_audio_source(AudioSource(source.value))
         self._audio_changed()
 
+    def restore_outputs(self) -> None:
+        self._outputs.restore()
+
+    async def line_up(self) -> None:
+        await self._outputs.line_up()
+
+    # Speaker groups
+
+    async def save_group(self, name: str, outputs: Sequence[str]) -> None:
+        try:
+            self._outputs.save_group(name, outputs)
+        except eo.OutputError as error:
+            raise ui.AudioError(_PROBLEM[error.reason]) from None
+
+    async def delete_group(self, group_id: str) -> None:
+        self._outputs.delete_group(group_id)
+
+    async def set_group(self, group_id: str, on: bool) -> None:
+        await _switch(self._outputs.set_group(group_id, on))
+
+    # Sending media
+
     async def send_media(self, device_id: str, location: str) -> None:
+        device = self._engine.registry.get(device_id)
+        if device is None:
+            raise ui.MediaError(Problem.NOT_AVAILABLE)
+        if engine_pairing.services_to_pair(device):
+            raise ui.MediaError(Problem.PAIR_FIRST)
+        if not location.strip():
+            raise ui.MediaError(Problem.NO_LOCATION)
         try:
             await self._engine.play_media(device_id, location)
         except EngineMediaError as error:
-            raise ui.MediaError(str(error)) from None
+            raise ui.MediaError(_MEDIA_PROBLEM.get(error.reason, Problem.NO_SEND)) from None
         except UnknownDeviceError:
-            raise ui.MediaError(GONE) from None
+            raise ui.MediaError(Problem.SPEAKER_GONE) from None
         except (OSError, TimeoutError) as exc:
             _LOGGER.info("Sending media failed (%s)", type(exc).__name__)
-            raise ui.MediaError(NO_SEND) from None
+            raise ui.MediaError(Problem.NO_SEND) from None
 
     async def stop_media(self, device_id: str) -> None:
         await self._engine.stop_media(device_id)
@@ -296,11 +158,6 @@ class EngineAudio:
             self._publish(ui.SendChanged(device_id, None))
 
     # Engine events
-
-    def _on_stream(self, event: AudioStreamChanged) -> None:
-        if event.state is StreamState.FAILED:
-            self._failed[event.device_id] = classify(event.reason, None)
-        self._audio_changed()
 
     def _on_send(self, event: MediaSendChanged) -> None:
         send = ui.SendSnapshot(_SEND[event.state], event.title)
@@ -310,54 +167,16 @@ class EngineAudio:
     def _audio_changed(self) -> None:
         self._publish(ui.AudioChanged(self.audio()))
 
-    def _output(
-        self,
-        output_id: str,
-        name: str,
-        kind: ui.OutputKind,
-        on: dict[str, tuple[StreamState, float | None, int]],
-        *,
-        device_kind: ui.DeviceKind | None = None,
-        needs_pairing: bool = False,
-    ) -> ui.OutputSnapshot:
-        prefs = self._prefs.get(output_id)
-        live = on.get(output_id)
-        if live is not None:
-            state = _STATE[live[0]]
-            volume, delay = live[1], live[2]
-        else:
-            if output_id in self._starting:
-                state = ui.OutputState.STARTING
-            elif output_id in self._failed:
-                state = ui.OutputState.FAILED
-            else:
-                state = ui.OutputState.OFF
-            volume, delay = prefs.volume, prefs.delay_ms
-        problem = self._failed.get(output_id) if state is ui.OutputState.FAILED else None
-        return ui.OutputSnapshot(
-            output_id, name, kind, state, volume, delay, device_kind, needs_pairing, problem
-        )
 
-
-# Exception type names (from the connection or the stream) that mean "no answer" or "refused".
-_UNREACHABLE = {
-    "TimeoutError",
-    "ConnectionFailedError",
-    "ConnectionRefusedError",
-    "ConnectionResetError",
-    "ConnectionAbortedError",
-    "OSError",
-    "ConnectionClosed",
-    "ConnectionLostError",
-}
-_REFUSED = {"AuthenticationError", "NotPairedError", "PairingError", "AccessDeniedError"}
-
-
-def classify(reason: str | None, error: BaseException | None) -> ui.OutputProblem:
-    """Why an output couldn't play, from the last connection failure or the error itself."""
-    names = {reason, None if error is None else type(error).__name__} - {None}
-    if names & _REFUSED:
-        return ui.OutputProblem.ACCESS
-    if names & _UNREACHABLE or not names:
-        return ui.OutputProblem.UNREACHABLE
-    return ui.OutputProblem.FAILED
+def _output(status: eo.OutputStatus) -> ui.OutputSnapshot:
+    return ui.OutputSnapshot(
+        status.id,
+        status.name,
+        ui.OutputKind(status.kind.value),
+        ui.OutputState(status.state.value),
+        status.volume,
+        status.delay_ms,
+        None if status.device_kind is None else ui.DeviceKind(status.device_kind.value),
+        status.needs_pairing,
+        None if status.problem is None else ui.OutputProblem(status.problem.value),
+    )

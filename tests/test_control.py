@@ -12,12 +12,14 @@ from tandem.engine.control import (
     ControlEvent,
     ControlsAvailable,
     ControlsUnavailable,
+    Failure,
     KeyAction,
     KeyboardChanged,
     KeyboardFocus,
     MediaCommand,
     MediaType,
     NotConnectedError,
+    NoTextFieldError,
     NowPlaying,
     NowPlayingChanged,
     PlayState,
@@ -27,6 +29,7 @@ from tandem.engine.control import (
     UnsupportedError,
     VolumeChanged,
     VolumeControl,
+    failure_of,
 )
 from tandem.engine.models import DeviceKind, Service
 from tandem.engine.service import Engine
@@ -288,3 +291,55 @@ async def test_push_while_closing_is_ignored(
     controller.push(30.0)
     assert isinstance(events[-1], VolumeChanged)
     await engine.close()
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "now", "intent", "sent"),
+    [
+        # An app with play and pause commands gets exactly what was asked.
+        ({Capability.PLAY, Capability.PAUSE}, PlayState.PAUSED, "play", [MediaCommand.PLAY]),
+        ({Capability.PLAY, Capability.PAUSE}, PlayState.PLAYING, "pause", [MediaCommand.PAUSE]),
+        # A toggle-only app: "pause" on something paused does nothing rather than start it.
+        ({Capability.PLAY_PAUSE}, PlayState.PAUSED, "pause", []),
+        ({Capability.PLAY_PAUSE}, PlayState.PLAYING, "pause", [MediaCommand.PLAY_PAUSE]),
+        ({Capability.PLAY_PAUSE}, PlayState.PLAYING, "play", []),
+        ({Capability.PLAY_PAUSE}, PlayState.PAUSED, "play", [MediaCommand.PLAY_PAUSE]),
+        # Toggling uses the toggle when there is one, else whichever fits.
+        ({Capability.PLAY_PAUSE}, PlayState.PLAYING, "play_pause", [MediaCommand.PLAY_PAUSE]),
+        (
+            {Capability.PLAY, Capability.PAUSE},
+            PlayState.PLAYING,
+            "play_pause",
+            [MediaCommand.PAUSE],
+        ),
+        ({Capability.PLAY, Capability.PAUSE}, PlayState.PAUSED, "play_pause", [MediaCommand.PLAY]),
+    ],
+)
+async def test_play_and_pause_intents_fit_what_the_app_offers(
+    backend: FakeBackend,
+    manual_sleep: ManualSleep,
+    capabilities: set[Capability],
+    now: PlayState,
+    intent: str,
+    sent: list[MediaCommand],
+) -> None:
+    backend.controller_options = {
+        "capabilities": frozenset({*capabilities, Capability.NOW_PLAYING}),
+        "now_playing": NowPlaying(state=now, media_type=MediaType.MUSIC),
+    }
+    engine, _ = await _connected(backend, manual_sleep)
+    controls = engine.controls(TV.id)
+    await getattr(controls, intent)()
+    calls = backend.controllers[TV.id].calls
+    assert [call[1] for call in calls if call[0] == "media"] == sent
+    await engine.close()
+
+
+def test_failures_are_classified_once_for_every_caller() -> None:
+    assert failure_of(NotConnectedError()) is Failure.NOT_CONNECTED
+    assert failure_of(NoTextFieldError()) is Failure.NO_TEXT_FIELD
+    assert failure_of(UnsupportedError("power")) is Failure.CANT_DO_THAT
+    assert failure_of(ValueError("volume")) is Failure.CANT_DO_THAT
+    assert failure_of(ControlError("protocol")) is Failure.NO_RESPONSE
+    assert failure_of(TimeoutError()) is Failure.NO_RESPONSE
+    assert failure_of(RuntimeError("a bug")) is None

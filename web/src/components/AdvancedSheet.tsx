@@ -193,9 +193,6 @@ export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home
             <Button variant="secondary" onPress={onBack}>
               {words.back}
             </Button>
-            <Button variant="primary" onPress={onClose}>
-              {words.done}
-            </Button>
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>

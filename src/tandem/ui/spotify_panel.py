@@ -1,9 +1,9 @@
 """Spotify in the window: the Settings sheet's connection and the Music tab's source.
 
-Part of `AppController`, like `library_panel`. The page renders `snapshot()` and sends
-commands; `handle` checks and runs them. Which device "Play" uses is kept here: the one the
-user picked, else the active one, else the first that takes commands. Playlists, devices and
-searches are personal: never logged.
+Part of `AppController`, like `library_panel`. The page renders `snapshot()` and sends commands;
+`register` adds them to the window's command table. Which device "Play" uses is kept here: the
+one the user picked, else the active one, else the first that takes commands. Playlists, devices
+and searches are personal: never logged.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from tandem.ui.backend import (
     SpotifyItemSnapshot,
     SpotifySnapshot,
 )
+from tandem.ui.window_commands import CommandTable, Fields, Handler
 
 MAX_SEARCH_TEXT = 100
 MAX_CLIENT_ID_TEXT = 200
@@ -74,44 +75,53 @@ class SpotifyPanel:
         """At shutdown: stop waiting for a sign-in, so quitting doesn't wait for the browser."""
         await self._backend.spotify_cancel_sign_in()
 
-    def handle(self, kind: str, command: dict[str, Any]) -> bool:
-        """Run a Spotify command. False if `kind` isn't one of them."""
-        b = self._backend
-        item = command.get("id")
-        has_id = isinstance(item, str)
-        if kind == "setSpotifyClientId" and isinstance(command.get("clientId"), str):
-            self._run(b.set_spotify_client_id(command["clientId"][:MAX_CLIENT_ID_TEXT]))
-        elif kind == "spotifySignIn":
-            self._run(b.spotify_sign_in())
-        elif kind == "spotifyCancelSignIn":
-            self._run(b.spotify_cancel_sign_in())
-        elif kind == "spotifySignOut":
+    def register(self, table: CommandTable) -> None:
+        """The Spotify commands."""
+        b, run = self._backend, self._run
+
+        def plain(action: Callable[[], Coroutine[Any, Any, None]]) -> Handler:
+            def handler(_f: Fields) -> None:
+                run(action())
+
+            return handler
+
+        def set_client_id(f: Fields) -> None:
+            client_id = f.text("clientId")
+            if client_id is not None:
+                run(b.set_spotify_client_id(client_id[:MAX_CLIENT_ID_TEXT]))
+
+        def sign_out(f: Fields) -> None:
             self.chosen_device = None
-            self._run(b.spotify_sign_out(command.get("forget") is True))
-        elif kind == "openSpotifyDashboard":
-            self._run(b.open_spotify_dashboard())
-        elif kind == "spotifyRefresh":
-            self._run(b.spotify_refresh())
-        elif kind == "spotifySearch" and isinstance(command.get("text"), str):
-            self._run(b.spotify_search(command["text"][:MAX_SEARCH_TEXT]))
-        elif kind == "spotifyPlay" and has_id:
-            self._run(b.spotify_play(item, self.target))
-        elif kind == "spotifyChooseDevice" and has_id:
-            if any(d.id == item and not d.restricted for d in self.spotify.devices):
-                self.chosen_device = item
+            run(b.spotify_sign_out(f.flag("forget") is True))
+
+        def search(f: Fields) -> None:
+            text = f.text("text")
+            if text is not None:
+                run(b.spotify_search(text[:MAX_SEARCH_TEXT]))
+
+        def choose(device_id: str) -> bool:
+            if any(d.id == device_id and not d.restricted for d in self.spotify.devices):
+                self.chosen_device = device_id
                 self._on_change()
-        elif kind == "spotifyTransfer" and has_id:
-            if any(d.id == item and not d.restricted for d in self.spotify.devices):
-                self.chosen_device = item
-                self._on_change()
-                self._run(b.spotify_transfer(item))
-        elif kind == "openInSpotify" and has_id:
-            self._run(b.open_in_spotify(item))
-        elif kind == "spotifyDismissError":
-            self._run(b.spotify_dismiss_error())
-        else:
+                return True
             return False
-        return True
+
+        def transfer(device_id: str) -> None:
+            if choose(device_id):
+                run(b.spotify_transfer(device_id))
+
+        table.on("setSpotifyClientId", set_client_id)
+        table.on("spotifySignIn", plain(b.spotify_sign_in))
+        table.on("spotifyCancelSignIn", plain(b.spotify_cancel_sign_in))
+        table.on("spotifySignOut", sign_out)
+        table.on("openSpotifyDashboard", plain(b.open_spotify_dashboard))
+        table.on("spotifyRefresh", plain(b.spotify_refresh))
+        table.on("spotifySearch", search)
+        table.on_id("spotifyPlay", lambda item_id: run(b.spotify_play(item_id, self.target)))
+        table.on_id("spotifyChooseDevice", choose)
+        table.on_id("spotifyTransfer", transfer)
+        table.on_id("openInSpotify", lambda item_id: run(b.open_in_spotify(item_id)))
+        table.on("spotifyDismissError", plain(b.spotify_dismiss_error))
 
 
 def _item(item: SpotifyItemSnapshot) -> dict[str, Any]:

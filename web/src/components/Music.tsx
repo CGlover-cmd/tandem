@@ -2,8 +2,25 @@ import { Button, Chip, ProgressBar, Slider } from "@heroui/react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { formatTime } from "../controls";
-import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "../icons";
-import { allows, artworkUrl, isPlaying, musicPosition, musicSubtitle, progressKind } from "../music";
+import {
+  MusicIcon,
+  NextIcon,
+  PauseIcon,
+  PlayIcon,
+  PreviousIcon,
+  SkipBackwardIcon,
+  SkipForwardIcon,
+} from "../icons";
+import {
+  allows,
+  artworkUrl,
+  canSkip,
+  isPlaying,
+  musicPosition,
+  musicSubtitle,
+  progressKind,
+  seekTarget,
+} from "../music";
 import { strings } from "../strings";
 import type { Command, Music, MusicCommand } from "../types";
 
@@ -205,5 +222,62 @@ export function NowPlayingBar({ music, send, onOpen }: { music: Music; send: Sen
         <NextIcon size={18} />
       </MusicButton>
     </div>
+  );
+}
+
+const SKIP_SECONDS = 15;
+
+/** A speaker's remote while it plays this PC's sound: the PC's app is what plays, so the
+ *  buttons drive it (previous, back 15 s, play or pause, forward 15 s, next). */
+export function PcPlaybackCard({ music, send }: { music: Music | null; send: Send }) {
+  if (music === null) {
+    return (
+      <section className="now-playing glass" aria-label={strings.music.nothingTitle}>
+        <p className="now-playing-title">{strings.music.nothingTitle}</p>
+        <p className="now-playing-subtitle">{strings.speakerRemote.nothingBody}</p>
+      </section>
+    );
+  }
+  return <PcPlaybackControls music={music} send={send} />;
+}
+
+function PcPlaybackControls({ music, send }: { music: Music; send: Send }) {
+  const position = useMusicPosition(music);
+  const title = music.title ?? strings.music.untitled;
+  const subtitle = musicSubtitle(music);
+  const skip = canSkip(music) && position !== null;
+  const seek = (by: number) => {
+    if (position !== null) send({ type: "musicSeek", position: seekTarget(music, position, by) });
+  };
+  return (
+    <section className="now-playing glass" aria-label={title}>
+      <div className="flex items-center gap-3">
+        <Artwork music={music} size={56} className="music-art music-art-small" />
+        <div className="min-w-0 flex-1">
+          <p className="now-playing-app">{strings.music.from(music.app ?? strings.music.anApp)}</p>
+          <p className="now-playing-title">{title}</p>
+          {subtitle && <p className="now-playing-subtitle">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-1" role="group" aria-label={strings.speakerRemote.controls}>
+        <MusicButton music={music} command="previous" send={send} label={strings.music.previous}>
+          <PreviousIcon size={22} />
+        </MusicButton>
+        {skip && (
+          <Button isIconOnly variant="ghost" aria-label={strings.speakerRemote.back(SKIP_SECONDS)} onPress={() => seek(-SKIP_SECONDS)}>
+            <SkipBackwardIcon size={22} />
+          </Button>
+        )}
+        <PlayPauseButton music={music} send={send} main size={26} />
+        {skip && (
+          <Button isIconOnly variant="ghost" aria-label={strings.speakerRemote.forward(SKIP_SECONDS)} onPress={() => seek(SKIP_SECONDS)}>
+            <SkipForwardIcon size={22} />
+          </Button>
+        )}
+        <MusicButton music={music} command="next" send={send} label={strings.music.next}>
+          <NextIcon size={22} />
+        </MusicButton>
+      </div>
+    </section>
   );
 }

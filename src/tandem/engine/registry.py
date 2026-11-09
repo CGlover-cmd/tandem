@@ -81,6 +81,13 @@ class DeviceRegistry:
         elif previous != device:
             self._bus.publish(DeviceUpdated(device, previous))
 
+    def remove(self, device_id: str) -> None:
+        """Forget a device now (it left the network), publishing DeviceLost."""
+        device = self._devices.pop(device_id, None)
+        self._last_seen.pop(device_id, None)
+        if device is not None:
+            self._bus.publish(DeviceLost(device))
+
     def expire(self, max_age: float) -> list[Device]:
         """Drop devices not seen for more than `max_age` seconds, publishing DeviceLost."""
         now = self._clock()

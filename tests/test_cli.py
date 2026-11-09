@@ -332,3 +332,20 @@ def test_stream_device_without_audio(tandem_home: Path, backend: FakeBackend) ->
 def test_stream_without_connection(tandem_home: Path, backend: FakeBackend) -> None:
     backend.connect_failures[SPEAKER.id] = [OSError()] * 20
     assert "Could not connect" in _run(backend, "stream", "homepod", "--seconds", "1", code=1)
+
+
+def test_privacy_turns_the_online_lookups_off_and_on(tandem_home: Path) -> None:
+    out = io.StringIO()
+    assert cli.main(["privacy"], out=out) == 0
+    assert "App Store icon lookup: on" in out.getvalue()
+    assert "Update check: on" in out.getvalue()
+
+    out = io.StringIO()
+    assert cli.main(["privacy", "--app-icons", "off", "--update-check", "off"], out=out) == 0
+    assert "App Store icon lookup: off" in out.getvalue()
+    assert "Update check: off" in out.getvalue()
+
+    out = io.StringIO()
+    cli.main(["privacy", "--update-check", "on"], out=out)
+    assert "App Store icon lookup: off" in out.getvalue()  # untouched
+    assert "Update check: on" in out.getvalue()

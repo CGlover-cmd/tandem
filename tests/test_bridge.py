@@ -164,14 +164,14 @@ async def test_failed_attempts_wait_then_give_up(
 
 
 async def test_connect_needs_pairing_first(harness: Harness) -> None:
-    with pytest.raises(ui.PairingError, match="Pair this device first"):
+    with pytest.raises(ui.PairingError, match="pairFirst"):
         await harness.backend.connect(APPLE_TV.id)
 
 
 async def test_unknown_devices_are_reported_plainly(harness: Harness) -> None:
-    with pytest.raises(ui.PairingError, match="no longer available"):
+    with pytest.raises(ui.PairingError, match="notAvailable"):
         await harness.backend.connect("missing")
-    with pytest.raises(ui.PairingError, match="no longer available"):
+    with pytest.raises(ui.PairingError, match="notAvailable"):
         await harness.backend.begin_pairing("missing")
 
 
@@ -205,7 +205,7 @@ async def test_wrong_pin_shows_a_fresh_pin_for_the_same_step(harness: Harness) -
 
 
 async def test_speakers_need_no_pairing(harness: Harness) -> None:
-    with pytest.raises(ui.PairingError, match="doesn't need pairing"):
+    with pytest.raises(ui.PairingError, match="noPairingNeeded"):
         await harness.backend.begin_pairing(SPEAKER.id)
 
 
@@ -215,7 +215,7 @@ async def test_pairing_that_cannot_begin_fails_plainly(harness: Harness) -> None
     with pytest.raises(ui.PairingError) as failed:
         await harness.backend.begin_pairing(APPLE_TV.id)
 
-    assert str(failed.value) == bridge.COULD_NOT_PAIR
+    assert str(failed.value) == ui.Problem.COULD_NOT_PAIR
     assert "192.0.2.10" not in str(failed.value)
 
 
@@ -229,7 +229,7 @@ async def test_a_pin_typed_too_late_says_it_expired(
         flow = await h.backend.begin_pairing(APPLE_TV.id)
         await asyncio.sleep(0.05)
 
-        with pytest.raises(ui.PairingError, match="expired"):
+        with pytest.raises(ui.PairingError, match="pinExpired"):
             await flow.submit_pin("1234")
     finally:
         manual_sleep.release()
@@ -366,18 +366,18 @@ async def test_play_pause_falls_back_to_play_or_pause(
 
 
 async def test_control_errors_are_worded_for_the_window(harness: Harness) -> None:
-    with pytest.raises(ui.ControlError, match="isn't connected"):
+    with pytest.raises(ui.ControlError, match="notConnected"):
         await harness.backend.press(SPEAKER.id, ui.RemoteKey.UP, ui.KeyAction.TAP)
 
     await _connected(harness, capabilities=frozenset({Capability.NOW_PLAYING}))
-    with pytest.raises(ui.ControlError, match="can't do that"):
+    with pytest.raises(ui.ControlError, match="cantDoThat"):
         await harness.backend.press(SPEAKER.id, ui.RemoteKey.UP, ui.KeyAction.TAP)
 
     harness.fake.controllers[SPEAKER.id].caps = ALL_CAPABILITIES
     harness.fake.controllers[SPEAKER.id].fail = ControlError("timed out talking to 192.0.2.10")
     with pytest.raises(ui.ControlError) as failed:
         await harness.backend.media(SPEAKER.id, ui.MediaCommand.NEXT)
-    assert str(failed.value) == bridge.NO_RESPONSE
+    assert str(failed.value) == ui.Problem.NO_RESPONSE
 
 
 async def test_updates_for_unknown_devices_are_ignored(harness: Harness) -> None:
@@ -424,12 +424,12 @@ async def test_keyboard_focus_follows_the_device(harness: Harness) -> None:
 
 
 async def test_apps_errors_are_worded_for_the_window(harness: Harness) -> None:
-    with pytest.raises(ui.ControlError, match="isn't connected"):
+    with pytest.raises(ui.ControlError, match="notConnected"):
         await harness.backend.apps(SPEAKER.id)
     await _connected(harness, capabilities=frozenset({Capability.REMOTE}))
-    with pytest.raises(ui.ControlError, match="can't do that"):
+    with pytest.raises(ui.ControlError, match="cantDoThat"):
         await harness.backend.apps(SPEAKER.id)
-    with pytest.raises(ui.ControlError, match="can't do that"):
+    with pytest.raises(ui.ControlError, match="cantDoThat"):
         await harness.backend.set_text(SPEAKER.id, "hi")
 
 
@@ -438,7 +438,7 @@ async def test_typing_without_a_text_field_says_so(harness: Harness) -> None:
     harness.fake.controllers[SPEAKER.id].fail = NoTextFieldError()
     with pytest.raises(ui.ControlError) as failed:
         await harness.backend.set_text(SPEAKER.id, "hi")
-    assert str(failed.value) == bridge.NO_TEXT_FIELD
+    assert str(failed.value) == ui.Problem.NO_TEXT_FIELD
 
 
 # Typed commands (Phase 10a)

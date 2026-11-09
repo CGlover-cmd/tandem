@@ -59,10 +59,8 @@ def test_a_damaged_groups_file_is_ignored(tmp_path: Path) -> None:
 async def test_a_group_turns_on_together(tmp_path: Path, manual_sleep: ManualSleep) -> None:
     bus = EventBus()
     groups = GroupStore(None)
-    engine = Engine(FakeBackend([PATIO, LOFT]), bus=bus, sleep=manual_sleep)
-    backend = bridge.EngineBackend(
-        engine, SettingsStore(tmp_path / "s.json", bus), output_groups=groups
-    )
+    engine = Engine(FakeBackend([PATIO, LOFT]), bus=bus, sleep=manual_sleep, output_groups=groups)
+    backend = bridge.EngineBackend(engine, SettingsStore(tmp_path / "s.json", bus))
     await backend.start()
     await backend.save_group("Out Back", [PATIO.id, LOFT.id, "gone-speaker"])
     (group,) = backend.audio().groups
@@ -83,11 +81,11 @@ async def test_a_group_turns_on_together(tmp_path: Path, manual_sleep: ManualSle
 
 
 async def test_send_audio_to_a_group_by_name() -> None:
-    engine = Engine(FakeBackend([PATIO, LOFT]))
-    await engine.scan()
     groups = GroupStore(None)
     group = groups.save("Out Back", [PATIO.id, LOFT.id])
-    services = EngineCommandServices(engine, groups=groups)
+    engine = Engine(FakeBackend([PATIO, LOFT]), output_groups=groups)
+    await engine.scan()
+    services = EngineCommandServices(engine)
     assert group.id in services.audio_targets()
     result = await CommandDispatcher(services).run("send audio to out back")
     assert result.outcome is Outcome.DONE, result

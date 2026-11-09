@@ -197,12 +197,9 @@ export function SpotifySheet({
             )}
             <p className="text-[11px] text-[var(--muted)]">{words.privacy}</p>
           </Modal.Body>
-          <Modal.Footer className="flex flex-wrap gap-2">
+          <Modal.Footer>
             <Button variant="secondary" onPress={onBack}>
               {strings.settingsSheet.back}
-            </Button>
-            <Button variant="primary" onPress={onClose}>
-              {strings.settingsSheet.done}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>

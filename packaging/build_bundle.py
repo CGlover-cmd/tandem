@@ -83,11 +83,9 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
 
 # Parts of the runtime and libraries Tandem never uses, left out of the download.
 _UNUSED_RUNTIME = ("sqlite3.dll", "_sqlite3.pyd", "_msi.pyd")
-_UNUSED_LIBRARY_PARTS = (
-    "webview/lib/runtimes/win-x86",
-    "webview/lib/runtimes/win-arm64",
-    "pythonnet/runtime/Python.Runtime.xml",
-)
+# Keep all of webview/lib/runtimes: pywebview looks up every architecture's folder when it
+# loads, and 1.2.0's window never opened without the x86 and ARM64 ones.
+_UNUSED_LIBRARY_PARTS = ("pythonnet/runtime/Python.Runtime.xml",)
 
 
 def _prune(runtime: Path, site_packages: Path) -> None:
@@ -113,6 +111,9 @@ def smoke(out: Path) -> None:
         "import winrt.windows.media.control; print(tandem.__version__)"
     )
     subprocess.run([str(python), "-c", imports], check=True)
+    # The window's own back end (WinForms + WebView2 through pythonnet). The demo check below
+    # runs without a window, so only this catches a missing piece of it (1.2.0 shipped one).
+    subprocess.run([str(python), "-c", "import webview.platforms.winforms"], check=True)
     # The Apple handshake with the libraries as shipped: 1.0.0's broke here (ADR-0017).
     subprocess.run([str(python), "-I", str(ROOT / "packaging" / "check_handshake.py")], check=True)
     subprocess.run([str(python), "-m", "tandem", "--help"], check=True, stdout=subprocess.DEVNULL)

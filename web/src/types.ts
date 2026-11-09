@@ -1,5 +1,6 @@
 // The UI state the Python app sends (tandem.ui.controller.AppController.snapshot) and the
-// commands it accepts (AppController.handle). Keep the two in step.
+// commands it accepts (AppController.handle). contract.generated.ts (tools/write_contract.py)
+// holds what Python really sends; the type check fails when the two drift apart.
 
 export type DeviceKind = "apple_tv" | "homepod" | "receiver" | "other";
 export type LinkState = "disconnected" | "connecting" | "connected" | "waiting" | "failed";
@@ -77,7 +78,11 @@ export interface Device {
   apps: AppList | null;
   /** What was last sent to this Apple TV (a link or a video file), while it plays. */
   send: SendState | null;
+  /** The card's Audio button: the PC's sound on this device. Null if it can't play audio. */
+  audio: DeviceAudio | null;
 }
+
+export type DeviceAudio = "off" | "starting" | "on" | "failed";
 
 /** A video or link sent to an Apple TV. `title` is a file name or link host: never log it. */
 export interface SendState {
@@ -133,10 +138,9 @@ export interface AudioPanel {
   picking: boolean;
 }
 
-/** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
+/** Something to tell the user. `code` picks the words (`problems` in strings.ts). */
 export interface Problem {
-  code: "pinFormat" | "wrongPin" | "pairingFailed" | "backend" | "taskFailed" | string;
-  text?: string;
+  code: string;
 }
 
 export interface Pairing {
@@ -405,7 +409,8 @@ export interface AppState {
 }
 
 export type Command =
-  | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
+  | { type: "activate" | "connect" | "disconnect" | "pair" | "openDevice"; id: string }
+  | { type: "deviceAudio"; id: string; on: boolean }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
   | { type: "openUpdate" | "reportProblem" | "lineUp" }

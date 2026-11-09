@@ -14,6 +14,32 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **Device cards rework (2026-11-09, after 1.2.1 feedback):** cards offer Audio (every
+  AirPlay device, the Audio panel's switch; pairs first if needed) and Video (Apple TV, opens
+  Send to TV) instead of Pair/Connect/Send. Speakers get an audio-only remote; while they play
+  the PC's sound, it drives the PC's media app. Open: mute the PC's speakers while AirPlay
+  plays (Spike G found process loopback keeps capturing with the speakers muted; the
+  maintainer is choosing between options). The HomePod's ~5 s lag is still open.
+- **1.2.1 (2026-11-09), a pre-release: fixes 1.2.0's install.** It carries the three entries
+  below.
+- **1.2.0's window doesn't open (2026-11-09, fixed in 1.2.1):** the app folder left out
+  pywebview's x86 and ARM64 WebView2 folders, which it looks up at start, so the window failed
+  and the tray thread kept a windowless Tandem holding the single-instance lock. The folders
+  are kept, the smoke check imports the window's back end, and a failed window now says so
+  and exits.
+- **Installer closes Tandem (2026-11-09, in 1.2.1):** installing 1.2.0 over a running
+  copy hit Windows' "unable to automatically close all applications" prompt. Setup now asks
+  Tandem to quit, stops older copies run from its folder, and reopens it afterwards; the
+  uninstaller closes it too (ADR-0017, 1.2.1 addendum). Checked in CI's installer job.
+- **Architecture and UI review (2026-11-08, in 1.2.1):** the review's 14
+  recommendations are on their own branch, on top of 1.2.0
+  ([ADR-0019](adr/0019-one-bridge-demo-on-the-engine.md)). The demo runs on the real engine
+  through a demo device adapter (the old demo backend is gone), audio outputs live in the
+  engine, play/pause and control errors are handled once, the bridge sends problem codes, and
+  `tools/write_contract.py` keeps `types.ts` checked against Python. Window polish: icons at
+  their real size, primary-colour row titles in sheets, card actions that wrap, quiet
+  scrollbars and sliders, a remote that fits without scrolling, one close per sheet. Nothing
+  here changes what talks to devices, but it should ride along with the next hardware retest.
 - **Current state (2026-11-06): 1.1.0, a pre-release, fixes the maintainer's 1.0.0 test.**
   The 1.0.0 installer shipped srptools 2.0, which broke every Apple handshake (pairing showed
   "wrong PIN"; HomePods and the soundbar failed). Library versions are now pinned

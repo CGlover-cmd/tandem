@@ -180,9 +180,6 @@ export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
             >
               {strings.audio.allOff}
             </Button>
-            <Button variant="primary" onPress={onClose}>
-              {strings.audio.done}
-            </Button>
           </Modal.Footer>
         </Modal.Dialog>
       </Modal.Container>
