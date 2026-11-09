@@ -33,6 +33,9 @@ from tandem.engine.media_send import (
     title_for,
 )
 from tandem.engine.models import Device, LocalOutput, Service
+from tandem.engine.output_groups import GroupStore
+from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.outputs import Outputs
 from tandem.engine.pairing import PairingError, PairingFactory, PinProvider
 from tandem.engine.pc_media import MediaSessions, PcMediaWatcher
 from tandem.engine.player import DecodedStream, Player, Track
@@ -127,6 +130,8 @@ class Engine:
         scan_timeout: float = 3.0,
         sleep: Sleep = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
+        output_prefs: OutputPrefsStore | None = None,
+        output_groups: GroupStore | None = None,
     ) -> None:
         self.bus = bus or EventBus()
         self.redactor = redactor or Redactor()
@@ -153,9 +158,11 @@ class Engine:
             self._live_link,
             local_sink=backend.local_sink,
         )
-        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions())
+        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions(), clock=clock)
         self._media_server: MediaServer | None = None
         self._sends = MediaSends(self.bus.publish)
+        self.outputs = Outputs(self, output_prefs, output_groups)
+        """Outputs as the user sees them: switch them here, not with `start_output`."""
 
     def _live_link(self, device_id: str) -> Link | None:
         session = self._sessions.get(device_id)
@@ -171,6 +178,7 @@ class Engine:
 
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
+        await self.outputs.close()
         await self.discovery.stop()
         await self._sends.close()
         if self._media_server is not None:
@@ -420,13 +428,13 @@ class Engine:
         link = await self.connect(device_id, timeout=timeout)
         sender = self._backend.media_sender(link)
         if sender is None:
-            raise MediaError("This device can't play videos or links.")
+            raise MediaError("This device can't play videos or links.", MediaError.NOT_A_TV)
         if is_link(location):
             url = location
         else:
             path = Path(location)
             if not await asyncio.to_thread(path.is_file):
-                raise MediaError("That file isn't there any more.")
+                raise MediaError("That file isn't there any more.", MediaError.FILE_GONE)
             if self._media_server is None:
                 self._media_server = MediaServer()
             await self._media_server.start()

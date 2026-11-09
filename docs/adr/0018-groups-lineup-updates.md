@@ -11,8 +11,8 @@ fiddling with sliders, and telling people about new versions.
 ## Decision
 - **Groups** live in the engine (`engine/output_groups.py`, `groups.json` next to the output
   preferences). A group is a name and member output ids; it has no stream of its own. The
-  window turns members on and off through the `Backend`'s ordinary output calls
-  (`ui/groups.py`, shared by the bridge and the demo), and the command services list groups as
+  window turns members on and off through the `Backend`'s ordinary output calls (since
+  ADR-0019, `engine.outputs.set_group`), and the command services list groups as
   audio targets, so "send audio to <group>" expands to its members.
 - **Line-up** (`engine/lineup.py`): for each playing output in turn, `AudioHub.probe` replaces
   the shared source for that output with three 2 kHz beeps (uneven gaps), while

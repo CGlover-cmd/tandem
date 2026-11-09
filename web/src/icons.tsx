@@ -6,11 +6,18 @@ import type { DeviceKind } from "./types";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function Svg({ size = 24, children, ...props }: IconProps) {
+// HeroUI sizes every svg inside a button with a class (14 px here). An inline size wins over
+// that class, so an icon always shows at the size it asks for.
+function sized(size: number, style: IconProps["style"]) {
+  return { width: size, height: size, ...style };
+}
+
+function Svg({ size = 24, children, style, ...props }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
+      style={sized(size, style)}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -95,11 +102,12 @@ export function LogoMark(props: IconProps) {
   );
 }
 
-function Filled({ size = 24, children, ...props }: IconProps) {
+function Filled({ size = 24, children, style, ...props }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
+      style={sized(size, style)}
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"

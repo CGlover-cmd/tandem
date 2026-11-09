@@ -37,6 +37,11 @@ describe("device cards", () => {
     expect(statusFor(device, 3).text).toBe(status);
   });
 
+  it("fill only the action that unblocks: pairing or a retry, not every Connect", () => {
+    expect(actionFor({ ...speaker, state: "disconnected" }).primary).toBe(false);
+    expect(actionFor({ ...speaker, state: "failed" }).primary).toBe(true);
+  });
+
   it("say when a retry is due now", () => {
     expect(statusFor({ ...speaker, state: "waiting" }, 0).text).toBe("Trying again…");
   });
@@ -65,9 +70,9 @@ describe("problems", () => {
   it("have words for every code", () => {
     expect(problemText({ code: "wrongPin" })).toMatch(/didn't match/);
     expect(problemText({ code: "pinFormat" })).toMatch(/4-digit/);
-    expect(problemText({ code: "pairingFailed", text: "Busy." })).toBe("Busy.");
     expect(problemText({ code: "pairingFailed" })).toMatch(/Pairing didn't work/);
-    expect(problemText({ code: "backend" })).toMatch(/went wrong/);
+    expect(problemText({ code: "pinExpired" })).toMatch(/expired/);
+    expect(problemText({ code: "noSuchCode" })).toMatch(/went wrong/);
     expect(problemText({ code: "taskFailed" })).toMatch(/went wrong/);
   });
 });

@@ -1,5 +1,6 @@
 // The UI state the Python app sends (tandem.ui.controller.AppController.snapshot) and the
-// commands it accepts (AppController.handle). Keep the two in step.
+// commands it accepts (AppController.handle). contract.generated.ts (tools/write_contract.py)
+// holds what Python really sends; the type check fails when the two drift apart.
 
 export type DeviceKind = "apple_tv" | "homepod" | "receiver" | "other";
 export type LinkState = "disconnected" | "connecting" | "connected" | "waiting" | "failed";
@@ -133,10 +134,9 @@ export interface AudioPanel {
   picking: boolean;
 }
 
-/** Something to tell the user. `code` picks the words; `text` is backend text, safe to show. */
+/** Something to tell the user. `code` picks the words (`problems` in strings.ts). */
 export interface Problem {
-  code: "pinFormat" | "wrongPin" | "pairingFailed" | "backend" | "taskFailed" | string;
-  text?: string;
+  code: string;
 }
 
 export interface Pairing {

@@ -482,7 +482,11 @@ async def _remote(engine: Engine, args: argparse.Namespace, printer: _Printer) -
 
 async def _media(engine: Engine, args: argparse.Namespace, printer: _Printer) -> int:
     async def send(controls: DeviceControls, _status: ControlStatus) -> int:
-        await controls.media(MediaCommand(args.media_command))
+        command = MediaCommand(args.media_command)
+        if command is MediaCommand.PLAY_PAUSE:
+            await controls.play_pause()  # some apps offer only play or only pause
+        else:
+            await controls.media(command)
         printer.line(f"  {args.media_command}: sent")
         return 0
 

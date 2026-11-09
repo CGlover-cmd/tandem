@@ -157,25 +157,34 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
   shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
 - Typed commands (Phase 10a, ADR-0014): parser in `engine/commands.py`, dispatcher in
-  `engine/command_dispatch.py` behind a small `CommandServices` protocol (the engine's, and the
-  demo backend's via `tandem.bridge.demo_commands`). Results are codes plus params; the words
+  `engine/command_dispatch.py` behind a small `CommandServices` protocol (`EngineCommandServices`,
+  which the demo uses too). Results are codes plus params; the words
   live in `web/src/strings.ts`. Command text and results name devices: never log them. Never
   call the feature "Siri".
 - Anything the engine logs or shows goes through `Redactor`; register new private values
   (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
   `--show-private` is given; Claude never passes that flag.
 - The UI's side of the engine's API is the `Backend` protocol in `src/tandem/ui/backend.py`
-  (ADR-0008). `tandem.bridge.EngineBackend` implements it on the real engine and is the only
-  module that imports both layers; `DemoBackend` (invented devices, `--demo`) implements it for
-  tests and previews. Which services an Apple TV must pair, in order, is
+  (ADR-0008). `tandem.bridge.EngineBackend` implements it and is the only module that imports
+  both layers. The demo (`--demo`, screenshots, the window's tests) is the same bridge and engine
+  on invented devices (ADR-0019): `tandem.engine.adapters.demo.DemoDevices` plugs in at the
+  engine's device seam and `tandem.bridge.DemoBackend` is `EngineBackend` over it, so a feature is
+  written once. Window tests use `tests/ui/demo_harness.py` (`settle()` after each command: the
+  engine works through events). Which services an Apple TV must pair, in order, is
   `engine.pairing.services_to_pair` (used by the window and the developer tool).
+- Errors for the window are codes: `BackendError(Problem.X)` (`tandem.ui.backend.Problem`), with
+  the words in `problems` in `web/src/strings.ts`. Control errors are classified once by
+  `engine.control.failure_of`; play/pause intents are `DeviceControls.play()/pause()/play_pause()`.
 - Python here is the Microsoft Store build, which redirects `%LOCALAPPDATA%` writes to its own
   package folder (`%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Local`).
   So `%LOCALAPPDATA%\Tandem` looks empty from outside Python, though Tandem's files are there.
 - UI logic stays in Python (`tandem.ui.controller`, tested with pytest); React only renders the
   state it's sent and sends commands back over the loopback WebSocket (`tandem.ui.server`). Keep
-  `web/src/types.ts` in step with `AppController.snapshot()` and `handle()`. User-facing words
-  live in `web/src/strings.ts`; Python sends codes, not sentences.
+  `web/src/types.ts` in step with `AppController.snapshot()` and its commands, then run
+  `python tools/write_contract.py`: it writes `web/src/contract.generated.ts`, which the web type
+  check holds against types.ts (a pytest test fails while it's stale). Commands are registered
+  per panel in a `CommandTable` (`tandem.ui.window_commands`). User-facing words live in
+  `web/src/strings.ts`; Python sends codes, not sentences.
 - Every colour is in `web/src/theme.ts`; `theme.test.ts` checks WCAG AA contrast on every
   background. Window backgrounds are listed in both `theme.ts` and `tandem.ui.backend.BACKGROUNDS`
   (a test keeps them equal).
@@ -185,11 +194,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Without `--demo` the window shows real device names, so never screenshot it; check it through
   the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
-- Panels added after ADR-0008 keep their bridge and demo code in their own modules, mixed into
-  `EngineBackend` / `DemoBackend`: `tandem.bridge_audio` + `ui/demo_audio.py` (Audio, Send),
-  `tandem.bridge_home` (Home bridge), with the controller side in `ui/audio_panel.py`.
-- Groups and line-up (ADR-0018): groups in `engine/output_groups.py`, shared UI logic in
-  `ui/groups.py`; line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
+- Panels added after ADR-0008 keep their bridge code in their own modules, mixed into
+  `EngineBackend`: `tandem.bridge_audio` (Audio, Send) and `tandem.bridge_home` (Home bridge),
+  with the controller side in `ui/audio_panel.py`. Audio outputs are owned by the engine
+  (`engine/outputs.py`, `engine.outputs`: saved settings, states, groups, restore, line-up);
+  switch outputs there, never with `Engine.start_output` directly (ADR-0019).
+- Groups and line-up (ADR-0018): groups in `engine/output_groups.py` (switched by
+  `engine.outputs`); line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
   The microphone on this PC refuses desktop apps right now (miniaudio init -6, access denied),
   so a hardware line-up check needs the maintainer to allow it in Windows' privacy settings.
   Open the mic off the event loop (`asyncio.to_thread`): opening it can block.
@@ -202,6 +213,10 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
   GitHub pre-release: only with the maintainer's OK.
+- HeroUI sizes every svg inside a `Button` with a class (14 px here); our icons set their size
+  inline so it wins. HeroUI's `.modal__body` is muted by default; `index.css` resets it to the
+  primary colour. WebView2 draws arrow scrollbars unless `scrollbar-width`/`-color` stay at
+  `auto` and `::-webkit-scrollbar` is styled (it is, in `index.css`).
 - HeroUI's `Switch` renders its input only inside `Switch.Content`: put `Switch.Control` (and a
   label, or an `sr-only` span) inside it, or the switch has no accessible control.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).

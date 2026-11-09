@@ -5,27 +5,36 @@ import logging
 from typing import Any
 
 import pytest
+from demo_harness import no_wait, settle, short_waits
 
+from tandem.bridge import DemoBackend
+from tandem.engine.adapters.demo import WRONG_PIN
+from tandem.engine.models import Device, Service
+from tandem.engine.models import DeviceKind as EngineKind
 from tandem.ui.backend import (
     MAX_TEXT,
     AppInfo,
     CommandOutcome,
     ControlError,
-    DeviceKind,
-    DeviceSnapshot,
-    KeyAction,
     LinkState,
     PairingError,
     PairingFlow,
     RemoteKey,
 )
 from tandem.ui.controller import MAX_COMMAND, AppController
-from tandem.ui.demo_backend import WRONG_PIN, DemoBackend
+
+AIRPLAY = frozenset({Service.AIRPLAY, Service.RAOP})
+
+
+def _without_music(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The snapshot less the PC's music, whose position counts on in real time."""
+    return {key: value for key, value in snapshot.items() if key != "music"}
 
 
 async def _started(backend: DemoBackend) -> AppController:
     controller = AppController(backend, demo_mode=True)
     await controller.start()
+    await settle(controller)
     return controller
 
 
@@ -48,12 +57,10 @@ async def test_start_lists_devices_sorted_by_name(backend: DemoBackend) -> None:
 
 async def test_sort_is_case_insensitive_then_by_id(backend: DemoBackend) -> None:
     controller = AppController(backend)
-    for device in (
-        DeviceSnapshot("b", "loft", DeviceKind.HOMEPOD),
-        DeviceSnapshot("a", "Loft", DeviceKind.HOMEPOD),
-        DeviceSnapshot("c", "Attic", DeviceKind.HOMEPOD),
-    ):
-        backend._set(device)  # pyright: ignore[reportPrivateUsage]
+    for device_id, name in (("b", "loft"), ("a", "Loft"), ("c", "Attic")):
+        backend.demo.devices.append(
+            Device(device_id, name, "192.0.2.30", EngineKind.HOMEPOD, "HomePod mini", AIRPLAY)
+        )
     await controller.start()
 
     assert [d.id for d in controller.devices() if d.id in "abc"] == ["c", "a", "b"]
@@ -107,11 +114,11 @@ async def test_activate_connects_then_disconnects(backend: DemoBackend) -> None:
     controller = await _started(backend)
 
     controller.activate("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
     assert _state(controller, "demo-speaker-1") is LinkState.CONNECTED
 
     controller.activate("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
     assert _state(controller, "demo-speaker-1") is LinkState.DISCONNECTED
 
 
@@ -119,7 +126,7 @@ async def test_activate_unknown_device_does_nothing(backend: DemoBackend) -> Non
     controller = await _started(backend)
     controller.activate("missing")
     controller.pair("missing")
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.pairing.state == "closed"
 
 
@@ -133,7 +140,7 @@ async def test_activate_on_unpaired_tv_opens_pairing(backend: DemoBackend) -> No
 
     assert controller.pairing.state == "starting"
     assert controller.pairing.device_name == "Living Room TV"
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.pairing.state == "enterPin"
 
 
@@ -141,10 +148,10 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
     controller = await _started(backend)
     pairing = controller.pairing
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
 
     pairing.submit_pin(WRONG_PIN)
-    await controller.runner.drain()
+    await settle(controller)
     assert pairing.state == "enterPin"
     assert pairing.error == {"code": "wrongPin"}
 
@@ -152,7 +159,7 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
     assert pairing.snapshot()["steps"] == 2
 
     pairing.submit_pin(" 4821 ")
-    await controller.runner.drain()
+    await settle(controller)
     assert pairing.state == "enterPin"  # the TV shows its second PIN (AirPlay)
     assert pairing.step == 2
     tv = controller.device("demo-tv")
@@ -160,7 +167,7 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
     assert tv.needs_pairing
 
     pairing.submit_pin("1357")
-    await controller.runner.drain()
+    await settle(controller)
     assert pairing.state == "done"
     assert pairing.error is None
     tv = controller.device("demo-tv")
@@ -175,7 +182,7 @@ async def test_pairing_retries_wrong_pin_then_connects(backend: DemoBackend) -> 
 async def test_pin_must_be_four_digits(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
 
     controller.pairing.submit_pin("12a")
 
@@ -194,7 +201,7 @@ async def test_opening_twice_keeps_the_first_sheet(backend: DemoBackend) -> None
     controller.pair("demo-tv")
     controller.pairing.open("demo-speaker-1", "Patio Speaker")
     assert controller.pairing.device_id == "demo-tv"
-    await controller.runner.drain()
+    await settle(controller)
 
 
 async def test_cancel_while_starting_ignores_the_late_result(backend: DemoBackend) -> None:
@@ -202,7 +209,7 @@ async def test_cancel_while_starting_ignores_the_late_result(backend: DemoBacken
     controller.pair("demo-tv")
 
     controller.pairing.cancel()
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.pairing.state == "closed"
 
@@ -210,10 +217,10 @@ async def test_cancel_while_starting_ignores_the_late_result(backend: DemoBacken
 async def test_cancel_while_entering_pin_cancels_the_flow(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
 
     controller.pairing.cancel()
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.pairing.state == "closed"
     tv = controller.device("demo-tv")
@@ -224,11 +231,11 @@ async def test_cancel_while_entering_pin_cancels_the_flow(backend: DemoBackend) 
 async def test_closing_while_checking_ignores_the_late_result(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     controller.pairing.submit_pin("1234")
 
     controller.pairing.close()
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.pairing.state == "closed"
 
@@ -236,19 +243,18 @@ async def test_closing_while_checking_ignores_the_late_result(backend: DemoBacke
 async def test_pairing_that_cannot_start_shows_failed(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.pairing.open("demo-speaker-1", "Patio Speaker")
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.pairing.state == "failed"
     error = controller.pairing.error
     assert error is not None
-    assert error["code"] == "pairingFailed"
-    assert error["text"] == "This device doesn't need pairing."
+    assert error == {"code": "noPairingNeeded"}
 
 
 async def test_device_leaving_closes_its_pairing_sheet(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
 
     backend.remove("demo-tv")
 
@@ -274,17 +280,13 @@ class _BrokenBackend(DemoBackend):
         return _FailingSubmit()
 
 
-async def _no_wait(_seconds: float) -> None:
-    await asyncio.sleep(0)
-
-
 async def test_pairing_error_without_text_still_fails() -> None:
-    controller = await _started(_BrokenBackend(sleep=_no_wait))
+    controller = await _started(_BrokenBackend(sleep=no_wait, engine_sleep=short_waits))
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
 
     controller.pairing.submit_pin("1234")
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.pairing.state == "failed"
     assert controller.pairing.error == {"code": "pairingFailed"}
@@ -293,11 +295,11 @@ async def test_pairing_error_without_text_still_fails() -> None:
 async def test_unexpected_errors_show_a_generic_message_and_log_no_details(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    controller = await _started(_BrokenBackend(sleep=_no_wait))
+    controller = await _started(_BrokenBackend(sleep=no_wait, engine_sleep=short_waits))
 
     with caplog.at_level(logging.ERROR):
         controller.activate("demo-speaker-1")
-        await controller.runner.drain()
+        await settle(controller)
 
     assert controller.message == {"code": "taskFailed"}
     assert "192.0.2.10" not in caplog.text
@@ -311,9 +313,9 @@ async def test_backend_pairing_errors_are_shown_as_given(backend: DemoBackend) -
     controller = await _started(backend)
 
     controller.connect("demo-tv")  # not paired yet
-    await controller.runner.drain()
+    await settle(controller)
 
-    assert controller.message == {"code": "backend", "text": "Pair this device first."}
+    assert controller.message == {"code": "pairFirst"}
 
 
 # Appearance
@@ -323,7 +325,7 @@ async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
     controller = await _started(backend)
 
     controller.set_appearance("dark", "dusk")
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.snapshot()["appearance"] == {
         "theme": "dark",
@@ -344,7 +346,7 @@ async def test_unknown_appearance_is_ignored(
 
     controller.set_appearance("neon", "sky")
     controller.set_appearance("dark", "plaid")
-    await controller.runner.drain()
+    await settle(controller)
 
     assert controller.snapshot()["appearance"] == {
         "theme": "system",
@@ -377,43 +379,43 @@ async def test_malformed_commands_are_ignored(
     backend: DemoBackend, command: dict[str, Any]
 ) -> None:
     controller = await _started(backend)
-    before = controller.snapshot()
+    before = _without_music(controller.snapshot())
 
     controller.handle(command)
-    await controller.runner.drain()
+    await settle(controller)
 
-    assert controller.snapshot() == before
+    assert _without_music(controller.snapshot()) == before
 
 
 async def test_commands_drive_the_controller(backend: DemoBackend) -> None:
     controller = await _started(backend)
 
     controller.handle({"type": "connect", "id": "demo-speaker-2"})
-    await controller.runner.drain()
+    await settle(controller)
     assert _state(controller, "demo-speaker-2") is LinkState.CONNECTED
 
     controller.handle({"type": "disconnect", "id": "demo-speaker-2"})
     controller.handle({"type": "activate", "id": "demo-speaker-1"})
-    await controller.runner.drain()
+    await settle(controller)
     assert _state(controller, "demo-speaker-2") is LinkState.DISCONNECTED
     assert _state(controller, "demo-speaker-1") is LinkState.CONNECTED
 
     controller.handle({"type": "pair", "id": "demo-tv"})
-    await controller.runner.drain()
+    await settle(controller)
     for pin in ("1234", "5678"):
         controller.handle({"type": "submitPin", "pin": pin})
-        await controller.runner.drain()
+        await settle(controller)
     assert controller.pairing.state == "done"
     controller.handle({"type": "closePairing"})
     assert controller.pairing.state == "closed"
 
     controller.handle({"type": "pair", "id": "demo-tv"})  # already paired: fails
-    await controller.runner.drain()
+    await settle(controller)
     controller.handle({"type": "cancelPairing"})
     assert controller.pairing.state == "closed"
 
     controller.handle({"type": "setAppearance", "background": "meadow"})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.appearance.background == "meadow"
 
     controller.message = {"code": "taskFailed"}
@@ -435,10 +437,10 @@ async def test_stop_unsubscribes(backend: DemoBackend) -> None:
 
 async def _paired_tv(controller: AppController) -> None:
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     for pin in ("1234", "5678"):
         controller.pairing.submit_pin(pin)
-        await controller.runner.drain()
+        await settle(controller)
 
 
 async def test_connected_tv_shows_its_controls(backend: DemoBackend) -> None:
@@ -455,7 +457,7 @@ async def test_connected_tv_shows_its_controls(backend: DemoBackend) -> None:
     assert controls["nowPlaying"]["totalTime"] == 2640.0
 
     controller.disconnect("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
     assert tv["controls"] is None
 
@@ -468,11 +470,11 @@ async def test_control_commands_reach_the_backend(backend: DemoBackend) -> None:
     controller.handle({"type": "press", "id": "demo-tv", "key": "menu"})
     controller.handle({"type": "media", "id": "demo-tv", "command": "play_pause"})
     controller.handle({"type": "setPower", "id": "demo-tv", "on": False})
-    await controller.runner.drain()
+    await settle(controller)
 
-    assert [p[1:] for p in backend.presses] == [
-        (RemoteKey.SELECT, KeyAction.HOLD),
-        (RemoteKey.MENU, KeyAction.TAP),
+    assert [(key.value, action.value) for _, key, action in backend.demo.presses] == [
+        ("select", "hold"),
+        ("menu", "tap"),
     ]
     controls = backend.controls("demo-tv")
     assert controls is not None
@@ -484,10 +486,10 @@ async def test_control_commands_reach_the_backend(backend: DemoBackend) -> None:
 async def test_volume_slider_sets_the_level(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.connect("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
 
     controller.handle({"type": "setVolume", "id": "demo-speaker-1", "level": 72})
-    await controller.runner.drain()
+    await settle(controller)
 
     controls = backend.controls("demo-speaker-1")
     assert controls is not None
@@ -514,10 +516,10 @@ async def test_malformed_control_commands_are_ignored(
 ) -> None:
     controller = await _started(backend)
     controller.handle(command)
-    await controller.runner.drain()
-    assert backend.presses == []
-    assert backend.launched == []
-    assert backend.texts == []
+    await settle(controller)
+    assert backend.demo.presses == []
+    assert backend.demo.launched == []
+    assert backend.demo.texts == []
     assert controller.snapshot()["devices"][1]["apps"] is None
     assert controller.message is None
 
@@ -526,14 +528,14 @@ async def test_control_errors_show_their_words(backend: DemoBackend) -> None:
     controller = await _started(backend)
 
     controller.press("demo-speaker-1", RemoteKey.UP)  # not connected
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+    await settle(controller)
+    assert controller.message == {"code": "notConnected"}
 
     controller.connect("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
     controller.press("demo-speaker-1", RemoteKey.UP)  # a HomePod has no remote pad
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device can't do that right now."}
+    await settle(controller)
+    assert controller.message == {"code": "cantDoThat"}
 
 
 # App launcher and text entry
@@ -551,7 +553,7 @@ async def test_launcher_lists_apps_sorted_and_opens_one(backend: DemoBackend) ->
 
     controller.handle({"type": "loadApps", "id": "demo-tv"})
     assert _tv(controller)["apps"] == {"state": "loading", "items": [], "error": None}
-    await controller.runner.drain()
+    await settle(controller)
     apps = _tv(controller)["apps"]
     assert apps["state"] == "ready"
     names = [app["name"] for app in apps["items"]]
@@ -559,12 +561,12 @@ async def test_launcher_lists_apps_sorted_and_opens_one(backend: DemoBackend) ->
     assert {"id": "com.apple.TVSearch", "name": "Search", "icon": None} in apps["items"]
 
     controller.handle({"type": "launchApp", "id": "demo-tv", "appId": "com.apple.TVSearch"})
-    await controller.runner.drain()
-    assert backend.launched == [("demo-tv", "com.apple.TVSearch")]
+    await settle(controller)
+    assert backend.demo.launched == [("demo-tv", "com.apple.TVSearch")]
     assert _tv(controller)["controls"]["keyboard"] is True  # Search asks for text
 
     controller.handle({"type": "press", "id": "demo-tv", "key": "menu"})
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["controls"]["keyboard"] is False
 
 
@@ -572,7 +574,7 @@ async def test_reloading_keeps_the_list_and_ignores_repeats(backend: DemoBackend
     controller = await _started(backend)
     await _paired_tv(controller)
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     calls: list[int] = []
     controller.subscribe(lambda: calls.append(1))
 
@@ -581,7 +583,7 @@ async def test_reloading_keeps_the_list_and_ignores_repeats(backend: DemoBackend
     apps = _tv(controller)["apps"]
     assert apps["state"] == "loading"
     assert len(apps["items"]) == 10  # the old list stays while it reloads
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["apps"]["state"] == "ready"
     assert len(calls) == 2  # loading, then ready
 
@@ -589,15 +591,15 @@ async def test_reloading_keeps_the_list_and_ignores_repeats(backend: DemoBackend
 async def test_apps_on_a_device_without_them_fail_with_words(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.connect("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
 
     controller.load_apps("demo-speaker-1")
-    await controller.runner.drain()
+    await settle(controller)
     speaker = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-speaker-1")
     assert speaker["apps"] == {
         "state": "failed",
         "items": [],
-        "error": {"code": "backend", "text": "This device can't do that right now."},
+        "error": {"code": "cantDoThat"},
     }
     assert controller.message is None  # shown in the launcher, not as a banner
 
@@ -607,12 +609,12 @@ async def test_apps_are_dropped_when_the_device_disconnects(backend: DemoBackend
     await _paired_tv(controller)
     controller.load_apps("demo-tv")
     controller.disconnect("demo-tv")  # before the list arrives
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["apps"] is None
 
     controller.connect("demo-tv")
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     backend.remove("demo-tv")
     assert controller._apps == {}  # pyright: ignore[reportPrivateUsage]
 
@@ -624,11 +626,11 @@ async def test_apps_unexpected_error_logs_only_its_type(
         async def apps(self, device_id: str) -> list[AppInfo]:
             raise RuntimeError("secret 192.0.2.7")
 
-    broken = Broken(sleep=backend._sleep)  # pyright: ignore[reportPrivateUsage]
+    broken = Broken(sleep=no_wait, engine_sleep=short_waits)
     controller = await _started(broken)
     caplog.set_level(logging.ERROR)
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["apps"]["error"] == {"code": "taskFailed"}
     assert "RuntimeError" in caplog.text
     assert "192.0.2.7" not in caplog.text
@@ -640,15 +642,15 @@ async def test_late_apps_result_after_reload_is_ignored(backend: DemoBackend) ->
     class Slow(DemoBackend):
         async def apps(self, device_id: str) -> list[AppInfo]:
             await release.wait()
-            raise ControlError("This device can't do that right now.")
+            raise ControlError("cantDoThat")
 
-    slow = Slow(sleep=backend._sleep)  # pyright: ignore[reportPrivateUsage]
+    slow = Slow(sleep=no_wait, engine_sleep=short_waits)
     controller = await _started(slow)
     controller.load_apps("demo-tv")
     await asyncio.sleep(0)
     controller._apps.pop("demo-tv")  # pyright: ignore[reportPrivateUsage]
     release.set()
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["apps"] is None
 
 
@@ -656,7 +658,7 @@ class _SlowText(DemoBackend):
     """Holds each text until the test lets it through."""
 
     def __init__(self) -> None:
-        super().__init__(sleep=_no_wait)
+        super().__init__(sleep=no_wait, engine_sleep=short_waits)
         self.gate = asyncio.Event()
 
     async def set_text(self, device_id: str, text: str) -> None:
@@ -673,28 +675,28 @@ async def test_typing_sends_the_newest_text_in_order() -> None:
         controller.handle({"type": "setText", "id": "demo-tv", "text": text})
         await asyncio.sleep(0)
     backend.gate.set()
-    await controller.runner.drain()
-    assert backend.texts == [("demo-tv", "n"), ("demo-tv", "natu")]
+    await settle(controller)
+    assert backend.demo.texts == [("demo-tv", "n"), ("demo-tv", "natu")]
 
 
 async def test_text_is_capped(backend: DemoBackend) -> None:
     controller = await _started(backend)
     await _paired_tv(controller)
     controller.set_text("demo-tv", "x" * (MAX_TEXT + 50))
-    await controller.runner.drain()
-    assert backend.texts == [("demo-tv", "x" * MAX_TEXT)]
+    await settle(controller)
+    assert backend.demo.texts == [("demo-tv", "x" * MAX_TEXT)]
 
 
 async def test_text_failure_shows_words_and_typing_recovers(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.set_text("demo-tv", "hello")  # not connected yet
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "This device isn't connected."}
+    await settle(controller)
+    assert controller.message == {"code": "notConnected"}
 
     await _paired_tv(controller)
     controller.set_text("demo-tv", "hello")
-    await controller.runner.drain()
-    assert backend.texts == [("demo-tv", "hello")]
+    await settle(controller)
+    assert backend.demo.texts == [("demo-tv", "hello")]
 
 
 class _Icons:
@@ -720,23 +722,23 @@ async def test_launcher_shows_icons_when_allowed(backend: DemoBackend) -> None:
     await _paired_tv(controller)
 
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     items = {a["id"]: a for a in _tv(controller)["apps"]["items"]}
     assert items["com.example.tv"]["icon"].startswith("/app-icons/")
     assert items["com.example.music"]["icon"] is None
     assert len(icons.asked[0]) == 10
 
     controller.handle({"type": "setAppearance", "appIcons": False})  # switched off in Settings
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["appearance"]["appIcons"] is False
     items = {a["id"]: a for a in _tv(controller)["apps"]["items"]}
     assert items["com.example.tv"]["icon"] is None
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     assert len(icons.asked) == 1  # no lookups while switched off
 
     controller.handle({"type": "setAppearance", "appIcons": True, "onboarded": False})
-    await controller.runner.drain()
+    await settle(controller)
     assert len(icons.asked) == 2
     await controller.stop()
     assert icons.closed
@@ -747,7 +749,7 @@ async def test_icon_failures_keep_the_letters(backend: DemoBackend) -> None:
     await controller.start()
     await _paired_tv(controller)
     controller.load_apps("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     assert _tv(controller)["apps"]["state"] == "ready"
     assert all(a["icon"] is None for a in _tv(controller)["apps"]["items"])
     assert controller.message is None
@@ -756,7 +758,7 @@ async def test_icon_failures_keep_the_letters(backend: DemoBackend) -> None:
 async def test_malformed_app_icons_choice_is_ignored(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.handle({"type": "setAppearance", "appIcons": "yes"})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.appearance.app_icons is True
 
 
@@ -778,21 +780,27 @@ class _Commands:
         if self.gate is not None:
             await self.gate.wait()
         if self.fail:
-            raise ControlError("This device isn't connected.")
+            raise ControlError("notConnected")
         self.ran.append(text)
         return CommandOutcome("done", "pause", {"device": text}, ("next",))
 
 
+def _use_commands(backend: DemoBackend, runner: _Commands) -> None:
+    """Stand a command runner in for the engine's dispatcher."""
+    backend.preview_command = runner.preview_command  # type: ignore[method-assign]
+    backend.run_command = runner.run_command  # type: ignore[method-assign]
+
+
 async def test_command_preview_and_run(backend: DemoBackend) -> None:
     runner = _Commands()
-    backend.commands = runner
+    _use_commands(backend, runner)
     controller = await _started(backend)
 
     controller.handle({"type": "previewCommand", "text": "pause"})
     preview = controller.snapshot()["commands"]
     controller.handle({"type": "runCommand", "text": "pause"})
     running = controller.snapshot()["commands"]["running"]
-    await controller.runner.drain()
+    await settle(controller)
 
     assert preview["text"] == "pause"
     assert preview["preview"] == {
@@ -812,14 +820,14 @@ async def test_command_preview_and_run(backend: DemoBackend) -> None:
 
 async def test_command_bar_ignores_bad_input(backend: DemoBackend) -> None:
     runner = _Commands()
-    backend.commands = runner
+    _use_commands(backend, runner)
     controller = await _started(backend)
 
     controller.handle({"type": "runCommand", "text": "   "})
     controller.handle({"type": "runCommand", "text": "x" * (MAX_COMMAND + 1)})
     controller.handle({"type": "previewCommand", "text": "x" * (MAX_COMMAND + 1)})
     controller.handle({"type": "runCommand", "text": 5})
-    await controller.runner.drain()
+    await settle(controller)
 
     assert runner.ran == []
     assert controller.snapshot()["commands"]["preview"] is None
@@ -828,14 +836,14 @@ async def test_command_bar_ignores_bad_input(backend: DemoBackend) -> None:
 async def test_closing_the_bar_drops_a_late_result(backend: DemoBackend) -> None:
     runner = _Commands()
     runner.gate = asyncio.Event()
-    backend.commands = runner
+    _use_commands(backend, runner)
     controller = await _started(backend)
 
     controller.handle({"type": "runCommand", "text": "pause"})
     await asyncio.sleep(0)
     controller.handle({"type": "clearCommand"})
     runner.gate.set()
-    await controller.runner.drain()
+    await settle(controller)
 
     state = controller.snapshot()["commands"]
     assert state == {
@@ -850,13 +858,14 @@ async def test_closing_the_bar_drops_a_late_result(backend: DemoBackend) -> None
 async def test_a_backend_error_while_running_is_a_result(backend: DemoBackend) -> None:
     runner = _Commands()
     runner.fail = True
-    backend.commands = runner
+    _use_commands(backend, runner)
     controller = await _started(backend)
 
     controller.handle({"type": "runCommand", "text": "pause"})
-    await controller.runner.drain()
+    await settle(controller)
 
     result = controller.snapshot()["commands"]["result"]
     assert result["status"] == "failed"
-    assert result["params"] == {"text": "This device isn't connected."}
+    assert result["code"] == "problem"
+    assert result["params"] == {"problem": "notConnected"}
     assert controller.message is None

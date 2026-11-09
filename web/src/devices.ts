@@ -16,7 +16,7 @@ export function actionFor(device: Device): CardAction {
   if (device.needsPairing) return { label: strings.action.pair, enabled: true, primary: true };
   switch (device.state) {
     case "disconnected":
-      return { label: strings.action.connect, enabled: true, primary: true };
+      return { label: strings.action.connect, enabled: true, primary: false };
     case "failed":
       return { label: strings.action.retry, enabled: true, primary: true };
     case "connected":

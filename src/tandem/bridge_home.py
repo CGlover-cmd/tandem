@@ -15,6 +15,7 @@ from tandem.engine import control as ec
 from tandem.engine.audio import AudioStreamChanged
 from tandem.engine.home_bridge import BridgeServer, HomeBridge, HomeChanged
 from tandem.engine.models import DeviceKind
+from tandem.engine.outputs import OutputError
 from tandem.engine.player import PlayerChanged, PlayerState
 from tandem.engine.service import AudioSource, Engine
 from tandem.engine.settings import SettingsStore
@@ -29,9 +30,6 @@ class EngineHome:
     _engine: Engine
     _settings: SettingsStore
     _publish: Callable[[ui.BackendEvent], None]
-    last_outputs: list[str]
-
-    async def set_output(self, output_id: str, on: bool) -> None: ...
 
     def _init_home(self, server: Callable[[], BridgeServer] | None) -> list[Callable[[], None]]:
         self._home: HomeBridge | None = None
@@ -74,12 +72,12 @@ class EngineHome:
 
     async def set_home_bridge(self, on: bool) -> None:
         if self._home is None:
-            raise ui.HomeError("The Home bridge isn't available on this PC.")
+            raise ui.HomeError(ui.Problem.HOME_UNAVAILABLE)
         self._settings.update(home_bridge=on)
         if on:
             await self._home.start()
             if not self._home.running:
-                raise ui.HomeError("Tandem couldn't start its Home bridge. Try again.")
+                raise ui.HomeError(ui.Problem.HOME_FAILED)
         else:
             await self._home.stop()
 
@@ -102,13 +100,12 @@ class EngineHome:
         engine = self._engine
         if switch_id == "audio":
             if not on:
-                for output_id in list(engine.outputs_on()):
-                    await engine.stop_output(output_id)
+                await engine.outputs.stop_all()
                 return
-            targets = list(self.last_outputs) or self._default_speakers()
+            targets = list(engine.outputs.recent) or self._default_speakers()
             for output_id in targets:
-                with suppress(ui.BackendError):
-                    await self.set_output(output_id, True)
+                with suppress(OutputError):
+                    await engine.outputs.start(output_id)
         elif switch_id == "music":
             if on:
                 await engine.set_audio_source(AudioSource.PLAYER)

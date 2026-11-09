@@ -3,21 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 
 import pytest
+from demo_harness import settle
 
+from tandem.bridge import DemoBackend
+from tandem.engine.adapters.demo import PC_SPEAKERS as DEMO_DEFAULT_PC_OUTPUT
 from tandem.ui.audio_panel import Latest
 from tandem.ui.backend import AudioError, AudioSourceChoice, MediaError, OutputState
 from tandem.ui.controller import AppController
-from tandem.ui.demo_audio import DEMO_DEFAULT_PC_OUTPUT
-from tandem.ui.demo_backend import DemoBackend
 
 
 async def _started(backend: DemoBackend, picker: Any = None) -> AppController:
     controller = AppController(backend, demo_mode=True, picker=picker)
     await controller.start()
-    await controller.runner.drain()
+    await settle(controller)
     return controller
 
 
@@ -27,11 +29,11 @@ def _output(controller: AppController, output_id: str) -> dict[str, Any]:
 
 async def _connected_tv(controller: AppController) -> None:
     controller.pair("demo-tv")
-    await controller.runner.drain()
+    await settle(controller)
     for pin in ("1234", "5678"):
         controller.pairing.submit_pin(pin)
-        await controller.runner.drain()
-    await controller.runner.drain()
+        await settle(controller)
+    await settle(controller)
 
 
 async def test_outputs_turn_on_and_off(backend: DemoBackend) -> None:
@@ -45,7 +47,7 @@ async def test_outputs_turn_on_and_off(backend: DemoBackend) -> None:
     assert not audio["canPickFiles"]
 
     controller.handle({"type": "setOutput", "id": "demo-speaker-1", "on": True})
-    await controller.runner.drain()
+    await settle(controller)
     assert _output(controller, "demo-speaker-1")["state"] == "streaming"
     assert controller.snapshot()["audio"]["streaming"] == 1
 
@@ -53,12 +55,12 @@ async def test_outputs_turn_on_and_off(backend: DemoBackend) -> None:
     controller.handle({"type": "setOutputDelay", "id": "demo-speaker-1", "ms": 800})
     controller.handle({"type": "setOutputDelay", "id": "demo-speaker-1", "ms": 20_000})  # bad
     controller.handle({"type": "setOutputVolume", "id": "demo-speaker-1", "level": True})  # bad
-    await controller.runner.drain()
+    await settle(controller)
     speaker = _output(controller, "demo-speaker-1")
     assert (speaker["volume"], speaker["delayMs"]) == (35, 800)
 
     controller.handle({"type": "allOutputsOff"})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["audio"]["streaming"] == 0
 
 
@@ -66,8 +68,8 @@ async def test_unpaired_tv_output_says_pair_first(backend: DemoBackend) -> None:
     controller = await _started(backend)
     assert _output(controller, "demo-tv")["needsPairing"]
     controller.handle({"type": "setOutput", "id": "demo-tv", "on": True})
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Pair this device first."}
+    await settle(controller)
+    assert controller.message == {"code": "pairFirst"}
     with pytest.raises(AudioError):
         await backend.set_output("nope", True)
 
@@ -76,36 +78,36 @@ async def test_source_switch_shows_and_hides_the_default_pc_output(backend: Demo
     controller = await _started(backend)
     controller.handle({"type": "setAudioSource", "source": "player"})
     controller.handle({"type": "setAudioSource", "source": "radio"})  # unknown: ignored
-    await controller.runner.drain()
+    await settle(controller)
     assert _output(controller, DEMO_DEFAULT_PC_OUTPUT)["state"] == "off"
     controller.handle({"type": "setOutput", "id": DEMO_DEFAULT_PC_OUTPUT, "on": True})
-    await controller.runner.drain()
+    await settle(controller)
     await backend.set_audio_source(AudioSourceChoice.SYSTEM)
-    await controller.runner.drain()
+    await settle(controller)
     assert _output(controller, DEMO_DEFAULT_PC_OUTPUT)["state"] == "direct"
 
 
 async def test_send_a_link_to_the_tv(backend: DemoBackend) -> None:
     controller = await _started(backend)
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "https://x.example/a.mp4"})
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Connect the TV first."}
+    await settle(controller)
+    assert controller.message == {"code": "pairFirst"}
     await _connected_tv(controller)
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "   "})  # empty: ignored
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "x" * 3000})  # too long
     controller.handle({"type": "sendMedia", "id": "demo-tv", "location": "https://x.example/a.mp4"})
-    await controller.runner.drain()
+    await settle(controller)
     tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
     assert tv["send"] == {"state": "playing", "title": "a.mp4"}
-    assert backend.sent == [("demo-tv", "https://x.example/a.mp4")]
+    assert backend.demo.sent == [("demo-tv", "https://x.example/a.mp4")]
 
     controller.handle({"type": "stopMedia", "id": "demo-tv"})
-    await controller.runner.drain()
+    await settle(controller)
     tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
     assert tv["send"] is None
-    with pytest.raises(MediaError, match="Apple TV"):
+    with pytest.raises(MediaError, match="notATv"):
         await backend.send_media("demo-speaker-1", "https://x.example/a.mp4")
-    with pytest.raises(MediaError, match="Paste a link"):
+    with pytest.raises(MediaError, match="noLocation"):
         await backend.send_media("demo-tv", " ")
 
 
@@ -119,20 +121,26 @@ class _Picker:
         return self.path
 
 
-async def test_choosing_a_file_sends_it(backend: DemoBackend) -> None:
-    picker = _Picker("C:/Videos/holiday.mov")
+async def test_choosing_a_file_sends_it(backend: DemoBackend, tmp_path: Path) -> None:
+    video = tmp_path / "holiday.mov"
+    video.write_bytes(b"invented")
+    picker = _Picker(str(video))
     controller = await _started(backend, picker)
     assert controller.snapshot()["audio"]["canPickFiles"]
     await _connected_tv(controller)
     controller.handle({"type": "pickMedia", "id": "demo-tv"})
-    await controller.runner.drain()
-    assert backend.sent == [("demo-tv", "C:/Videos/holiday.mov")]
+    await settle(controller)
+    ((device_id, url),) = backend.demo.sent
+    assert device_id == "demo-tv"
+    assert url.startswith("http://")  # served to the TV from this PC
+    tv = next(d for d in controller.snapshot()["devices"] if d["id"] == "demo-tv")
+    assert tv["send"] == {"state": "playing", "title": "holiday.mov"}
     assert not controller.snapshot()["audio"]["picking"]
 
     picker.path = None  # cancelled
     controller.handle({"type": "pickMedia", "id": "demo-tv"})
-    await controller.runner.drain()
-    assert len(backend.sent) == 1
+    await settle(controller)
+    assert len(backend.demo.sent) == 1
     assert picker.asked == 2
 
 
@@ -170,7 +178,7 @@ async def test_closing_the_checklist_is_remembered(backend: DemoBackend) -> None
     assert controller.snapshot()["appearance"]["onboarded"] is False
     controller.handle({"type": "setAppearance", "onboarded": True})
     controller.handle({"type": "setAppearance", "onboarded": "yes"})  # bad: ignored
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["appearance"]["onboarded"] is True
     assert controller.snapshot()["appearance"]["background"] == "sky"  # kept
 
@@ -179,12 +187,12 @@ async def test_home_bridge_toggle_in_the_demo(backend: DemoBackend) -> None:
     controller = await _started(backend)
     assert controller.snapshot()["home"]["enabled"] is False
     controller.handle({"type": "setHomeBridge", "on": True})
-    await controller.runner.drain()
+    await settle(controller)
     home = controller.snapshot()["home"]
     assert (home["running"], home["setupCode"]) == (True, "123-45-678")
     assert next(s["name"] for s in home["switches"]) == "Tandem Audio"
     controller.handle({"type": "setHomeBridge", "on": False})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["home"]["running"] is False
 
 
