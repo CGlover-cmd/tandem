@@ -60,9 +60,17 @@ export const strings = {
     waiting: (seconds: number) =>
       seconds > 0 ? `Trying again in ${seconds} s` : "Trying again…",
     failed: "Couldn't connect",
+    playingAudio: "Playing this PC's audio",
+    startingAudio: "Starting audio…",
+    audioFailed: "Audio didn't start",
   },
 
   action: {
+    audio: "Audio",
+    audioOn: (name: string) => `Play this PC's audio on ${name}`,
+    audioOff: (name: string) => `Stop this PC's audio on ${name}`,
+    video: "Video",
+    videoOn: (name: string) => `Send a video to ${name}`,
     pair: "Pair",
     connect: "Connect",
     disconnect: "Disconnect",
@@ -115,6 +123,15 @@ export const strings = {
     turnOn: "Turn on",
     nothingPlaying: "Nothing playing",
     keyboardHint: "Arrow keys move, Enter selects, Backspace goes back. Hold for a long press.",
+  },
+
+  speakerRemote: {
+    controls: "Playback",
+    back: (seconds: number) => `Back ${seconds} seconds`,
+    forward: (seconds: number) => `Forward ${seconds} seconds`,
+    nothingBody: "Play something on this PC and control it from here.",
+    pcNote: "This speaker is playing your PC's audio, so these buttons control the app on your PC.",
+    volume: "Speaker volume",
   },
 
   launcher: {

@@ -14,7 +14,8 @@ export const demoSnapshot: AppState = {
       "retryIn": null,
       "controls": null,
       "apps": null,
-      "send": null
+      "send": null,
+      "audio": "off"
     },
     {
       "id": "demo-tv",
@@ -106,7 +107,8 @@ export const demoSnapshot: AppState = {
         ],
         "error": null
       },
-      "send": null
+      "send": null,
+      "audio": "off"
     },
     {
       "id": "demo-speaker-2",
@@ -117,7 +119,8 @@ export const demoSnapshot: AppState = {
       "retryIn": null,
       "controls": null,
       "apps": null,
-      "send": null
+      "send": null,
+      "audio": "off"
     },
     {
       "id": "demo-speaker-1",
@@ -152,7 +155,8 @@ export const demoSnapshot: AppState = {
         }
       },
       "apps": null,
-      "send": null
+      "send": null,
+      "audio": "on"
     }
   ],
   "audio": {
@@ -334,6 +338,7 @@ export const commandTypes = [
   "closePairing",
   "connect",
   "deleteGroup",
+  "deviceAudio",
   "disconnect",
   "dismissMessage",
   "launchApp",
@@ -342,6 +347,7 @@ export const commandTypes = [
   "media",
   "music",
   "musicSeek",
+  "openDevice",
   "openNetworkSettings",
   "openUpdate",
   "pair",

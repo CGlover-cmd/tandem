@@ -40,6 +40,7 @@ from tandem.ui.backend import (
     CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
+    DeviceKind,
     DeviceRemoved,
     DeviceSnapshot,
     DeviceUpdated,
@@ -52,6 +53,8 @@ from tandem.ui.backend import (
     MusicChanged,
     MusicCommand,
     MusicSnapshot,
+    OutputKind,
+    OutputState,
     PairingError,
     PairingFlow,
     RemoteKey,
@@ -400,8 +403,11 @@ class AppController:
         self._text_pending: dict[str, str] = {}
         self._text_sending: set[str] = set()
         self._listeners: list[Listener] = []
+        self._after_pairing: dict[str, str] = {}
+        """What to do once a device is paired: "audio" turns its sound on (the card's Audio
+        button on an unpaired device); anything else just connects."""
         self.pairing = PairingController(
-            backend, self.runner, on_change=self._changed, on_paired=self.connect
+            backend, self.runner, on_change=self._changed, on_paired=self._paired
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
@@ -433,7 +439,7 @@ class AppController:
         return {
             "devices": [
                 _device_json(d, self._controls.get(d.id), self._apps.get(d.id))
-                | {"send": self.audio.send_json(d.id)}
+                | {"send": self.audio.send_json(d.id), "audio": self.device_audio(d.id)}
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
@@ -520,6 +526,49 @@ class AppController:
 
     def connect(self, device_id: str) -> None:
         self.runner.run(self._backend.connect(device_id))
+
+    def device_audio(self, device_id: str) -> str | None:
+        """The card's Audio button: "off", "starting", "on" or "failed" for a device that can
+        play the PC's sound, None for one that can't."""
+        for output in self.audio.audio.outputs:
+            if output.id == device_id and output.kind is OutputKind.AIRPLAY:
+                return _AUDIO_BUTTON[output.state]
+        return None
+
+    def set_device_audio(self, device_id: str, on: bool) -> None:
+        """The card's Audio button: play the PC's sound on this device, or stop. An unpaired
+        device is paired first, then turned on."""
+        device = self._devices.get(device_id)
+        if device is None or self.device_audio(device_id) is None:
+            return
+        if device.needs_pairing:
+            if on:
+                self._after_pairing[device_id] = "audio"
+                self.pair(device_id)
+            return
+        self.runner.run(self._backend.set_output(device_id, on))
+
+    def open_device(self, device_id: str) -> None:
+        """The card's Video and Remote buttons: get the device ready (pair, or connect) while
+        the window opens its sheet."""
+        device = self._devices.get(device_id)
+        if device is None:
+            return
+        if device.needs_pairing:
+            self._after_pairing.pop(device_id, None)
+            self.pair(device_id)
+        elif device.state in (LinkState.DISCONNECTED, LinkState.FAILED):
+            self.connect(device_id)
+
+    def _pair_command(self, device_id: str) -> None:
+        self._after_pairing.pop(device_id, None)  # a plain Pair just connects afterwards
+        self.pair(device_id)
+
+    def _paired(self, device_id: str) -> None:
+        if self._after_pairing.pop(device_id, None) == "audio":
+            self.runner.run(self._backend.set_output(device_id, True))  # connects first
+        else:
+            self.connect(device_id)
 
     def disconnect(self, device_id: str) -> None:
         self.runner.run(self._backend.disconnect(device_id))
@@ -680,7 +729,8 @@ class AppController:
         table.on_id("activate", self.activate)
         table.on_id("connect", self.connect)
         table.on_id("disconnect", self.disconnect)
-        table.on_id("pair", self.pair)
+        table.on_id("pair", self._pair_command)
+        table.on_id("openDevice", self.open_device)
         table.on_id("loadApps", self.load_apps)
 
         def submit_pin(f: Fields) -> None:
@@ -719,6 +769,12 @@ class AppController:
             if device_id is not None and text is not None:
                 self.set_text(device_id, text)
 
+        def device_audio(f: Fields) -> None:
+            device_id, on = f.text("id"), f.flag("on")
+            if device_id is not None and on is not None:
+                self.set_device_audio(device_id, on)
+
+        table.on("deviceAudio", device_audio)
         table.on("submitPin", submit_pin)
         table.on("cancelPairing", lambda _f: self.pairing.cancel())
         table.on("closePairing", lambda _f: self.pairing.close())
@@ -877,6 +933,16 @@ class AppController:
             listener()
 
 
+_AUDIO_BUTTON = {
+    OutputState.OFF: "off",
+    OutputState.STARTING: "starting",
+    OutputState.WAITING: "starting",
+    OutputState.STREAMING: "on",
+    OutputState.FAILED: "failed",
+    OutputState.DIRECT: "on",
+}
+
+
 def _device_json(
     device: DeviceSnapshot, controls: ControlsSnapshot | None, apps: AppList | None
 ) -> dict[str, Any]:
@@ -887,23 +953,26 @@ def _device_json(
         "state": device.state.value,
         "needsPairing": device.needs_pairing,
         "retryIn": device.retry_in,
-        "controls": None if controls is None else _controls_json(controls),
+        "controls": None if controls is None else _controls_json(controls, device.kind),
         "apps": None if apps is None else apps.snapshot(),
     }
 
 
-def _controls_json(controls: ControlsSnapshot) -> dict[str, Any]:
+def _controls_json(controls: ControlsSnapshot, kind: DeviceKind) -> dict[str, Any]:
+    """A TV gets the whole remote. A speaker gets an audio remote only (play, pause, skip and
+    volume): HomePods report a touch pad and more, but there's no screen to steer."""
     playing = controls.now_playing
+    tv = kind is DeviceKind.APPLE_TV
     return {
-        "remote": controls.remote,
+        "remote": controls.remote and tv,
         "media": sorted(command.value for command in controls.media),
         "volume": controls.volume.value,
         "volumeLevel": controls.volume_level,
         "power": controls.power,
-        "canPower": controls.can_power,
-        "apps": controls.apps,
-        "textEntry": controls.text_entry,
-        "keyboard": controls.keyboard,
+        "canPower": controls.can_power and tv,
+        "apps": controls.apps and tv,
+        "textEntry": controls.text_entry and tv,
+        "keyboard": controls.keyboard and tv,
         "nowPlaying": None
         if playing is None
         else {
