@@ -234,6 +234,11 @@ class PyatvBackend:
     def capture(self) -> PcmCapture:
         return LoopbackCapture()
 
+    def microphone(self) -> PcmCapture:  # pragma: no cover - needs a microphone
+        from tandem.engine.adapters.microphone import MicrophoneCapture
+
+        return MicrophoneCapture()
+
     def local_outputs(self) -> Sequence[LocalOutput]:  # pragma: no cover - sound hardware
         return local_audio.list_outputs()
 

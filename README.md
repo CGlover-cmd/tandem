@@ -3,7 +3,7 @@
 Tandem is a free, open-source Windows app for sending audio and video to Apple TV, HomePod
 and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
-> **Status: 1.1.0, a pre-release.** Every feature below is built and tested in code, but some
+> **Status: 1.2.0, a pre-release.** Every feature below is built and tested in code, but some
 > haven't been checked on real speakers yet; the [release notes](docs/release-notes.md) list
 > which. 1.1.0 fixes Apple TV pairing and HomePod and soundbar audio, which 1.0.0 broke. Please [report bugs](https://github.com/CGlover-cmd/tandem/issues).
 
@@ -15,8 +15,11 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
   power, your TV's apps, and a keyboard for its search boxes.
 - **Audio:** turn a speaker on in the Audio panel and whatever the PC plays goes there right
   away. Any mix of speakers at once, plus the PC's own outputs (headphones, a second sound
-  card), each with its own volume. A delay per speaker, to line them up by ear, is in
-  Settings, Advanced settings.
+  card), each with its own volume, an "All speakers" slider, and saved speaker groups.
+  **Line up automatically** (Settings, Advanced settings) times each speaker with the PC's
+  microphone and sets the delays so they play together; the delays can also be set by hand.
+  The tray menu has a switch for each speaker, and Ctrl+Alt+K opens Tandem's commands from
+  anywhere.
 - **Send to TV:** plays a video file from the PC, or a link to a video, on the Apple TV.
 - **Music:** shows and controls what any app on the PC is playing (Spotify, Apple Music, a
   browser), with a now-playing bar and tray controls. Tandem is a remote for the streaming
@@ -32,8 +35,10 @@ and other AirPlay 2 speakers and TVs, and for controlling them from your PC.
 
 Screen mirroring is **not** included: it is gated by Apple's FairPlay content protection, with
 no legitimate open-source way to send it ([ADR-0006](docs/adr/0006-screen-mirroring-fairplay.md)).
-Nothing is collected or sent anywhere except to your own devices (and, if you leave app icons
-on, an App Store icon lookup).
+Nothing is collected or sent anywhere except to your own devices, plus two lookups you can turn
+off in Advanced settings: App Store icons for your TV's apps, and a look at GitHub's releases
+list for a newer Tandem when the window opens. Line-up recordings stay in memory and are
+dropped as soon as the beeps are timed.
 
 ## Install
 
@@ -42,9 +47,10 @@ Tandem runs on Windows 11 and Windows 10 22H2 or later (64-bit).
 1. Download `Tandem-<version>-setup.exe` from the
    [latest release](https://github.com/CGlover-cmd/tandem/releases).
 2. Run it. Windows may warn that the publisher is unknown: Tandem isn't code-signed yet. Choose
-   **More info**, then **Run anyway**. The installer adds a Windows Firewall rule so your
-   speakers and TV can reach Tandem on private networks, and installs Microsoft's WebView2 if
-   your PC doesn't have it.
+   **More info**, then **Run anyway**. That's the only prompt. The installer adds Windows
+   Firewall rules so your speakers and TV can reach Tandem on networks you trust (see
+   [Network and security](#network-and-security)), and installs Microsoft's WebView2 if your PC
+   doesn't have it.
 3. Open **Tandem** from the Start menu.
 
 **Smart App Control:** if it's on, Windows blocks unsigned installers outright, including
@@ -60,6 +66,26 @@ A portable zip (no installer, no firewall rule) is on the release page too: unzi
 the speakers it's capturing (that would echo). Install a virtual audio cable such as
 [VB-CABLE](https://vb-audio.com/Cable/), set it as Windows' default output, then turn your real
 speakers on in Tandem's Audio panel ([ADR-0005](docs/adr/0005-multi-output-audio-routing.md)).
+
+## Network and security
+
+Windows marks each network you join as **Private** (trusted) or **Public**, and remembers it.
+Tandem uses that as its trust list. On a Private network, the installer's firewall rule lets
+devices on your local network reach Tandem; nothing from the internet can. On a Public network
+(a café, a hotel), Tandem is blocked, and its window says so: if the network is yours, choose
+**Trust this network** and mark it Private in Windows. On a trusted network, devices can reach:
+
+- **Tandem's window** never: it listens on this PC only (127.0.0.1) and needs a per-launch key.
+- **While audio is streaming:** the AirPlay timing and control ports pyatv opens. A device on the
+  same Wi-Fi could at most disturb that stream.
+- **Once you've sent a video to the TV:** a small file server, until Tandem quits. It hands out
+  only the files you sent, each at an address with a random secret in it.
+- **The Home app bridge** (off unless you turn it on): Apple's HomeKit protocol, encrypted, and
+  it pairs only with the 8-digit code shown in Tandem's window.
+
+The remaining risk is the usual one for any app that listens on a network: a bug in Tandem or a
+library it uses could be found by someone on the same Wi-Fi. That's why Public networks stay
+closed.
 
 ## Contributing
 
@@ -178,8 +204,8 @@ save; **Queue** shows what plays next. Pick the speakers in **Audio**: Tandem's 
 straight to them, gaplessly. Only your search words go to the radio directory.
 
 **Apple Music** in the Music tab searches Apple Music's catalog (no Apple account or key
-needed) and opens a song or album in the Apple Music app on this PC, which plays it; send the
-PC's audio to your speakers in **Audio** to hear it there. Only your search words go to Apple,
+needed) and opens a song or album in the Apple Music app on this PC, where you press play;
+send the PC's audio to your speakers in **Audio** to hear it there. Only your search words go to Apple,
 and Apple allows about 20 searches a minute. Your own Apple Music library and playlists aren't
 available yet.
 

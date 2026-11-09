@@ -1,7 +1,7 @@
 // The Audio panel's and Send sheet's small decisions, kept out of the components for Vitest.
 
 import { strings } from "./strings";
-import type { AudioOutput, Device, SendState } from "./types";
+import type { AudioOutput, AudioPanel, Device, SendState } from "./types";
 
 /** An output counts as on while it starts, plays or reconnects. */
 export function outputLive(output: AudioOutput): boolean {
@@ -16,6 +16,42 @@ export function outputDirect(output: AudioOutput): boolean {
 /** Outputs whose delay can be set (Advanced settings): everything Tandem sends to. */
 export function delayOutputs(outputs: AudioOutput[]): AudioOutput[] {
   return outputs.filter((o) => !o.needsPairing && !outputDirect(o));
+}
+
+/** The line-up's status line, or null when there's nothing to say. */
+export function lineUpText(lineup: AudioPanel["lineup"]): string | null {
+  const words = strings.settingsSheet;
+  if (lineup.state === "listening") return words.lineUpListening(lineup.output ?? "");
+  if (lineup.state === "done") return words.lineUpDone;
+  if (lineup.state === "failed") {
+    const text = words.lineUpProblem[lineup.problem ?? "notHeard"] ?? words.lineUpProblem.notHeard!;
+    return text.replace("{name}", lineup.output ?? "a speaker");
+  }
+  return null;
+}
+
+/** What a failed output's row says. On an untrusted network that comes first: it's the fix. */
+export function problemText(output: AudioOutput, untrusted: boolean): string | null {
+  if (output.state !== "failed") return null;
+  if (untrusted && output.kind === "airplay") return strings.audio.problem.network!;
+  return strings.audio.problem[output.problem ?? "failed"] ?? strings.audio.problem.failed!;
+}
+
+/** The "All speakers" slider: the average volume of the outputs Tandem is playing on. */
+export function masterVolume(outputs: AudioOutput[]): number | null {
+  const live = outputs.filter(outputLive);
+  if (live.length < 2) return null;
+  return Math.round(live.reduce((sum, o) => sum + outputVolume(o), 0) / live.length);
+}
+
+/** Move every playing output by the same amount, keeping their balance (each stays 0 to 100). */
+export function masterChanges(outputs: AudioOutput[], level: number): { id: string; level: number }[] {
+  const current = masterVolume(outputs);
+  if (current === null) return [];
+  const delta = level - current;
+  return outputs
+    .filter(outputLive)
+    .map((o) => ({ id: o.id, level: Math.max(0, Math.min(100, Math.round(outputVolume(o) + delta))) }));
 }
 
 /** The slider's position: the saved volume, or the middle until the user sets one. */

@@ -12,6 +12,7 @@ import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 from tandem.bridge_audio import EngineAudio
@@ -20,6 +21,7 @@ from tandem.bridge_library import EngineLibrary
 from tandem.bridge_spotify import EngineSpotify
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine import paths
 from tandem.engine.apple_catalog import AppleCatalog
 from tandem.engine.command_dispatch import (
     Ability,
@@ -38,6 +40,7 @@ from tandem.engine.home_bridge import BridgeServer
 from tandem.engine.library import MusicLibrary
 from tandem.engine.models import Device, Service
 from tandem.engine.models import DeviceKind as EngineKind
+from tandem.engine.output_groups import GroupStore
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
 from tandem.engine.radio import Radio
@@ -121,6 +124,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
         output_prefs: OutputPrefsStore | None = None,
+        output_groups: GroupStore | None = None,
         home_server: Callable[[], BridgeServer] | None = None,
         library: MusicLibrary | None = None,
         radio: Radio | None = None,
@@ -142,13 +146,16 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
             bus.subscribe(ec.ControlEvent, self._on_control),
             bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
-        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
+        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None), output_groups)
         self._unsubscribe += self._init_home(home_server)
         self._unsubscribe += self._init_library(library, radio, catalog)
         self._unsubscribe += self._init_spotify(spotify)
         self._commands = CommandDispatcher(
             EngineCommandServices(
-                engine, start_output=self._start_from_command, home=self.home_bridge
+                engine,
+                start_output=self._start_from_command,
+                home=self.home_bridge,
+                groups=self.groups,
             )
         )
 
@@ -172,7 +179,13 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
         return ui.Appearance(
-            ui.Theme(settings.theme.value), background, settings.app_icons, settings.onboarded
+            ui.Theme(settings.theme.value),
+            background,
+            settings.app_icons,
+            settings.onboarded,
+            update_check=settings.update_check,
+            restore_outputs=settings.restore_outputs,
+            photo_blur=settings.photo_blur,
         )
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
@@ -199,6 +212,8 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
         finally:
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
+        if self._settings.settings.restore_outputs:
+            self.restore_outputs()
         await self._start_home()
         await self._start_library()
         await self._start_spotify()
@@ -293,6 +308,9 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
             background=appearance.background,
             app_icons=appearance.app_icons,
             onboarded=appearance.onboarded,
+            update_check=appearance.update_check,
+            restore_outputs=appearance.restore_outputs,
+            photo_blur=appearance.photo_blur,
         )
 
     def preview_command(self, text: str) -> ui.CommandOutcome:
@@ -300,6 +318,20 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
 
     async def run_command(self, text: str) -> ui.CommandOutcome:
         return _outcome(await self._commands.run(text))
+
+    async def set_window_visible(self, visible: bool) -> None:
+        # Hidden and silent: scan once a minute instead of every few seconds.
+        idle = not visible and not self._engine.outputs_on()
+        await self._engine.discovery.set_idle(idle)
+
+    async def write_diagnostics(self) -> Path | None:
+        settings = self._settings.settings.to_json()
+        return await asyncio.to_thread(
+            self._engine.diagnostics,
+            paths.data_dir() / "diagnostics",
+            log_dir=paths.log_dir(),
+            settings=settings,
+        )
 
     async def _start_from_command(self, output_id: str) -> None:
         await self.set_output(output_id, True)
@@ -700,6 +732,8 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     settings = store.load()
     prefs = OutputPrefsStore(paths.data_dir() / "outputs.json")
     prefs.load()
+    groups = GroupStore(paths.data_dir() / "groups.json")
+    groups.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
@@ -744,6 +778,7 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
         engine,
         store,
         output_prefs=prefs,
+        output_groups=groups,
         home_server=home_server,
         library=library,
         radio=radio,

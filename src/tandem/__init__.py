@@ -1,3 +1,3 @@
 """Tandem: send audio and video from Windows to AirPlay receivers."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

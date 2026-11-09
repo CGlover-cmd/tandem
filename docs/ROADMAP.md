@@ -21,9 +21,17 @@ _Update this section at the end of every working session._
   was checked from a locally built app folder. Also in 1.1.0: instant feedback on the Audio
   panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
   settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
-  default background and a photo background. Still open from the test: a second firewall
-  prompt on networks Windows marks Public (the rule covers private networks; widening it
-  needs the maintainer's OK).
+  default background and a photo background.
+- **1.2.0 (2026-11-08):** the maintainer's ideas list after the 1.0 test: automatic line-up
+  with the microphone and speaker groups (ADR-0018), an All speakers slider, remembered
+  speakers, tray speaker switches, Ctrl+Alt+K from anywhere, clearer speaker errors, update
+  check and Report a problem, photo blur, compile-on-install and a smaller app folder, idle
+  scanning, a monthly dependency check and a SignPath signing hook (docs/signing.md). All
+  untested on hardware; the release notes list the checks.
+- **1.1.1 (2026-11-08):** Windows' Private/Public setting is Tandem's per-network trust list:
+  allowed (local subnet) on Private, blocked on Public, so Windows no longer asks "allow
+  Python?"; on a Public network the window offers to mark it Private (maintainer's choice;
+  ADR-0017 addendum). The maintainer's own Wi-Fi is currently Public, so expect the note.
 - **1.0.0 (2026-11-04)** was built as a pre-release. Every phase except the
   shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
   and CI builds, installs and smoke-tests the Windows installer
@@ -33,10 +41,10 @@ _Update this section at the end of every working session._
   (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
   picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
   checklist, the Home bridge (ADR-0016), one window per user, and the installer.
-- **Next:** the maintainer installs 1.1.0 and reruns the release notes' checklist (pairing
+- **Next:** the maintainer installs 1.1.1 and reruns the release notes' checklist (pairing
   first); then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
   signing (SignPath), and 10c voice input.
-- **Repo note:** 1.0.0 was PR #12 (merged); 1.1.0 is on `claude/project-thread-o66qn3`. The Raspberry Pi test receiver was retired on
+- **Repo note:** 1.0.0 was PR #12, 1.1.0 was PR #16 (both merged). The Raspberry Pi test receiver was retired on
   2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
@@ -113,10 +121,10 @@ _Update this section at the end of every working session._
   are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
   still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
   open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
-  Music:** the speaker check, the catalog search's link check (does a song link play, or only
-  open its page?), and the Spotify live test. Connections and Spotify are built
-  ([ADR-0020](adr/0020-spotify-connection.md)); the live test needs the maintainer's own
-  Spotify developer app.
+  Music:** the speaker check's one-hour radio run, a decision on the catalog search's exit
+  (a link opens the song's page but doesn't play it), and the Spotify live test. Connections
+  and Spotify are built ([ADR-0020](adr/0020-spotify-connection.md)); the live test needs the
+  maintainer's own Spotify developer app.
 
 ## Scope
 
@@ -337,9 +345,11 @@ one.)
   fetched at run time, kept in memory), no previews, at most 20 searches a minute; a result
   opens in the Apple Music app through its `music://` link. **Exit:** a search finds a known
   song and opening it plays it in the Apple Music app, heard on the speakers through the
-  router. Built, with tests on fakes and a demo source. **To run:** the link check (with the
-  maintainer's OK, since it plays from their account); until then the button says "Open in
-  Apple Music".
+  router. Built, with tests on fakes and a demo source. **Link check (2026-11-09): shows.**
+  Opening a song showed its album page in the Apple Music app and left playback paused, so the
+  button says "Open in Apple Music" and the user presses play there. Playing straight from a
+  link isn't possible this way; whether "opens it, the user presses play" meets the exit is
+  the maintainer's call.
 
 ### Phase 7 · Send media to Apple TV
 Local files via a built-in web server, or URLs; seek bar, queue.
@@ -362,8 +372,9 @@ Foundation, free for open source), docs site, contributor docs, reproducible bui
 - [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
 - [x] One window per user; Getting started checklist on first run
 - [x] Pinned, tested library versions in every build (1.1.0, after 1.0.0 shipped a breaking one)
-- [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
-- [ ] Auto-update (for now the releases page)
+- [ ] Code signing (SignPath Foundation; needs the maintainer to apply; the release workflow
+  is ready: docs/signing.md)
+- [x] Update check (the window links to new releases; installing stays manual)
 
 ### Phase 10 · Smart home and commands
 Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer

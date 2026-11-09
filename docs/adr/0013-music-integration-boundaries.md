@@ -100,7 +100,8 @@ Searching Apple's catalog needs no MusicKit key: Apple's public Search API
   `Tandem/<version>` User-Agent; no account, cookies or identifiers. Searches and results
   are never logged.
 
-Opening a result hands its `music://` link to the Apple Music app, which plays it there; the
-router carries the sound like any other app's. The button stays the neutral "Open in Apple
-Music" until a hands-on check shows whether a song link starts playing or only opens its page.
+Opening a result hands its `music://` link to the Apple Music app. The hands-on check
+(2026-11-09) found that a song link only opens its page there (the song's album, with whatever
+was playing left paused); it doesn't start playback. So the button says "Open in Apple Music"
+and the user presses play in the app; the router then carries the sound like any other app's.
 The user's own library and playlists still need a MusicKit key and stay on hold.

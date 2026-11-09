@@ -12,7 +12,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from tandem.ui.backend import LinkState, MusicCommand
+from tandem.ui.audio_panel import LIVE
+from tandem.ui.backend import DeviceKind, LinkState, MusicCommand, OutputState
 from tandem.ui.controller import AppController
 
 
@@ -20,8 +21,8 @@ from tandem.ui.controller import AppController
 class Entry:
     label: str = ""
     action: str = ""
-    """"open", "activate", "pair", "quit", "music_play_pause" or "music_next"; "" for a
-    separator or a note."""
+    """"open", "activate", "pair", "output", "report", "quit", "music_play_pause" or
+    "music_next"; "" for a separator or a note."""
     device_id: str = ""
     checked: bool = False
     enabled: bool = True
@@ -64,7 +65,10 @@ def menu_entries(controller: AppController) -> list[Entry]:
     devices = controller.devices()
     if not devices:
         entries.append(Entry("Looking for devices…", enabled=False))
+    entries += output_entries(controller)
     for device in devices:
+        if device.kind is not DeviceKind.APPLE_TV:
+            continue  # speakers are switched on and off above
         if device.needs_pairing:
             entries.append(Entry(f"{device.name} (pair to use)", "pair", device.id))
         else:
@@ -77,8 +81,36 @@ def menu_entries(controller: AppController) -> list[Entry]:
                     enabled=device.state is not LinkState.CONNECTING,
                 )
             )
-    entries += [SEPARATOR, Entry("Quit Tandem", "quit")]
+    entries += [
+        SEPARATOR,
+        Entry("Report a problem…", "report", enabled=not controller.reporting),
+        Entry("Quit Tandem", "quit"),
+    ]
     return entries
+
+
+def output_entries(controller: AppController) -> list[Entry]:
+    """A switch per speaker or PC output: ticked while Tandem plays there."""
+    outputs = [
+        o
+        for o in controller.audio.audio.outputs
+        if not o.needs_pairing and o.state is not OutputState.DIRECT
+    ]
+    if not outputs:
+        return []
+    entries = [Entry("Play the PC's sound on", enabled=False)]
+    for output in outputs:
+        live = output.state in LIVE
+        entries.append(
+            Entry(
+                f"    {output.name}",
+                "output",
+                output.id,
+                checked=live,
+                enabled=output.state is not OutputState.STARTING,
+            )
+        )
+    return [*entries, SEPARATOR]
 
 
 class Tray:  # pragma: no cover - needs a desktop; checked by hand
@@ -158,6 +190,13 @@ class Tray:  # pragma: no cover - needs a desktop; checked by hand
             elif entry.action == "pair":
                 self._show_window()
                 self._loop.call_soon_threadsafe(self._controller.pair, entry.device_id)
+            elif entry.action == "output":
+                on = not entry.checked
+                self._loop.call_soon_threadsafe(
+                    self._controller.handle, {"type": "setOutput", "id": entry.device_id, "on": on}
+                )
+            elif entry.action == "report":
+                self._loop.call_soon_threadsafe(self._controller.report_problem)
             elif entry.action == "activate":
                 self._loop.call_soon_threadsafe(self._controller.activate, entry.device_id)
             elif entry.action == "music_play_pause":
