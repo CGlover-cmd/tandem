@@ -1,4 +1,4 @@
-# Tandem 1.2.0 (pre-release)
+# Tandem 1.2.1 (pre-release)
 
 A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
 controls them from your PC. It's still
@@ -6,6 +6,18 @@ a **pre-release**: some features haven't been tried on real speakers yet (listed
 Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To attach
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
+
+## Fixed in 1.2.1
+
+- **The window opens again.** In 1.2.0 the window never appeared: a "Python" process ran in
+  Task Manager, and every later launch quietly did nothing. Install 1.2.1 over it. If Tandem's
+  window ever fails to open again, it now says so and closes, instead of staying stuck.
+- **Installing over a running Tandem just works.** Setup asks Tandem to close (and closes
+  older copies itself), installs, and opens it again, with no "unable to close applications"
+  prompt. Uninstalling closes it too.
+- **Window polish:** icons at their real size, clearer row titles in sheets, card buttons
+  that wrap on a narrow window, quieter scrollbars and sliders, a remote that fits without
+  scrolling, and one close button per sheet.
 
 ## New in 1.2.0
 

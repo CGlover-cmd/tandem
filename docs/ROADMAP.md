@@ -14,16 +14,18 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
-- **1.2.0's window doesn't open (2026-11-09, fixed, not released yet):** the app folder left out
+- **1.2.1 (2026-11-09), a pre-release: fixes 1.2.0's install.** It carries the three entries
+  below.
+- **1.2.0's window doesn't open (2026-11-09, fixed in 1.2.1):** the app folder left out
   pywebview's x86 and ARM64 WebView2 folders, which it looks up at start, so the window failed
   and the tray thread kept a windowless Tandem holding the single-instance lock. The folders
   are kept, the smoke check imports the window's back end, and a failed window now says so
   and exits.
-- **Installer closes Tandem (2026-11-09, not released yet):** installing 1.2.0 over a running
+- **Installer closes Tandem (2026-11-09, in 1.2.1):** installing 1.2.0 over a running
   copy hit Windows' "unable to automatically close all applications" prompt. Setup now asks
   Tandem to quit, stops older copies run from its folder, and reopens it afterwards; the
   uninstaller closes it too (ADR-0017, 1.2.1 addendum). Checked in CI's installer job.
-- **Architecture and UI review (2026-11-08, after 1.2.0; not released yet):** the review's 14
+- **Architecture and UI review (2026-11-08, in 1.2.1):** the review's 14
   recommendations are on their own branch, on top of 1.2.0
   ([ADR-0019](adr/0019-one-bridge-demo-on-the-engine.md)). The demo runs on the real engine
   through a demo device adapter (the old demo backend is gone), audio outputs live in the

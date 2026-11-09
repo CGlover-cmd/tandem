@@ -36,7 +36,7 @@ async def test_the_window_offers_a_newer_version(backend: DemoBackend) -> None:
 
     async def get_json(url: str, params: dict[str, str]) -> Any:
         asked.append(url)
-        return RELEASES
+        return [{"tag_name": "v99.0.0", "draft": False}]  # newer than any real version
 
     controller = AppController(backend, get_json=get_json, open_url=opened.append)
     await controller.start()
