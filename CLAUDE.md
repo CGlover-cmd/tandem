@@ -213,6 +213,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
   GitHub pre-release: only with the maintainer's OK.
+- Don't prune `webview/lib/runtimes` from the app folder: pywebview's WinForms back end looks up
+  every architecture's folder at import, and 1.2.0's window never opened without them. The
+  smoke check's demo runs without a window, so it imports `webview.platforms.winforms` itself.
 - Setup closes a running Tandem (ADR-0017, 1.2.1 addendum): it sets the `Local\TandemQuit`
   event, which `tandem.ui.platform.on_quit_request` waits on, then stops any Python still
   running from the install folder, and reopens Tandem if its window was open. The event and

@@ -29,6 +29,7 @@ from tandem.ui.platform import (
     on_quit_request,
     reduce_motion,
     reveal_in_explorer,
+    show_start_error,
     store_country,
     ui_data_dir,
 )
@@ -229,10 +230,18 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
     hotkey.start()
     tray.start()
     icon = write_ico(ui_data_dir() / "tandem.ico")
-    wv.start(icon=str(icon), private_mode=True)
-
-    tray.stop()
-    hotkey.stop()
-    loop.call_soon_threadsafe(loop.stop)
-    stopped.wait(timeout=5)
-    return 0
+    code = 0
+    try:
+        wv.start(icon=str(icon), private_mode=True)
+    except Exception as error:
+        # Without this, the tray's thread kept a windowless Tandem running, holding the
+        # single-instance lock, so every later launch quietly quit too (1.2.0).
+        _LOGGER.error("Tandem couldn't open its window: %s", type(error).__name__)
+        show_start_error()
+        code = 1
+    finally:
+        tray.stop()
+        hotkey.stop()
+        loop.call_soon_threadsafe(loop.stop)
+        stopped.wait(timeout=5)
+    return code
