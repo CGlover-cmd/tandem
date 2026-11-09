@@ -69,6 +69,22 @@ export function App() {
   };
   const [sendId, setSendId] = useState<string | null>(null);
   const sendDevice = state?.devices.find((d) => d.id === sendId) ?? null;
+  // Video on an unpaired TV: pair first, then open the Send sheet.
+  const [videoAfterPairing, setVideoAfterPairing] = useState<string | null>(null);
+  const pairingState = state?.pairing.state ?? "closed";
+  const pairingWasOpen = useRef(false);
+  useEffect(() => {
+    if (videoAfterPairing === null) return;
+    const device = state?.devices.find((d) => d.id === videoAfterPairing);
+    if (pairingState !== "closed") pairingWasOpen.current = true;
+    if (device && !device.needsPairing) {
+      if (pairingState !== "closed") return; // wait for the pairing sheet to close
+      setVideoAfterPairing(null);
+      setSendId(device.id);
+    } else if (!device || (pairingState === "closed" && pairingWasOpen.current)) {
+      setVideoAfterPairing(null); // the device left, or pairing was cancelled
+    }
+  }, [videoAfterPairing, pairingState, state?.devices]);
   const streaming = state?.audio.streaming ?? 0;
   const [view, setView] = useState<View>("devices");
   const music = state?.music ?? null;
@@ -204,8 +220,26 @@ export function App() {
                   <DeviceCard
                     device={device}
                     onActivate={() => send({ type: "activate", id: device.id })}
-                    onOpenControls={() => setRemoteId(device.id)}
-                    onOpenSend={() => setSendId(device.id)}
+                    onAudio={() =>
+                      send({
+                        type: "deviceAudio",
+                        id: device.id,
+                        on: device.audio !== "on" && device.audio !== "starting",
+                      })
+                    }
+                    onVideo={() => {
+                      send({ type: "openDevice", id: device.id });
+                      if (device.needsPairing) {
+                        pairingWasOpen.current = false;
+                        setVideoAfterPairing(device.id);
+                      } else {
+                        setSendId(device.id);
+                      }
+                    }}
+                    onRemote={() => {
+                      send({ type: "openDevice", id: device.id });
+                      setRemoteId(device.id);
+                    }}
                   />
                 </li>
               ))}
@@ -255,7 +289,13 @@ export function App() {
           send={send}
         />
       )}
-      <RemoteSheet device={remoteDevice} onClose={() => setRemoteId(null)} send={send} />
+      <RemoteSheet
+        device={remoteDevice}
+        music={music}
+        output={state?.audio.outputs.find((o) => o.id === remoteId && o.kind === "airplay") ?? null}
+        onClose={() => setRemoteId(null)}
+        send={send}
+      />
       {state && (
         <OnboardingSheet
           isOpen={guideOpen && !audioOpen && state.pairing.state === "closed"}

@@ -14,6 +14,11 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **Device cards rework (2026-11-09, after 1.2.1 feedback):** cards offer Audio (every
+  AirPlay device, the Audio panel's switch; pairs first if needed) and Video (Apple TV, opens
+  Send to TV) instead of Pair/Connect/Send. Speakers get an audio-only remote; while they play
+  the PC's sound, it drives the PC's media app. The HomePod's ~5 s lag is still
+  open.
 - **PC muted while AirPlay plays (2026-11-09, not released):** Spike G found process loopback
   keeps the sound with the PC's speakers muted (per-app mute isn't available). Tandem now
   captures that way and mutes Windows' default output while AirPlay plays, with a switch to keep
