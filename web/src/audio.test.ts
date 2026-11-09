@@ -40,6 +40,7 @@ const tv: Device = {
   apps: null,
   controls: null,
   send: null,
+  audio: null,
 };
 
 describe("audio outputs", () => {
