@@ -299,6 +299,60 @@ export interface Catalog {
   albums: CatalogAlbum[];
 }
 
+/** Spotify, as a remote through its Web API (Settings → Connections; Music tab). */
+export type SpotifyState = "not_set_up" | "signed_out" | "signing_in" | "signed_in";
+
+export type SpotifyError =
+  | "invalid_client_id"
+  | "port_busy"
+  | "sign_in_timeout"
+  | "sign_in_denied"
+  | "sign_in_failed"
+  | "expired"
+  | "no_device"
+  | "premium_required"
+  | "not_allowed"
+  | "rate_limited"
+  | "unavailable"
+  | "gone"
+  | "vault";
+
+export interface SpotifyItem {
+  /** "t:…", "a:…" or "p:…" */
+  id: string;
+  kind: "track" | "album" | "playlist";
+  title: string;
+  subtitle: string;
+  duration: number | null;
+  hasArt: boolean;
+  count: number | null;
+}
+
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  /** Spotify's device type in lower case: "computer", "smartphone", "speaker", … */
+  kind: string;
+  active: boolean;
+  /** Spotify won't take commands for it. */
+  restricted: boolean;
+}
+
+export interface Spotify {
+  state: SpotifyState;
+  loading: boolean;
+  /** What to register in the Spotify app: a loopback address with no port. */
+  redirectUri: string;
+  error: SpotifyError | null;
+  playlists: SpotifyItem[];
+  devices: SpotifyDevice[];
+  /** The device "Play" uses. */
+  target: string | null;
+  query: string;
+  searching: boolean;
+  results: SpotifyItem[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -316,6 +370,7 @@ export interface AppState {
   radio: Radio;
   player: Player;
   catalog: Catalog;
+  spotify: Spotify;
 }
 
 export type Command =
@@ -351,4 +406,10 @@ export type Command =
   | { type: "queueAlbum" | "queueSong"; id: string; next: boolean }
   | { type: "playSong" | "playStation" | "saveStation" | "removeStation"; id: string }
   | { type: "player"; command: PlayerCommand }
-  | { type: "playQueueItem" | "removeQueueItem"; id: string };
+  | { type: "playQueueItem" | "removeQueueItem"; id: string }
+  | { type: "setSpotifyClientId"; clientId: string }
+  | { type: "spotifySignIn" | "spotifyCancelSignIn" | "openSpotifyDashboard" | "spotifyRefresh" }
+  | { type: "spotifySignOut"; forget?: boolean }
+  | { type: "spotifyDismissError" }
+  | { type: "spotifySearch"; text: string }
+  | { type: "spotifyPlay" | "spotifyChooseDevice" | "spotifyTransfer" | "openInSpotify"; id: string };

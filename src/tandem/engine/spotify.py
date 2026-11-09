@@ -1,4 +1,4 @@
-"""Spotify as a remote, through its Web API only (Phase 6, ADR-0013, ADR-0018).
+"""Spotify as a remote, through its Web API only (Phase 6, ADR-0013, ADR-0020).
 
 Tandem never plays Spotify audio. It signs in with the user's own Client ID (Authorization
 Code with PKCE, no client secret), then lists their playlists and Spotify Connect devices,

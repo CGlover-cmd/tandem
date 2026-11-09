@@ -1,6 +1,6 @@
 // Every word the window shows, in one place so it can be translated later.
 
-import type { DeviceKind, Problem } from "./types";
+import type { DeviceKind, Problem, SpotifyError } from "./types";
 
 type Params = Record<string, string>;
 type Words = (p: Params) => string;
@@ -120,6 +120,70 @@ export const strings = {
     busy: "Apple allows about 20 searches a minute. Wait a moment, then search again.",
     noLibrary:
       "Your own Apple Music library and playlists aren't available: that needs an Apple developer membership.",
+  },
+  spotify: {
+    source: "Spotify",
+    connections: "Connections",
+    connectionsDetail: "Music services Tandem can browse and control. Their apps play the music.",
+    name: "Spotify",
+    status: {
+      not_set_up: "Not set up",
+      signed_out: "Set up, not signed in",
+      signing_in: "Signing in…",
+      signed_in: "Connected",
+    },
+    setUp: "Set up…",
+    manage: "Manage…",
+    sheetTitle: "Connect Spotify",
+    sheetSubtitle:
+      "Tandem controls Spotify through Spotify's Web API with a free developer key of your own. The Spotify app plays the music; Tandem never streams it.",
+    premiumNote: "Spotify lets an app's owner use their own key only with Spotify Premium.",
+    step1: "Open Spotify's developer dashboard and sign in with your Spotify account.",
+    openDashboard: "Open the dashboard",
+    step2: "Choose Create app. Give it any name and description, for example Tandem.",
+    step3: "Under Redirect URIs, add this address exactly, then press Add:",
+    step4: "Under the APIs you plan to use, tick Web API. Accept Spotify's terms and save.",
+    step5: "Open the app's settings, copy its Client ID and paste it here:",
+    copy: "Copy",
+    copied: "Copied",
+    clientId: "Client ID",
+    clientIdPlaceholder: "32 letters and numbers",
+    saveClientId: "Save",
+    savedClientId: "Client ID saved.",
+    step6: "Sign in. Your browser opens Spotify's page; agree there, then come back here.",
+    signIn: "Sign in with Spotify",
+    waiting: "Waiting for you to agree in the browser…",
+    cancel: "Cancel",
+    connected: "Spotify is connected. Find your playlists and devices in the Music tab.",
+    signOut: "Sign out",
+    forget: "Remove Spotify",
+    forgetDetail:
+      "Signing out keeps your Client ID. To stop the key working too, delete the app in Spotify's developer dashboard.",
+    privacy:
+      "Your sign-in is kept on this PC, encrypted for your Windows account. Only Spotify sees your searches.",
+    notConnected: "Connect Spotify to see your playlists and devices here.",
+    connect: "Connect Spotify…",
+    signedOut: "Sign in to Spotify again to see your playlists and devices.",
+    playlists: "Your playlists",
+    noPlaylists: "No playlists yet.",
+    devices: "Devices",
+    noDevices: "No Spotify devices found. Open Spotify on this PC, a phone or a speaker, then refresh.",
+    playsOn: (name: string) => `Plays on ${name}`,
+    playHere: "Play here",
+    playingHere: "Playing",
+    cantControl: "Spotify doesn't allow control",
+    useDevice: (name: string) => `Play on ${name}`,
+    refresh: "Refresh",
+    search: "Search Spotify",
+    searching: "Searching…",
+    noMatch: (text: string) => `Nothing on Spotify matches "${text}".`,
+    play: (title: string) => `Play ${title}`,
+    openOnSpotify: (title: string) => `Open ${title} in Spotify`,
+    openShort: "Open in Spotify",
+    tracks: (n: number) => (n === 1 ? "1 track" : `${n} tracks`),
+    kind: { track: "Song", album: "Album", playlist: "Playlist" },
+    credit: "Playlists, results and artwork from Spotify. Spotify is a trademark of Spotify AB.",
+    hearIt: "If Spotify plays on this PC, send the PC's audio to your speakers in Audio.",
   },
   dismiss: "Dismiss",
 
@@ -420,6 +484,38 @@ export const strings = {
     done: "Done",
   },
 };
+
+/** Words for a Spotify error code. */
+export function spotifyErrorText(code: SpotifyError, redirectUri: string): string {
+  switch (code) {
+    case "invalid_client_id":
+      return "That isn't a Client ID. Copy the 32 letters and numbers shown as Client ID in your Spotify app's settings.";
+    case "port_busy":
+      return "Tandem couldn't wait for Spotify's answer on this PC. Try again.";
+    case "sign_in_timeout":
+      return `Spotify didn't send the browser back. Check that the app's Redirect URI is exactly ${redirectUri}, then try again.`;
+    case "sign_in_denied":
+      return "You didn't agree on Spotify's page, so Tandem isn't connected.";
+    case "sign_in_failed":
+      return `Spotify didn't accept the sign-in. Check the Client ID and that the Redirect URI is exactly ${redirectUri}.`;
+    case "expired":
+      return "Spotify no longer accepts the saved sign-in. Sign in again.";
+    case "no_device":
+      return "No Spotify device is ready. Open Spotify on a device, then try again.";
+    case "premium_required":
+      return "Spotify only allows this with Spotify Premium.";
+    case "not_allowed":
+      return "Spotify didn't allow that. If someone else made the Spotify app, ask them to add your account under User Management.";
+    case "rate_limited":
+      return "Spotify asked Tandem to slow down. Wait a moment, then try again.";
+    case "unavailable":
+      return "Spotify couldn't be reached. Check the internet connection and try again.";
+    case "gone":
+      return "That isn't in the list any more. Refresh and try again.";
+    case "vault":
+      return "Tandem couldn't read the saved Spotify sign-in (it belongs to another Windows account or PC). Set Spotify up again.";
+  }
+}
 
 export function problemText(problem: Problem): string {
   switch (problem.code) {

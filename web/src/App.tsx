@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useBridge } from "./bridge";
 import { isCommandShortcut } from "./commands";
 import { AdvancedSheet } from "./components/AdvancedSheet";
+import { SpotifySheet } from "./components/Connections";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
@@ -42,6 +43,7 @@ export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [spotifyOpen, setSpotifyOpen] = useState(false);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [audioOpen, setAudioOpen] = useState(false);
@@ -210,7 +212,7 @@ export function App() {
               <Spinner color="accent" />
             </div>
           ) : (
-            <MusicTab state={state} send={send} onOpenAudio={() => setAudioOpen(true)} />
+            <MusicTab state={state} send={send} onOpenAudio={() => setAudioOpen(true)} onOpenConnections={() => setSpotifyOpen(true)} />
           )}
         </Tabs.Panel>
       </Tabs>
@@ -265,8 +267,25 @@ export function App() {
             setSettingsOpen(false);
             setAdvancedOpen(true);
           }}
+          onOpenSpotify={() => {
+            setSettingsOpen(false);
+            setSpotifyOpen(true);
+          }}
           appearance={state.appearance}
+          spotify={state.spotify}
           mode={mode}
+          send={send}
+        />
+      )}
+      {state && (
+        <SpotifySheet
+          isOpen={spotifyOpen}
+          onClose={() => setSpotifyOpen(false)}
+          onBack={() => {
+            setSpotifyOpen(false);
+            setSettingsOpen(true);
+          }}
+          spotify={state.spotify}
           send={send}
         />
       )}

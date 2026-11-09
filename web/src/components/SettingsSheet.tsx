@@ -6,14 +6,17 @@ import { CheckIcon } from "../icons";
 import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
-import type { Appearance, Command, ThemeChoice } from "../types";
+import type { Appearance, Command, Spotify, ThemeChoice } from "../types";
+import { ConnectionsSection } from "./Connections";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onOpenGuide: () => void;
   onOpenAdvanced: () => void;
+  onOpenSpotify: () => void;
   appearance: Appearance;
+  spotify: Spotify;
   mode: Mode;
   send: (command: Command) => void;
 }
@@ -85,7 +88,7 @@ function PhotoPicker({ hasPhoto }: { hasPhoto: boolean }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, appearance, mode, send }: Props) {
+export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, onOpenSpotify, appearance, spotify, mode, send }: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
   const words = strings.settingsSheet;
@@ -162,6 +165,10 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, ap
               </RadioGroup>
               <PhotoPicker hasPhoto={appearance.photo !== null} />
             </section>
+
+            <Separator />
+
+            <ConnectionsSection spotify={spotify} onOpen={onOpenSpotify} />
           </Modal.Body>
           <Modal.Footer className="flex flex-wrap gap-2">
             <Button variant="secondary" onPress={onOpenGuide}>

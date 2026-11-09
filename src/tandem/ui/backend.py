@@ -798,7 +798,7 @@ class Backend(Protocol):
         """Apple's "Listen on Apple Music" badge, fetched from Apple; None when offline."""
         ...
 
-    # Spotify (Web API remote only; ADR-0018)
+    # Spotify (Web API remote only; ADR-0020)
 
     def spotify(self) -> SpotifySnapshot: ...
 

@@ -1,4 +1,4 @@
-"""Spotify on the real engine (part of `tandem.bridge`, ADR-0018).
+"""Spotify on the real engine (part of `tandem.bridge`, ADR-0020).
 
 Mixed into `EngineBackend`, like `bridge_library`. Tandem is only a remote: the Spotify app
 plays. Playlists, devices and searches are personal: never logged.

@@ -199,6 +199,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   through Tandem's server (`/catalog-art`, `/apple-music-badge`, sandboxing CSP), are fetched
   at run time and stay in memory: never commit or save them. No previews. Keep the 20-a-minute
   limit. Don't open a real song link without the maintainer's OK (it plays from their account).
+- Spotify (ADR-0020): `engine/spotify.py` (PKCE, tokens, playlists, devices, search, play,
+  transfer) with HTTP, the 127.0.0.1 listener and the browser in `adapters/spotify_web.py`;
+  `tandem.bridge_spotify`, `ui/demo_spotify.py` and `ui/spotify_panel.py`. The user registers
+  `http://127.0.0.1/callback` with no port; the port is picked at sign-in. Search is capped at
+  10 (Spotify's development-mode limit since February 2026); playlists report their size in
+  `items` (was `tracks`). Never play, transfer or sign in against the maintainer's account
+  without their OK. detect-secrets flags random-looking test ids: use values like `"a" * 32`.
 - Library versions: `packaging/constraints.txt` pins every runtime library; the app folder, the
   release workflow and CI install with `-c` it. Move a pin only on purpose, after the tests and
   a hardware check (1.0.0 shipped an unpinned srptools 2.0 that broke all Apple handshakes).

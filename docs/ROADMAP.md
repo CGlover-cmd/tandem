@@ -114,7 +114,9 @@ _Update this section at the end of every working session._
   still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
   open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
   Music:** the speaker check, the catalog search's link check (does a song link play, or only
-  open its page?), then Connections and Spotify.
+  open its page?), and the Spotify live test. Connections and Spotify are built
+  ([ADR-0020](adr/0020-spotify-connection.md)); the live test needs the maintainer's own
+  Spotify developer app.
 
 ## Scope
 
@@ -312,6 +314,15 @@ one.)
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.
+  Built ([ADR-0020](adr/0020-spotify-connection.md)): Settings → Connections with a setup
+  walkthrough (dashboard link, the redirect address to copy, Client ID, sign in), PKCE in the
+  system browser with a one-shot 127.0.0.1 listener, the Client ID and refresh token in a
+  DPAPI-encrypted `spotify.bin`, and a **Spotify** source in the Music tab: playlists,
+  devices with "Play here", search (10 per type, Spotify's development-mode limit), play on the
+  chosen device, and "Open in Spotify" on every item. Saved tracks and albums ("library") are
+  left out: Spotify replaced those endpoints in February 2026, and playlists cover the exit
+  test. Tested on fakes and the demo. **To run:** the live test with the maintainer's own
+  Spotify app and Premium account.
 - [ ] **On hold** (needs a paid Apple Developer membership; resumes if the maintainer joins). Spike: Apple Music in
   Tandem's window. Can MusicKit JS sign in and play full tracks in WebView2? **Exit:** a go or
   no-go, recorded in an ADR. Started: the copy-protection check passed and sign-in popups

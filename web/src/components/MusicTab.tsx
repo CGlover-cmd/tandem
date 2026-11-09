@@ -6,19 +6,22 @@ import type { AppState, Command } from "../types";
 import { AppleMusicView } from "./AppleMusic";
 import { LibraryView, PlayerStrip, QueueView, RadioView } from "./Library";
 import { MusicPanel } from "./Music";
+import { SpotifyView } from "./Spotify";
 
-type Source = "now" | "pc" | "radio" | "apple" | "queue";
-const SOURCES: Source[] = ["now", "pc", "radio", "apple", "queue"];
+type Source = "now" | "pc" | "radio" | "apple" | "spotify" | "queue";
+const SOURCES: Source[] = ["now", "pc", "radio", "apple", "spotify", "queue"];
 
 /** The Music tab: Tandem's own player on top, then what to play from. */
 export function MusicTab({
   state,
   send,
   onOpenAudio,
+  onOpenConnections,
 }: {
   state: AppState;
   send: (command: Command) => void;
   onOpenAudio: () => void;
+  onOpenConnections: () => void;
 }) {
   const [source, setSource] = useState<Source>("now");
   const words = strings.library;
@@ -27,6 +30,7 @@ export function MusicTab({
     pc: words.thisPc,
     radio: words.radio,
     apple: strings.appleMusic.source,
+    spotify: strings.spotify.source,
     queue: `${words.queue}${state.player.queue.length > 0 ? ` (${state.player.queue.length})` : ""}`,
   };
   return (
@@ -57,6 +61,9 @@ export function MusicTab({
         </Tabs.Panel>
         <Tabs.Panel id="apple">
           <AppleMusicView catalog={state.catalog} send={send} />
+        </Tabs.Panel>
+        <Tabs.Panel id="spotify">
+          <SpotifyView spotify={state.spotify} send={send} onOpenConnections={onOpenConnections} />
         </Tabs.Panel>
         <Tabs.Panel id="queue">
           <QueueView player={state.player} send={send} />

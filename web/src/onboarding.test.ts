@@ -60,6 +60,18 @@ function state(over: Partial<AppState> = {}): AppState {
     radio: { query: "", searching: false, results: [], saved: [], error: null },
     player: { state: "stopped", index: null, position: 0, duration: null, error: false, queue: [] },
     catalog: { query: "", searching: false, error: null, songs: [], albums: [] },
+    spotify: {
+      state: "not_set_up",
+      loading: false,
+      redirectUri: "http://127.0.0.1/callback",
+      error: null,
+      playlists: [],
+      devices: [],
+      target: null,
+      query: "",
+      searching: false,
+      results: [],
+    },
     ...over,
   };
 }

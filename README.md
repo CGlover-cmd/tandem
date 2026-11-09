@@ -183,6 +183,14 @@ PC's audio to your speakers in **Audio** to hear it there. Only your search word
 and Apple allows about 20 searches a minute. Your own Apple Music library and playlists aren't
 available yet.
 
+**Spotify** in the Music tab shows your playlists and Spotify devices, searches Spotify, plays
+on the device you pick and moves playback between devices ("Play here"). The Spotify app plays
+the music; Tandem is the remote. Set it up once under **Settings → Connections → Spotify**:
+Spotify asks each app to use its own free developer key, so the walkthrough has you create one
+in Spotify's developer dashboard (about two minutes), paste its Client ID and sign in in your
+browser. Spotify allows this only with Spotify Premium. Your sign-in stays on this PC,
+encrypted for your Windows account.
+
 Close the window to send it to the tray; choose **Quit Tandem** from the tray menu to exit.
 Pick a theme and a window background (gradients, neutral tones, or a photo of your own) under
 **Settings**, the gear button at the top right. **Advanced settings** there holds the speaker
