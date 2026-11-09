@@ -81,10 +81,13 @@ A portable zip (no installer, no firewall rule) is on the release page too: unzi
 When Tandem opens, it finds the AirPlay devices on your network by itself, and a short
 **Getting started** checklist walks you through the first steps.
 
-- **Speakers:** open the **Audio** panel and switch a speaker on. Whatever your PC plays now
-  goes there too.
-- **Apple TV:** choose **Pair** and type the PIN the TV shows. It asks twice, once for the
-  remote and once for AirPlay. After that, **Remote** opens its controls: the touch pad (or your
+- **Speakers:** press **Audio** on a speaker's card (or switch it on in the **Audio** panel).
+  Whatever your PC plays now goes there too. Its **Remote** is audio only: play, pause, skip
+  back and forward, and volume. While the speaker plays your PC's sound, those buttons control
+  the app on your PC.
+- **Apple TV:** press **Audio** to use it as a speaker, or **Video** to send it a video file or
+  link. The first time, Tandem pairs it: type the PIN the TV shows. It asks twice, once for the
+  remote and once for AirPlay. **Remote** opens its controls: the touch pad (or your
   arrow keys, Enter and Backspace), Back, Home, what's playing and volume. **Apps** opens any app
   on the TV, and **Keyboard** types into the TV's search boxes.
 - **Music:** the **Music** tab shows what's playing on your PC with its artwork, and lets you

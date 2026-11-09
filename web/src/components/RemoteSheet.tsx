@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { estimatePosition, formatTime, keyFor, mediaButtons, pressAction, subtitle } from "../controls";
 import { AppsPanel } from "./AppsPanel";
+import { LiveSlider } from "./LiveSlider";
+import { PcPlaybackCard } from "./Music";
 import { TextEntry } from "./TextEntry";
 import {
   AppsIcon,
@@ -21,10 +23,16 @@ import {
   VolumeIcon,
 } from "../icons";
 import { strings } from "../strings";
-import type { Command, Controls, Device, MediaCommand, NowPlaying, RemoteKey } from "../types";
+import { outputVolume } from "../audio";
+import { statusFor } from "../devices";
+import type { AudioOutput, Command, Controls, Device, MediaCommand, Music, NowPlaying, RemoteKey } from "../types";
 
 interface Props {
   device: Device | null;
+  /** What the PC is playing: a speaker playing the PC's sound is steered through it. */
+  music: Music | null;
+  /** This device's place in the Audio panel, for its volume while it plays the PC's sound. */
+  output: AudioOutput | null;
   onClose: () => void;
   send: (command: Command) => void;
 }
@@ -258,8 +266,66 @@ function VolumeControl({ deviceId, controls, send }: { deviceId: string; control
   );
 }
 
-export function RemoteSheet({ device, onClose, send }: Props) {
+/** A speaker's remote: audio only. While it plays this PC's sound, the buttons drive the app on
+ *  the PC and the slider is the speaker's volume in the Audio panel; otherwise they drive
+ *  whatever the speaker itself is playing. */
+function SpeakerRemote({ device, controls, music, output, send }: {
+  device: Device;
+  controls: Controls | null;
+  music: Music | null;
+  output: AudioOutput | null;
+  send: Send;
+}) {
+  if (device.audio === "on" && output) {
+    return (
+      <>
+        <PcPlaybackCard music={music} send={send} />
+        <div className="flex items-center gap-3">
+          <VolumeIcon level={0} size={18} className="text-[var(--muted)]" />
+          <LiveSlider
+            label={strings.speakerRemote.volume}
+            value={outputVolume(output)}
+            min={0}
+            max={100}
+            step={1}
+            onCommit={(level) => send({ type: "setOutputVolume", id: output.id, level })}
+          />
+          <VolumeIcon level={2} size={18} className="text-[var(--muted)]" />
+        </div>
+        <p className="text-center text-[11px] text-[var(--muted)]">{strings.speakerRemote.pcNote}</p>
+      </>
+    );
+  }
+  if (controls === null) {
+    return <p className="text-center text-[var(--muted)]">{statusFor(device, 0).text}</p>;
+  }
+  return (
+    <>
+      <NowPlayingCard
+        deviceId={device.id}
+        playing={controls.nowPlaying ?? IDLE}
+        controls={controls}
+        send={send}
+      />
+      <VolumeControl deviceId={device.id} controls={controls} send={send} />
+    </>
+  );
+}
+
+const IDLE: NowPlaying = {
+  state: "idle",
+  title: null,
+  artist: null,
+  album: null,
+  series: null,
+  app: null,
+  position: null,
+  totalTime: null,
+};
+
+export function RemoteSheet({ device, music, output, onClose, send }: Props) {
   const controls = device?.controls ?? null;
+  const speaker = device !== null && device.kind !== "apple_tv";
   const open = device !== null;
   const [view, setView] = useState<"remote" | "apps">("remote");
   const [typing, setTyping] = useState(false);
@@ -281,7 +347,7 @@ export function RemoteSheet({ device, onClose, send }: Props) {
   // Keyboard: arrows, Enter and Backspace work the remote, unless a control has focus that
   // uses those keys itself (the volume slider, or a focused button for Enter).
   const deviceId = device?.id;
-  const hasRemote = (controls?.remote ?? false) && view === "remote";
+  const hasRemote = !speaker && (controls?.remote ?? false) && view === "remote";
   useEffect(() => {
     if (!deviceId || !hasRemote) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -331,8 +397,10 @@ export function RemoteSheet({ device, onClose, send }: Props) {
                 )}
               </Modal.Header>
               <Modal.Body className="flex flex-col gap-5">
-                {controls === null ? (
-                  <p className="text-center text-[var(--muted)]">{strings.status.connecting}</p>
+                {speaker ? (
+                  <SpeakerRemote device={device} controls={controls} music={music} output={output} send={send} />
+                ) : controls === null ? (
+                  <p className="text-center text-[var(--muted)]">{statusFor(device, 0).text}</p>
                 ) : view === "apps" && controls.apps ? (
                   <AppsPanel deviceId={device.id} apps={device.apps} send={send} onDone={() => setView("remote")} />
                 ) : (

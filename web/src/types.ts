@@ -78,7 +78,11 @@ export interface Device {
   apps: AppList | null;
   /** What was last sent to this Apple TV (a link or a video file), while it plays. */
   send: SendState | null;
+  /** The card's Audio button: the PC's sound on this device. Null if it can't play audio. */
+  audio: DeviceAudio | null;
 }
+
+export type DeviceAudio = "off" | "starting" | "on" | "failed";
 
 /** A video or link sent to an Apple TV. `title` is a file name or link host: never log it. */
 export interface SendState {
@@ -350,7 +354,8 @@ export interface AppState {
 }
 
 export type Command =
-  | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
+  | { type: "activate" | "connect" | "disconnect" | "pair" | "openDevice"; id: string }
+  | { type: "deviceAudio"; id: string; on: boolean }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
   | { type: "openUpdate" | "reportProblem" | "lineUp" }
