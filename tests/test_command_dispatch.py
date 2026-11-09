@@ -367,11 +367,12 @@ async def test_engine_services_send_and_stop_audio() -> None:
 
     started: list[str] = []
 
-    async def start(output_id: str) -> None:
+    async def start(output_id: str, **_settings: object) -> None:
         started.append(output_id)
         raise OSError("no route")
 
-    services = EngineCommandServices(engine, start_output=start)
+    engine.start_output = start  # type: ignore[method-assign]
+    services = EngineCommandServices(engine)
     with pytest.raises(ActionError) as failed:
         await services.start_audio([speaker.id])
     assert failed.value.code == Code.NO_RESPONSE

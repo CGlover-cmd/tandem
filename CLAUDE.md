@@ -135,6 +135,9 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
   Bridge's `setup_message` is overridden (it is). Its state file is
   `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
+- Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
+  Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
+  the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
@@ -154,25 +157,34 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   modules take a scanner or connector callable so tests use fakes. Tests live in `tests/`, with
   shared fakes in `tests/conftest.py`; keep engine coverage ≥80% (CI enforces it).
 - Typed commands (Phase 10a, ADR-0014): parser in `engine/commands.py`, dispatcher in
-  `engine/command_dispatch.py` behind a small `CommandServices` protocol (the engine's, and the
-  demo backend's via `tandem.bridge.demo_commands`). Results are codes plus params; the words
+  `engine/command_dispatch.py` behind a small `CommandServices` protocol (`EngineCommandServices`,
+  which the demo uses too). Results are codes plus params; the words
   live in `web/src/strings.ts`. Command text and results name devices: never log them. Never
   call the feature "Siri".
 - Anything the engine logs or shows goes through `Redactor`; register new private values
   (names, ids) with it. The developer tool (`python -m tandem`) prints placeholders unless
   `--show-private` is given; Claude never passes that flag.
 - The UI's side of the engine's API is the `Backend` protocol in `src/tandem/ui/backend.py`
-  (ADR-0008). `tandem.bridge.EngineBackend` implements it on the real engine and is the only
-  module that imports both layers; `DemoBackend` (invented devices, `--demo`) implements it for
-  tests and previews. Which services an Apple TV must pair, in order, is
+  (ADR-0008). `tandem.bridge.EngineBackend` implements it and is the only module that imports
+  both layers. The demo (`--demo`, screenshots, the window's tests) is the same bridge and engine
+  on invented devices (ADR-0019): `tandem.engine.adapters.demo.DemoDevices` plugs in at the
+  engine's device seam and `tandem.bridge.DemoBackend` is `EngineBackend` over it, so a feature is
+  written once. Window tests use `tests/ui/demo_harness.py` (`settle()` after each command: the
+  engine works through events). Which services an Apple TV must pair, in order, is
   `engine.pairing.services_to_pair` (used by the window and the developer tool).
+- Errors for the window are codes: `BackendError(Problem.X)` (`tandem.ui.backend.Problem`), with
+  the words in `problems` in `web/src/strings.ts`. Control errors are classified once by
+  `engine.control.failure_of`; play/pause intents are `DeviceControls.play()/pause()/play_pause()`.
 - Python here is the Microsoft Store build, which redirects `%LOCALAPPDATA%` writes to its own
   package folder (`%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Local`).
   So `%LOCALAPPDATA%\Tandem` looks empty from outside Python, though Tandem's files are there.
 - UI logic stays in Python (`tandem.ui.controller`, tested with pytest); React only renders the
   state it's sent and sends commands back over the loopback WebSocket (`tandem.ui.server`). Keep
-  `web/src/types.ts` in step with `AppController.snapshot()` and `handle()`. User-facing words
-  live in `web/src/strings.ts`; Python sends codes, not sentences.
+  `web/src/types.ts` in step with `AppController.snapshot()` and its commands, then run
+  `python tools/write_contract.py`: it writes `web/src/contract.generated.ts`, which the web type
+  check holds against types.ts (a pytest test fails while it's stale). Commands are registered
+  per panel in a `CommandTable` (`tandem.ui.window_commands`). User-facing words live in
+  `web/src/strings.ts`; Python sends codes, not sentences.
 - Every colour is in `web/src/theme.ts`; `theme.test.ts` checks WCAG AA contrast on every
   background. Window backgrounds are listed in both `theme.ts` and `tandem.ui.backend.BACKGROUNDS`
   (a test keeps them equal).
@@ -182,11 +194,21 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Without `--demo` the window shows real device names, so never screenshot it; check it through
   the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
-- Panels added after ADR-0008 keep their bridge and demo code in their own modules, mixed into
-  `EngineBackend` / `DemoBackend`: `tandem.bridge_audio` + `ui/demo_audio.py` (Audio, Send),
-  `tandem.bridge_home` (Home bridge), `tandem.bridge_library` + `ui/demo_library.py` (music
-  library, radio, queue), with the controller side in `ui/audio_panel.py` and
-  `ui/library_panel.py`.
+- Panels added after ADR-0008 keep their bridge code in their own modules, mixed into
+  `EngineBackend`: `tandem.bridge_audio` (Audio, Send), `tandem.bridge_home` (Home bridge) and
+  `tandem.bridge_library` (music library, radio, queue, Apple catalog), with the controller
+  side in `ui/audio_panel.py` and `ui/library_panel.py`. The demo's invented music is
+  `engine/adapters/demo_music.py`, fed to the real library, radio and catalog (ADR-0019).
+  Audio outputs are owned by the engine (`engine/outputs.py`, `engine.outputs`: saved
+  settings, states, groups, restore, line-up); switch outputs there, never with
+  `Engine.start_output` directly (ADR-0019).
+- Groups and line-up (ADR-0018): groups in `engine/output_groups.py` (switched by
+  `engine.outputs`); line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
+  The microphone on this PC refuses desktop apps right now (miniaudio init -6, access denied),
+  so a hardware line-up check needs the maintainer to allow it in Windows' privacy settings.
+  Open the mic off the event loop (`asyncio.to_thread`): opening it can block.
+- `tools/update_constraints.py` rewrites `packaging/constraints.txt` from the installed set; the
+  monthly `dependencies.yml` workflow runs it after the tests pass on the newest versions.
 - Music library and radio (Phase 6): `engine/library.py` (folders, tags cached in
   `library.json`, albums) and `engine/radio.py` (Radio Browser search, saved stations in
   `radio.json`), with file and HTTP access in `adapters/library_files.py` (tinytag) and
@@ -206,8 +228,25 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
   GitHub pre-release: only with the maintainer's OK.
+- Don't prune `webview/lib/runtimes` from the app folder: pywebview's WinForms back end looks up
+  every architecture's folder at import, and 1.2.0's window never opened without them. The
+  smoke check's demo runs without a window, so it imports `webview.platforms.winforms` itself.
+- Setup closes a running Tandem (ADR-0017, 1.2.1 addendum): it sets the `Local\TandemQuit`
+  event, which `tandem.ui.platform.on_quit_request` waits on, then stops any Python still
+  running from the install folder, and reopens Tandem if its window was open. The event and
+  mutex names live in both `platform.py` and `tandem.iss`; a test keeps them equal. Running a
+  dev copy while setup runs: it gets asked to quit too.
+- HeroUI sizes every svg inside a `Button` with a class (14 px here); our icons set their size
+  inline so it wins. HeroUI's `.modal__body` is muted by default; `index.css` resets it to the
+  primary colour. WebView2 draws arrow scrollbars unless `scrollbar-width`/`-color` stay at
+  `auto` and `::-webkit-scrollbar` is styled (it is, in `index.css`).
 - HeroUI's `Switch` renders its input only inside `Switch.Content`: put `Switch.Control` (and a
   label, or an `sr-only` span) inside it, or the switch has no accessible control.
+- Online lookups (docs/privacy-policy.md): app icons (itunes.apple.com) and the update check
+  (api.github.com), both on by default, both offered on the installer's Privacy page. Any new
+  request that leaves the PC must be added to that policy and get an off switch; SignPath
+  Foundation's terms require it. `python -m tandem privacy --app-icons off` is how the installer
+  writes the choice.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring

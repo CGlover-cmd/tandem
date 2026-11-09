@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from tandem.engine import diagnostics, pairing
+from tandem.engine import diagnostics, lineup, pairing
 from tandem.engine.audio import AudioError, AudioSink, AudioStats, PcmCapture, StreamState
 from tandem.engine.audio_hub import AudioHub, is_local
 from tandem.engine.control import Controller, DeviceControls
@@ -33,6 +33,9 @@ from tandem.engine.media_send import (
     title_for,
 )
 from tandem.engine.models import Device, LocalOutput, Service
+from tandem.engine.output_groups import GroupStore
+from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.outputs import Outputs
 from tandem.engine.pairing import PairingError, PairingFactory, PinProvider
 from tandem.engine.pc_media import MediaSessions, PcMediaWatcher
 from tandem.engine.player import DecodedStream, Player, Track
@@ -93,6 +96,10 @@ class Backend(Protocol):
         """Windows' media controls: what the PC's apps are playing."""
         ...
 
+    def microphone(self) -> PcmCapture:
+        """The default microphone as 16 kHz mono PCM (for lining speakers up)."""
+        ...
+
 
 AUDIO_CONNECT_TIMEOUT = 15.0
 """Seconds to wait for a speaker before saying it couldn't play (it normally takes one)."""
@@ -123,6 +130,8 @@ class Engine:
         scan_timeout: float = 3.0,
         sleep: Sleep = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
+        output_prefs: OutputPrefsStore | None = None,
+        output_groups: GroupStore | None = None,
     ) -> None:
         self.bus = bus or EventBus()
         self.redactor = redactor or Redactor()
@@ -149,9 +158,11 @@ class Engine:
             self._live_link,
             local_sink=backend.local_sink,
         )
-        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions())
+        self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions(), clock=clock)
         self._media_server: MediaServer | None = None
         self._sends = MediaSends(self.bus.publish)
+        self.outputs = Outputs(self, output_prefs, output_groups)
+        """Outputs as the user sees them: switch them here, not with `start_output`."""
 
     def _live_link(self, device_id: str) -> Link | None:
         session = self._sessions.get(device_id)
@@ -167,6 +178,7 @@ class Engine:
 
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
+        await self.outputs.close()
         await self.discovery.stop()
         await self._sends.close()
         if self._media_server is not None:
@@ -370,6 +382,26 @@ class Engine:
     async def set_output_volume(self, output_id: str, level: float) -> None:
         await self._audio.set_volume(output_id, level)
 
+    async def measure_lag(self, output_id: str) -> lineup.Measurement:
+        """How far behind one playing output is, heard through the microphone (milliseconds
+        from sending to hearing, less what was already queued for it)."""
+        recorded: list[bytes] = []
+        mic = self._backend.microphone()
+        # Opening a microphone can take a moment (Windows checks its privacy setting): not on
+        # the event loop.
+        await asyncio.to_thread(mic.start, recorded.append)
+        try:
+            await self._sleep(lineup.QUIET_MS / 1000)  # the room's noise floor
+            ahead = await self._audio.probe(output_id, lineup.chunks(lineup.beep_pattern(), 20), 20)
+            remaining = lineup.LISTEN_SECONDS - lineup.QUIET_MS / 1000 - 1.2
+            await self._sleep(max(0.0, remaining))
+        finally:
+            await asyncio.to_thread(mic.stop)
+        result = await asyncio.to_thread(lineup.find_pattern, b"".join(recorded))
+        if result.lag_ms is None:
+            return result
+        return lineup.Measurement(max(0, result.lag_ms - lineup.QUIET_MS - round(ahead)))
+
     def set_output_delay(self, output_id: str, delay_ms: int) -> None:
         self._audio.set_delay(output_id, delay_ms)
 
@@ -396,13 +428,13 @@ class Engine:
         link = await self.connect(device_id, timeout=timeout)
         sender = self._backend.media_sender(link)
         if sender is None:
-            raise MediaError("This device can't play videos or links.")
+            raise MediaError("This device can't play videos or links.", MediaError.NOT_A_TV)
         if is_link(location):
             url = location
         else:
             path = Path(location)
             if not await asyncio.to_thread(path.is_file):
-                raise MediaError("That file isn't there any more.")
+                raise MediaError("That file isn't there any more.", MediaError.FILE_GONE)
             if self._media_server is None:
                 self._media_server = MediaServer()
             await self._media_server.start()

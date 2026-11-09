@@ -8,9 +8,10 @@ from typing import Any
 
 import aiohttp
 import pytest
+from demo_harness import settle
 
+from tandem.bridge import DemoBackend
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DemoBackend
 from tandem.ui.server import UiServer
 
 DEV_ORIGIN = "http://localhost:5173"
@@ -208,7 +209,7 @@ async def test_background_photo_upload_and_download(backend: DemoBackend, tmp_pa
                 assert await photo.read() == JPEG
             async with http.get(f"{server.origin}/background?token=x") as refused:
                 assert refused.status == 403
-        await controller.runner.drain()
+        await settle(controller)
         appearance = controller.snapshot()["appearance"]
         assert appearance["background"] == "photo"
         assert isinstance(appearance["photo"], int)

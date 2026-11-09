@@ -5,8 +5,8 @@ everything that needs testing (sorting, the pairing state machine, which action 
 offers) lives here and runs under pytest without a window.
 
 Messages for the user are sent as codes (`{"code": "wrongPin"}`); the front end holds the
-words, so translations live in one place. Text that comes from the backend (a
-`BackendError`) is safe to show and is passed through as `text`.
+words, so translations live in one place. A `BackendError` carries a `Problem` code too,
+which goes to the window as it is.
 
 Now-playing titles and typed commands are personal: they go to the window only, never to a
 log.
@@ -15,18 +15,22 @@ log.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
+import platform
 import re
 import time
+import urllib.parse
+import webbrowser
 from collections.abc import Callable, Coroutine
-from enum import Enum
-from typing import Any, Protocol, TypeVar
+from pathlib import Path
+from typing import Any, Protocol
 
+from tandem import __version__
 from tandem.ui.audio_panel import AudioPanel, FilePicker
 from tandem.ui.backend import (
     MAX_TEXT,
     PHOTO_BACKGROUND,
-    Appearance,
     AppearanceChanged,
     AppInfo,
     AudioChanged,
@@ -61,6 +65,10 @@ from tandem.ui.backend import (
 )
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.library_panel import FolderPicker, LibraryPanel
+from tandem.ui.network_trust import NetworkWatch
+from tandem.ui.updates import GetJson, Update
+from tandem.ui.updates import check as check_for_update
+from tandem.ui.window_commands import CommandTable, Fields
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,7 +197,7 @@ class PairingController:
             flow = await self._backend.begin_pairing(self.device_id)
         except PairingError as error:
             if attempt == self._attempt:
-                self._fail(str(error))
+                self._fail(error.code)
             return
         if attempt != self._attempt:
             await flow.cancel()
@@ -208,7 +216,7 @@ class PairingController:
             return
         except PairingError as error:
             if attempt == self._attempt:
-                self._fail(str(error))
+                self._fail(error.code)
             return
         if attempt != self._attempt:
             return
@@ -221,9 +229,9 @@ class PairingController:
         self._set_state("done")
         self._on_paired(self.device_id)
 
-    def _fail(self, text: str) -> None:
+    def _fail(self, code: str) -> None:
         self._flow = None
-        self.error = {"code": "pairingFailed", "text": text} if text else {"code": "pairingFailed"}
+        self.error = {"code": code or "pairingFailed"}
         self._set_state("failed", force=True)
 
     def _set_state(self, state: str, *, force: bool = False) -> None:
@@ -312,7 +320,7 @@ class CommandBar:
         try:
             outcome = await self._backend.run_command(text)
         except BackendError as error:
-            outcome = CommandOutcome("failed", "backend", {"text": str(error)})
+            outcome = CommandOutcome("failed", "problem", {"problem": error.code})
         finally:
             if attempt == self._attempt:
                 self.running = False
@@ -321,6 +329,32 @@ class CommandBar:
         self.result = outcome
         self.result_for = text
         self._on_change()
+
+
+ISSUES_URL = "https://github.com/CGlover-cmd/tandem/issues/new"
+
+
+def issue_url(version: str = __version__, windows: str | None = None) -> str:
+    """A new GitHub issue with the facts that help and nothing personal."""
+    windows = platform.version() if windows is None else windows
+    body = (
+        f"Tandem {version} on Windows {windows}\n\n"
+        "**What happened:**\n\n\n"
+        "**What I expected:**\n\n\n"
+        "Tandem just saved a diagnostics zip and showed it in File Explorer. Names, addresses "
+        "and identifiers in it are replaced, but have a look first, then drag it here."
+    )
+    query = urllib.parse.urlencode({"title": "Problem: ", "body": body})
+    return f"{ISSUES_URL}?{query}"
+
+
+_APPEARANCE_FLAGS = {
+    "appIcons": "app_icons",
+    "onboarded": "onboarded",
+    "updateCheck": "update_check",
+    "restoreOutputs": "restore_outputs",
+}
+"""The window's names for the on/off appearance and Advanced settings."""
 
 
 class AppController:
@@ -336,11 +370,27 @@ class AppController:
         picker: FilePicker | None = None,
         folder_picker: FolderPicker | None = None,
         photo: BackgroundPhoto | None = None,
+        network: NetworkWatch | None = None,
+        get_json: GetJson | None = None,
+        open_url: Callable[[str], object] = webbrowser.open,
+        reveal: Callable[[Path], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._backend = backend
         self._icons = icons
         self.photo = photo
+        self.network = network
+        self._get_json = get_json
+        """Fetches GitHub's releases list for the update check; None turns it off."""
+        self._open_url = open_url
+        self._reveal = reveal
+        self.update: Update | None = None
+        """A newer Tandem on GitHub, if the update check found one."""
+        self.reporting = False
+        """A diagnostics zip is being written for "Report a problem"."""
+        self.commands_requested = 0
+        """Bumped by the global hotkey: the window opens its command bar when it changes."""
+        """Watches whether Windows trusts this network (Private) or not (Public)."""
         """The user's background photo, if this window offers one."""
         self._clock = clock
         self.music: MusicSnapshot | None = None
@@ -366,6 +416,7 @@ class AppController:
         )
         self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
+        self._table = self._commands_table()
 
     # Observing
 
@@ -415,8 +466,17 @@ class AppController:
                 "background": self.appearance.background,
                 "appIcons": self.appearance.app_icons,
                 "onboarded": self.appearance.onboarded,
+                "updateCheck": self.appearance.update_check,
+                "restoreOutputs": self.appearance.restore_outputs,
+                "photoBlur": self.appearance.photo_blur,
                 "photo": None if self.photo is None else self.photo.version,
             },
+            "network": {"untrusted": self.network is not None and self.network.untrusted},
+            "update": None
+            if self.update is None
+            else {"version": self.update.version, "url": self.update.url},
+            "reporting": self.reporting,
+            "commandsRequested": self.commands_requested,
             "demo": self.demo_mode,
             "reduceMotion": self.reduce_motion,
             "music": _music_json(self.music, self._clock()),
@@ -436,6 +496,10 @@ class AppController:
         self.library.load()
         self.home = self._backend.home()
         self._changed()
+        if self.network is not None:
+            self.network.start(self._changed)
+        if self._get_json is not None and self.appearance.update_check:
+            self.runner.run(self._check_for_update(self._get_json))
         await self._backend.start()
 
     async def stop(self) -> None:
@@ -443,6 +507,8 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
+        if self.network is not None:
+            await self.network.stop()
         await self.runner.drain()
         if self._icons is not None:
             await self._icons.close()
@@ -510,14 +576,42 @@ class AppController:
         """Use `data` (a JPEG the window made) as the background. False if it was refused."""
         if self.photo is None or not self.photo.save(data):
             return False
-        self.set_appearance(
-            self.appearance.theme.value,
-            PHOTO_BACKGROUND,
-            self.appearance.app_icons,
-            self.appearance.onboarded,
-        )
+        self.set_appearance(background=PHOTO_BACKGROUND)
         self._changed()  # the photo's version changed even if the choice didn't
         return True
+
+    def report_problem(self) -> None:
+        """Write a redacted diagnostics zip, show it in Explorer, and open a new GitHub issue
+        for the user to describe the problem and attach the zip. Nothing is sent by Tandem."""
+        if not self.reporting:
+            self.reporting = True
+            self._changed()
+            self.runner.run(self._report_problem())
+
+    async def _report_problem(self) -> None:
+        try:
+            bundle = await self._backend.write_diagnostics()
+        finally:
+            self.reporting = False
+            self._changed()
+        if bundle is not None and self._reveal is not None:
+            self._reveal(bundle)
+        self._open_url(issue_url())
+
+    def set_window_visible(self, visible: bool) -> None:
+        """Called from the window thread's owner when the window is shown or hidden."""
+        self.runner.run(self._backend.set_window_visible(visible))
+
+    def request_commands(self) -> None:
+        """The global hotkey: the window (brought to the front by the caller) opens Commands."""
+        self.commands_requested += 1
+        self._changed()
+
+    async def _check_for_update(self, get_json: GetJson) -> None:
+        update = await check_for_update(get_json, __version__)
+        if update != self.update:
+            self.update = update
+            self._changed()
 
     def music_artwork(self) -> MusicArtwork | None:
         """The artwork for what's playing, for the window only."""
@@ -551,99 +645,158 @@ class AppController:
             self.runner.run(self._send_text(device_id))
 
     def set_appearance(
-        self, theme: str, background: str, app_icons: bool = True, onboarded: bool | None = None
+        self, theme: str | None = None, background: str | None = None, **changes: Any
     ) -> None:
-        if onboarded is None:
-            onboarded = self.appearance.onboarded
+        """Change some appearance and Advanced settings; the rest stay as they are."""
+        if theme is not None:
+            try:
+                changes["theme"] = Theme(theme)
+            except ValueError:
+                _LOGGER.warning("Ignoring an unknown appearance choice")
+                return
+        if background is not None:
+            changes["background"] = background
         try:
-            appearance = Appearance(Theme(theme), background, app_icons, onboarded)
-        except ValueError:
+            appearance = dataclasses.replace(self.appearance, **changes)
+        except (ValueError, TypeError):
             _LOGGER.warning("Ignoring an unknown appearance choice")
             return
         self.runner.run(self._backend.set_appearance(appearance))
 
+    def _set_appearance_from(self, f: Fields) -> None:
+        theme, background = f.text("theme"), f.text("background")
+        if (f.has("theme") and theme is None) or (f.has("background") and background is None):
+            return
+        changes: dict[str, Any] = {}
+        for key, field in _APPEARANCE_FLAGS.items():
+            if f.has(key):
+                value = f.flag(key)
+                if value is None:
+                    return
+                changes[field] = value
+        if f.has("photoBlur"):
+            blur = f.integer("photoBlur")
+            if blur is None:
+                return
+            changes["photo_blur"] = blur
+        self.set_appearance(theme, background, **changes)
+
     def handle(self, command: dict[str, Any]) -> None:
         """Run one command from the front end. Unknown or malformed commands are ignored."""
-        kind = command.get("type")
-        device_id = command.get("id")
-        has_id = isinstance(device_id, str)
-        if kind == "activate" and has_id:
-            self.activate(device_id)
-        elif kind == "connect" and has_id:
-            self.connect(device_id)
-        elif kind == "disconnect" and has_id:
-            self.disconnect(device_id)
-        elif kind == "pair" and has_id:
-            self.pair(device_id)
-        elif kind == "submitPin" and isinstance(command.get("pin"), str):
-            self.pairing.submit_pin(command["pin"])
-        elif kind == "cancelPairing":
-            self.pairing.cancel()
-        elif kind == "closePairing":
-            self.pairing.close()
-        elif kind == "dismissMessage":
-            self.dismiss_message()
-        elif kind == "press" and has_id:
-            key, action = (
-                _enum(RemoteKey, command.get("key")),
-                _enum(KeyAction, command.get("action", "tap")),
-            )
-            if key is not None and action is not None:
-                self.press(device_id, key, action)
-        elif kind == "media" and has_id:
-            media = _enum(MediaCommand, command.get("command"))
-            if media is not None:
-                self.media(device_id, media)
-        elif kind == "setVolume" and has_id:
-            level = command.get("level")
-            if isinstance(level, int | float) and not isinstance(level, bool) and 0 <= level <= 100:
-                self.set_volume(device_id, float(level))
-        elif kind == "setPower" and has_id and isinstance(command.get("on"), bool):
-            self.set_power(device_id, command["on"])
-        elif kind == "loadApps" and has_id:
-            self.load_apps(device_id)
-        elif kind == "launchApp" and has_id and isinstance(command.get("appId"), str):
-            self.launch_app(device_id, command["appId"])
-        elif kind == "setText" and has_id and isinstance(command.get("text"), str):
-            self.set_text(device_id, command["text"])
-        elif kind == "previewCommand" and isinstance(command.get("text"), str):
-            self.commands.preview(command["text"])
-        elif kind == "runCommand" and isinstance(command.get("text"), str):
-            self.commands.run(command["text"])
-        elif kind == "music":
-            music = _enum(MusicCommand, command.get("command"))
-            if music is not None:
-                self.music_command(music)
-        elif kind == "musicSeek":
-            position = command.get("position")
-            if (
-                isinstance(position, int | float)
-                and not isinstance(position, bool)
-                and position >= 0
-            ):
-                self.music_seek(float(position))
-        elif kind == "clearCommand":
-            self.commands.clear()
-        elif kind == "setAppearance":
-            theme = command.get("theme", self.appearance.theme.value)
-            background = command.get("background", self.appearance.background)
-            app_icons = command.get("appIcons", self.appearance.app_icons)
-            onboarded = command.get("onboarded", self.appearance.onboarded)
-            if (
-                isinstance(theme, str)
-                and isinstance(background, str)
-                and isinstance(app_icons, bool)
-                and isinstance(onboarded, bool)
-            ):
-                self.set_appearance(theme, background, app_icons, onboarded)
-        elif kind == "setHomeBridge" and isinstance(command.get("on"), bool):
-            self.runner.run(self._backend.set_home_bridge(command["on"]))
-        elif isinstance(kind, str) and (
-            self.library.handle(kind, command) or self.audio.handle(kind, command)
-        ):
-            pass
-        else:
+        if not self._table.handle(command):
             _LOGGER.debug("Ignoring an unknown command")
+
+    def command_kinds(self) -> frozenset[str]:
+        """Every command the window may send (`Command` in web/src/types.ts)."""
+        return self._table.kinds()
+
+    def _commands_table(self) -> CommandTable:
+        table = CommandTable()
+        self._device_commands(table)
+        self._window_commands(table)
+        self.audio.register(table)
+        self.library.register(table)
+        return table
+
+    def _device_commands(self, table: CommandTable) -> None:
+        """Cards, pairing, the remote, the launcher and typing."""
+        table.on_id("activate", self.activate)
+        table.on_id("connect", self.connect)
+        table.on_id("disconnect", self.disconnect)
+        table.on_id("pair", self.pair)
+        table.on_id("loadApps", self.load_apps)
+
+        def submit_pin(f: Fields) -> None:
+            pin = f.text("pin")
+            if pin is not None:
+                self.pairing.submit_pin(pin)
+
+        def press(f: Fields) -> None:
+            device_id = f.text("id")
+            key, action = f.choice(RemoteKey, "key"), f.choice(KeyAction, "action", "tap")
+            if device_id is not None and key is not None and action is not None:
+                self.press(device_id, key, action)
+
+        def media(f: Fields) -> None:
+            device_id, command = f.text("id"), f.choice(MediaCommand, "command")
+            if device_id is not None and command is not None:
+                self.media(device_id, command)
+
+        def set_volume(f: Fields) -> None:
+            device_id, level = f.text("id"), f.number("level", 0, 100)
+            if device_id is not None and level is not None:
+                self.set_volume(device_id, level)
+
+        def set_power(f: Fields) -> None:
+            device_id, on = f.text("id"), f.flag("on")
+            if device_id is not None and on is not None:
+                self.set_power(device_id, on)
+
+        def launch_app(f: Fields) -> None:
+            device_id, app_id = f.text("id"), f.text("appId")
+            if device_id is not None and app_id is not None:
+                self.launch_app(device_id, app_id)
+
+        def set_text(f: Fields) -> None:
+            device_id, text = f.text("id"), f.text("text")
+            if device_id is not None and text is not None:
+                self.set_text(device_id, text)
+
+        table.on("submitPin", submit_pin)
+        table.on("cancelPairing", lambda _f: self.pairing.cancel())
+        table.on("closePairing", lambda _f: self.pairing.close())
+        table.on("press", press)
+        table.on("media", media)
+        table.on("setVolume", set_volume)
+        table.on("setPower", set_power)
+        table.on("launchApp", launch_app)
+        table.on("setText", set_text)
+
+    def _window_commands(self, table: CommandTable) -> None:
+        """Messages, typed commands, music, appearance, the Home bridge and links out."""
+
+        def text_command(action: Callable[[str], None]) -> Callable[[Fields], None]:
+            def handler(f: Fields) -> None:
+                text = f.text("text")
+                if text is not None:
+                    action(text)
+
+            return handler
+
+        def music(f: Fields) -> None:
+            command = f.choice(MusicCommand, "command")
+            if command is not None:
+                self.music_command(command)
+
+        def music_seek(f: Fields) -> None:
+            position = f.number("position", 0, float("inf"))
+            if position is not None:
+                self.music_seek(position)
+
+        def set_home_bridge(f: Fields) -> None:
+            on = f.flag("on")
+            if on is not None:
+                self.runner.run(self._backend.set_home_bridge(on))
+
+        def open_update(_f: Fields) -> None:
+            if self.update is not None:
+                self._open_url(self.update.url)
+
+        def open_network_settings(_f: Fields) -> None:
+            if self.network is not None:
+                self.network.open_settings()
+
+        table.on("dismissMessage", lambda _f: self.dismiss_message())
+        table.on("openUpdate", open_update)
+        table.on("reportProblem", lambda _f: self.report_problem())
+        table.on("openNetworkSettings", open_network_settings)
+        table.on("previewCommand", text_command(self.commands.preview))
+        table.on("runCommand", text_command(self.commands.run))
+        table.on("clearCommand", lambda _f: self.commands.clear())
+        table.on("music", music)
+        table.on("musicSeek", music_seek)
+        table.on("setAppearance", self._set_appearance_from)
+        table.on("setHomeBridge", set_home_bridge)
 
     # Internals
 
@@ -698,8 +851,8 @@ class AppController:
             if self._apps.get(device_id) is not apps:
                 return  # disconnected or reloaded meanwhile
             apps.state = "failed"
-            if isinstance(error, BackendError) and str(error):
-                apps.error = {"code": "backend", "text": str(error)}
+            if isinstance(error, BackendError) and error.code:
+                apps.error = {"code": error.code}
             else:
                 _LOGGER.error("Loading apps failed: %s", type(error).__name__)
                 apps.error = {"code": "taskFailed"}
@@ -742,8 +895,8 @@ class AppController:
             self._text_sending.discard(device_id)
 
     def _on_task_error(self, error: BaseException) -> None:
-        if isinstance(error, BackendError) and str(error):
-            self.message = {"code": "backend", "text": str(error)}
+        if isinstance(error, BackendError) and error.code:
+            self.message = {"code": error.code}
         else:
             # Type name only: exception messages can contain addresses (docs/PRIVACY.md).
             _LOGGER.error("UI task failed: %s", type(error).__name__)
@@ -829,13 +982,3 @@ def _outcome_json(outcome: CommandOutcome | None) -> dict[str, Any] | None:
         "params": dict(outcome.params),
         "suggestions": list(outcome.suggestions),
     }
-
-
-E = TypeVar("E", bound=Enum)
-
-
-def _enum(kind: type[E], value: object) -> E | None:
-    try:
-        return kind(value)
-    except ValueError:
-        return None

@@ -193,7 +193,6 @@ export const strings = {
     turnOn: "Turn on",
     nothingPlaying: "Nothing playing",
     keyboardHint: "Arrow keys move, Enter selects, Backspace goes back. Hold for a long press.",
-    done: "Done",
   },
 
   launcher: {
@@ -248,14 +247,23 @@ export const strings = {
       starting: "Starting…",
       streaming: "Playing",
       waiting: "Reconnecting…",
-      failed: "Couldn't play here. Turn it on to try again.",
+      failed: "Couldn't play",
       direct: "Playing from Windows",
     } as Record<string, string>,
     directNote: "Windows plays here itself, so it's always on.",
+    problem: {
+      unreachable: "No answer. Check it's on and on the same Wi-Fi as this PC, then try again.",
+      access:
+        "It turned Tandem away. In the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+      failed: "Couldn't play here. Turn it on to try again.",
+      network: "Windows doesn't trust this network yet, so speakers can't reach Tandem.",
+    } as Record<string, string>,
+    trustNetwork: "Trust this network…",
     pairFirst: "Pair first",
     turnOn: (name: string) => `Play on ${name}`,
     allOff: "Turn all off",
-    done: "Done",
+    master: "All speakers",
+    masterOf: "Volume for all playing speakers",
     badge: (count: number) => (count === 1 ? "1 playing" : `${count} playing`),
   },
 
@@ -267,17 +275,43 @@ export const strings = {
     addSteps: "In the Home app, choose Add Accessory, then More Options, pick Tandem and type this code:",
     added: "Tandem is in your Home app.",
     starting: "Starting…",
-    failed: "Tandem couldn't start its Home bridge. Check that Windows allows Tandem on private networks.",
+    failed: "Tandem couldn't start its Home bridge. Check that Windows Firewall allows Tandem.",
     switchOn: (name: string) => `${name}: on`,
     switchOff: (name: string) => `${name}: off`,
   },
 
+  groups: {
+    title: "Groups",
+    saveAs: (count: number) => `Save these ${count} speakers as a group…`,
+    nameLabel: "Group name",
+    namePlaceholder: "Downstairs",
+    save: "Save",
+    cancel: "Cancel",
+    remove: "Remove",
+    delete: (name: string) => `Remove the group ${name}`,
+    turnOn: (name: string) => `Play on the group ${name}`,
+    partly: (members: string) => `Some playing: ${members}`,
+    noneAround: "None of its speakers are around right now.",
+  },
+  update: {
+    title: (version: string) => `Tandem ${version} is out`,
+    body: "See what's new and download it from GitHub.",
+    open: "Get the update",
+    later: "Later",
+  },
+  network: {
+    title: "Is this your network?",
+    body: "Windows treats this network as Public, so Tandem keeps your speakers and TV out. If it's your own network, mark it as trusted (Private) in Windows. Windows remembers your choice for each network.",
+    trust: "Trust this network…",
+    steps: "In Windows Settings, open this network's Properties and choose Private network.",
+    later: "Not now",
+  },
   onboarding: {
     title: "Getting started",
     subtitle: "Three quick steps. This list ticks itself off as you go.",
     findTitle: "Find your devices",
     findDetail:
-      "Make sure your speakers and TV are on and on the same Wi-Fi as this PC. If Windows asks about network access for Tandem, allow private networks.",
+      "Make sure your speakers and TV are on and on the same Wi-Fi as this PC.",
     findDone: (count: number) => (count === 1 ? "Tandem found 1 device." : `Tandem found ${count} devices.`),
     pairTitle: "Pair your Apple TV",
     pairDetail: "Choose Pair and type the PIN your TV shows. It asks twice: remote control, then AirPlay.",
@@ -314,7 +348,6 @@ export const strings = {
     ended: (title: string) => `Finished ${title}`,
     failed: (title: string) => `The TV couldn't play ${title}`,
     stop: "Stop",
-    done: "Done",
     connectFirst: "Connect the TV first.",
   },
 
@@ -385,7 +418,7 @@ export const strings = {
         `There's no device called “${p.name}”. Home switches aren't in Tandem yet.`,
       unknownSwitch: (p) => `There's no switch or device called “${p.name}”.`,
       noResponse: (p) => (p.device ? `${p.device} didn't respond. Try again.` : "No response. Try again."),
-      backend: (p) => p.text || "Something went wrong. Try again.",
+      problem: (p) => problemText({ code: p.problem ?? "" }),
       noCommands: () => "Commands aren't available here.",
     } satisfies Record<string, Words>,
     runKey: "to run",
@@ -408,30 +441,79 @@ export const strings = {
     changePhoto: "Change photo…",
     photoFailed: "Tandem couldn't use that picture. Try a JPEG or PNG photo.",
     advanced: "Advanced settings",
+    more: "More settings",
+    photoBlur: "Blur",
+    updateCheck: "Check for updates",
+    updateCheckDetail: "When Tandem opens, it asks GitHub whether there's a newer version. Nothing about your PC or devices is sent.",
+    restoreOutputs: "Turn my speakers back on",
+    restoreOutputsDetail: "When Tandem starts, the speakers you left on play again as soon as they're found.",
+    report: "Report a problem…",
+    reportDetail: "Saves a diagnostics file with names and addresses removed, then opens a GitHub issue for you to describe the problem and attach it.",
+    reporting: "Saving diagnostics…",
+    hotkey: "Press Ctrl+Alt+K anywhere in Windows to open Tandem's commands.",
     advancedTitle: "Advanced",
     advancedSubtitle: "Settings most people never need.",
     delays: "Speaker delay",
     delaysDetail:
       "Speakers play a moment behind the PC, some more than others. Delay the faster ones until they all play together.",
     noDelays: "No speakers to line up yet.",
+    lineUp: "Line up automatically",
+    lineUpDetail:
+      "Turn on the speakers you want together and pause your music. Tandem plays three short beeps on each speaker in turn, listens with this PC's microphone, and sets the delays. Your PC's own speakers are left as they are.",
+    lineUpListening: (name: string) => `Listening for ${name}…`,
+    lineUpDone: "Done. Your speakers should now play together.",
+    lineUpProblem: {
+      tooFew: "Turn on at least two speakers first.",
+      noMic:
+        "Tandem couldn't use a microphone. Check one is connected, and that Windows lets desktop apps use it (Settings, Privacy & security, Microphone).",
+      notHeard: "Tandem couldn't hear the beeps from {name}. Move the PC closer, turn that speaker up, and try again.",
+      noisy: "It's too loud to hear the beeps. Pause any music and try again.",
+    } as Record<string, string>,
     back: "Back",
     appIcons: "App icons",
     appIconsDetail: "Shows each Apple TV app's real icon, looked up on the App Store. Turn off to show letters instead.",
-    done: "Done",
   },
 };
 
+/** Words for every problem code Python sends (`tandem.ui.backend.Problem` and the controller's
+ * own). A contract test checks that every Python code has an entry here. */
+export const problems: Record<string, string> = {
+  pinFormat: "Enter the 4-digit PIN shown on the TV.",
+  wrongPin: "That PIN didn't match. Check the TV and try again.",
+  pairingFailed: "Pairing didn't work. Try again.",
+  taskFailed: "Something went wrong. Try again.",
+  notAvailable: "That device is no longer available.",
+  pairFirst: "Pair this device first.",
+  noPairingNeeded: "This device doesn't need pairing.",
+  pinExpired: "The PIN expired. Try again.",
+  couldNotPair: "Tandem couldn't pair with this device. Make sure it's on and try again.",
+  notConnected: "This device isn't connected.",
+  cantDoThat: "This device can't do that right now.",
+  noResponse: "The device didn't respond. Try again.",
+  noTextField: "Select a search box or text field on the TV first, then type.",
+  nothingPlaying: "Nothing is playing on this PC.",
+  appCant: "The app that's playing doesn't allow that right now.",
+  appDidntRespond: "The app didn't respond. Try again, or use the app itself.",
+  speakerGone: "That speaker is no longer available.",
+  noAudio: "Tandem couldn't send audio there. Make sure it's on and try again.",
+  noSend: "The TV couldn't play that. Try an MP4 or MOV file, or a direct link to one.",
+  notATv: "Only an Apple TV can play videos and links.",
+  fileGone: "That file isn't there any more.",
+  connectFirst: "Connect the TV first.",
+  noLocation: "Paste a link or choose a file first.",
+  homeUnavailable: "The Home bridge isn't available on this PC.",
+  homeFailed: "Tandem couldn't start its Home bridge. Try again.",
+  badGroup: "A group needs a name and at least one speaker.",
+  groupNonePlayed: "None of the speakers in that group could play.",
+  groupGone: "That group is no longer available.",
+  notInLibrary: "That isn't in your music library any more.",
+  stationGone: "That station isn't in the list any more. Search again.",
+  folderNotAdded: "Tandem couldn't add that folder.",
+  appleMusicDidntOpen: "The Apple Music app didn't open. Make sure it's installed.",
+};
+
 export function problemText(problem: Problem): string {
-  switch (problem.code) {
-    case "pinFormat":
-      return "Enter the 4-digit PIN shown on the TV.";
-    case "wrongPin":
-      return "That PIN didn't match. Check the TV and try again.";
-    case "pairingFailed":
-      return problem.text || "Pairing didn't work. Try again.";
-    case "backend":
-      return problem.text || "Something went wrong. Try again.";
-    default:
-      return "Something went wrong. Try again.";
-  }
+  return Object.prototype.hasOwnProperty.call(problems, problem.code)
+    ? problems[problem.code]!
+    : problems.taskFailed!;
 }

@@ -58,7 +58,17 @@ h2 {
 
 /* Over the user's photo every bit of text sits on glass, the header included (theme.test.ts). */
 .app-backdrop[data-photo] {
-  background-attachment: fixed;
+  position: relative;
+  isolation: isolate;
+}
+
+/* The photo under its scrim, fixed while the page scrolls; blurred from Settings. Its edges sit
+   off screen so a blur doesn't show a pale rim. */
+.photo-layer {
+  position: fixed;
+  inset: -32px;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .app-backdrop[data-photo] .app-header {
@@ -67,6 +77,12 @@ h2 {
   border: 1px solid var(--tandem-hairline);
   border-radius: 20px;
   padding: 12px 16px;
+}
+
+.network-note {
+  border-radius: 20px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
 }
 
 /* Glass: translucent surface that blurs whatever is behind it. */
@@ -948,4 +964,96 @@ h2 {
   color: var(--foreground);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* Sheets: HeroUI gives a modal body its muted colour, which turned every row title grey.
+   Body text is the primary colour; secondary lines opt into var(--muted) themselves. */
+.modal__body {
+  color: var(--foreground);
+}
+
+/* Scrollbars: a thin rounded thumb with no arrow buttons, so Windows' scrollbar doesn't sit
+   inside the glass. WebView2 (Chromium) uses ::-webkit-scrollbar only while the standard
+   scrollbar-width and scrollbar-color are left at auto, so those are reset here. */
+* {
+  scrollbar-width: auto !important;
+  scrollbar-color: auto !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--tandem-hairline) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted) padding-box;
+}
+
+/* Sliders: a thin track and a round knob, like the system's own. */
+.slider[data-orientation="horizontal"] .slider__track {
+  height: 6px;
+  margin-block: 7px;
+}
+
+.slider[data-orientation="horizontal"] .slider__thumb {
+  background: transparent;
+}
+
+.slider[data-orientation="horizontal"] .slider__thumb::after {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  box-shadow:
+    0 1px 3px var(--tandem-shadow),
+    0 0 0 0.5px var(--tandem-hairline);
+}
+
+/* The main play button: the glyph in the primary colour, not the accent. */
+.media-main {
+  color: var(--foreground) !important;
+}
+
+.media-main-compact {
+  width: 40px !important;
+  height: 40px !important;
+}
+
+/* Beside the touch pad, now playing is one row, so the remote fits without scrolling. */
+.now-playing-compact {
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.now-playing-compact .now-playing-title {
+  font-size: 15px;
+}
+
+.now-playing-compact .now-playing-subtitle {
+  margin-top: 0;
+}
+
+/* A connected card's Disconnect: available, but quieter than Remote. */
+.card-quiet-action {
+  color: var(--muted) !important;
+}
+
+/* Settings: links to other sheets, as rows with a chevron. */
+.settings-link {
+  justify-content: space-between !important;
+  border-radius: 12px !important;
 }

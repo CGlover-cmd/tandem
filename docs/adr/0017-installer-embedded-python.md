@@ -43,3 +43,43 @@ missed it because they fake pyatv. Now:
   tests what ships. `pyproject.toml` also caps srptools below 2 for pip installs.
 - `tests/test_dependencies.py` runs pyatv's real SRP code against srptools' server side.
 - Moving a pin is a deliberate change: update the file, run the tests, check on hardware.
+
+## Addendum (1.1.1): Windows' Private/Public setting is the trust list
+Windows often marks home Wi-Fi as Public. With a Private-only allow rule, Windows then asked
+"allow Python on this network?" on first run, a second prompt after setup's own. Opening Public
+networks too would remove the prompt but expose Tandem's listeners (AirPlay timing ports while
+streaming, the token-path media server after a send, the HomeKit bridge if enabled) on café
+and hotel Wi-Fi. The maintainer chose per-network trust instead:
+- The installer adds an allow rule (Private and Domain profiles, `remoteip=localsubnet`) and a
+  block rule (Public profile) for Tandem's pythonw.exe. With a rule on every profile, Windows
+  never prompts. The release workflow checks both rules and that uninstall removes them.
+- Windows remembers each network's category, so it is the trust list; Tandem keeps none of its
+  own. A Tandem-side list would need an admin prompt per change, and firewall rules can't tell
+  two networks apart by name (many share the same subnet).
+- `tandem.ui.network_trust` reads the connected networks' categories through
+  `INetworkListManager` (ctypes, no admin). When all are Public, the window shows "Is this your
+  network?" with a button to `ms-settings:network-status`.
+- Consequence: on a Public network Tandem can't find or reach speakers until the user marks it
+  Private. The UI server stays loopback-only either way.
+
+## Addendum (1.2.1): setup closes a running Tandem
+Installing 1.2.0 over a running copy showed Windows' "applications are using files" prompt,
+then "Setup was unable to automatically close all applications". Inno Setup's
+`CloseApplications` uses the Restart Manager, which asks a program's windows to close; Tandem's
+window hides to the tray when closed, and its tray and engine have no window to ask. Now:
+- Tandem waits on a named event, `Local\TandemQuit` (`tandem.ui.platform.on_quit_request`),
+  in window and `--no-window` modes. When it's set, Tandem quits as if Quit were chosen in the
+  tray, so streams stop and devices disconnect cleanly.
+- Setup (`PrepareToInstall`) and the uninstaller (`usUninstall`) set the event, wait up to 15
+  seconds for every listening copy to exit, then stop any Python process still running from
+  Tandem's own folder (WMI). That covers copies from before 1.2.1, which can't be asked.
+  Python run from anywhere else is never stopped.
+- If a Tandem window was open (its single-instance mutex was held), setup opens Tandem again
+  afterwards as the signed-in user, silent installs included, instead of offering the
+  "Open Tandem" box. It doesn't when a copy setup leaves alone still holds the mutex.
+- `CloseApplications` stays on as a backstop. The release workflow installs over a running copy
+  and a stand-in older one, checks the first quit cleanly (exit 0) and the second was stopped,
+  and that the Restart Manager found nothing; then uninstalls over a running copy.
+- Limits: a copy from before 1.2.1 is stopped, not asked, so it doesn't say goodbye to its
+  devices. A copy run from a developer checkout on code older than 1.2.1 is left running; it
+  doesn't hold the installed files, so setup isn't blocked, but Tandem isn't reopened.

@@ -24,6 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 SETTINGS_VERSION = 1
 
 _NAME = re.compile(r"[a-z][a-z0-9-]{0,31}")
+MAX_PHOTO_BLUR = 24
 
 
 class Theme(Enum):
@@ -46,12 +47,20 @@ class Settings:
     """The first-run checklist has been closed."""
     home_bridge: bool = False
     """Show Tandem in the Home app as a bridge with switches (ADR-0016). Off by default."""
+    update_check: bool = True
+    """Look for a newer Tandem on GitHub's releases page when the window opens."""
+    restore_outputs: bool = False
+    """Turn the speakers that were on back on when Tandem starts."""
+    photo_blur: int = 0
+    """Blur over the user's background photo, in pixels (0 to 24)."""
 
     def __post_init__(self) -> None:
         if not 2.0 <= self.discovery_interval_s <= 300.0:
             raise ValueError("discovery_interval_s must be between 2 and 300 seconds")
         if not _NAME.fullmatch(self.background):
             raise ValueError("background must be a short lowercase name")
+        if not 0 <= self.photo_blur <= MAX_PHOTO_BLUR:
+            raise ValueError("photo_blur must be between 0 and 24")
 
     def to_json(self) -> dict[str, Any]:
         data: dict[str, Any] = {"version": SETTINGS_VERSION}
@@ -102,7 +111,9 @@ class SettingsChanged(Event):
 
 
 class SettingsStore:
-    def __init__(self, path: Path, bus: EventBus | None = None) -> None:
+    """The user's settings, in `path` (or only in memory when `path` is None: the demo)."""
+
+    def __init__(self, path: Path | None, bus: EventBus | None = None) -> None:
         self._path = path
         self._bus = bus
         self._settings = Settings()
@@ -113,6 +124,8 @@ class SettingsStore:
 
     def load(self) -> Settings:
         """Read the file. A missing or unreadable file gives defaults (and is left untouched)."""
+        if self._path is None:
+            return self._settings
         try:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -148,6 +161,8 @@ class SettingsStore:
     def save(self, settings: Settings | None = None) -> None:
         """Write atomically, so a crash mid-write never leaves a half-written file."""
         settings = settings or self._settings
+        if self._path is None:
+            return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         text = json.dumps(settings.to_json(), indent=2) + "\n"
         fd, tmp = tempfile.mkstemp(prefix=".settings-", dir=self._path.parent)

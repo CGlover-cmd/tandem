@@ -79,11 +79,14 @@ function useNow(active: boolean): number {
   return now;
 }
 
-function NowPlayingCard({ deviceId, playing, controls, send }: {
+/** What's playing, with its media buttons. `compact` (beside the touch pad) puts the buttons on
+ * the title's row and keeps only a thin progress line, so the remote fits without scrolling. */
+function NowPlayingCard({ deviceId, playing, controls, send, compact = false }: {
   deviceId: string;
   playing: NowPlaying;
   controls: Controls;
   send: Send;
+  compact?: boolean;
 }) {
   // Count on from the last position the device pushed, while it plays.
   const [since, setSince] = useState(() => performance.now());
@@ -105,12 +108,63 @@ function NowPlayingCard({ deviceId, playing, controls, send }: {
     next: { icon: <NextIcon size={22} />, label: strings.remote.next },
   };
 
+  const buttons = (
+    <div className="flex flex-none items-center justify-center gap-1">
+      {mediaButtons(controls)
+        .filter((command) => !compact || command === "previous" || command === "play_pause" || command === "next")
+        .map((command) => (
+          <Button
+            key={command}
+            isIconOnly
+            variant={command === "play_pause" ? "secondary" : "ghost"}
+            size={command === "play_pause" && !compact ? "lg" : "md"}
+            aria-label={icons[command].label}
+            onPress={() => media(command)}
+            className={command === "play_pause" ? (compact ? "media-main media-main-compact" : "media-main") : undefined}
+          >
+            {icons[command].icon}
+          </Button>
+        ))}
+    </div>
+  );
+  const hasProgress = !nothing && position !== null && playing.totalTime !== null && playing.totalTime > 0;
+
+  if (compact) {
+    return (
+      <section
+        className="now-playing now-playing-compact glass"
+        aria-label={nothing ? strings.remote.nothingPlaying : playing.title ?? ""}
+      >
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            {playing.app && <p className="now-playing-app">{playing.app}</p>}
+            <p className="now-playing-title">{nothing ? strings.remote.nothingPlaying : playing.title}</p>
+            {!nothing && subtitle(playing) && <p className="now-playing-subtitle">{subtitle(playing)}</p>}
+          </div>
+          {buttons}
+        </div>
+        {hasProgress && (
+          <ProgressBar
+            aria-label={`${formatTime(position)} of ${formatTime(playing.totalTime!)}`}
+            value={position}
+            maxValue={playing.totalTime!}
+            size="sm"
+          >
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="now-playing glass" aria-label={nothing ? strings.remote.nothingPlaying : playing.title ?? ""}>
       {playing.app && <p className="now-playing-app">{playing.app}</p>}
       <p className="now-playing-title">{nothing ? strings.remote.nothingPlaying : playing.title}</p>
       {!nothing && subtitle(playing) && <p className="now-playing-subtitle">{subtitle(playing)}</p>}
-      {!nothing && position !== null && playing.totalTime !== null && playing.totalTime > 0 && (
+      {hasProgress && position !== null && playing.totalTime !== null && (
         <div className="flex flex-col gap-1">
           <ProgressBar
             aria-label={`${formatTime(position)} of ${formatTime(playing.totalTime)}`}
@@ -128,21 +182,7 @@ function NowPlayingCard({ deviceId, playing, controls, send }: {
           </div>
         </div>
       )}
-      <div className="flex items-center justify-center gap-2">
-        {mediaButtons(controls).map((command) => (
-          <Button
-            key={command}
-            isIconOnly
-            variant={command === "play_pause" ? "secondary" : "ghost"}
-            size={command === "play_pause" ? "lg" : "md"}
-            aria-label={icons[command].label}
-            onPress={() => media(command)}
-            className={command === "play_pause" ? "media-main" : undefined}
-          >
-            {icons[command].icon}
-          </Button>
-        ))}
-      </div>
+      {buttons}
     </section>
   );
 }
@@ -329,7 +369,13 @@ export function RemoteSheet({ device, onClose, send }: Props) {
                       />
                     )}
                     {controls.nowPlaying && (
-                      <NowPlayingCard deviceId={device.id} playing={controls.nowPlaying} controls={controls} send={send} />
+                      <NowPlayingCard
+                        deviceId={device.id}
+                        playing={controls.nowPlaying}
+                        controls={controls}
+                        send={send}
+                        compact={controls.remote}
+                      />
                     )}
                     {controls.remote && (
                       <>
@@ -362,11 +408,6 @@ export function RemoteSheet({ device, onClose, send }: Props) {
                   </>
                 )}
               </Modal.Body>
-              <Modal.Footer>
-                <Button variant="primary" onPress={onClose}>
-                  {strings.remote.done}
-                </Button>
-              </Modal.Footer>
             </>
           )}
         </Modal.Dialog>

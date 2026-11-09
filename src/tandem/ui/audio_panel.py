@@ -19,12 +19,15 @@ from tandem.ui.backend import (
     OutputState,
     SendSnapshot,
 )
+from tandem.ui.window_commands import CommandTable, Fields
 
 _LOGGER = logging.getLogger(__name__)
 
 LIVE = frozenset({OutputState.STARTING, OutputState.STREAMING, OutputState.WAITING})
 """Outputs Tandem is sending to (the header's "playing" count). A failed output and the PC's
 default output, which Windows plays itself, don't count."""
+
+MAX_GROUP_NAME = 40
 
 MAX_LOCATION = 2000
 """Longest link or path the window may send."""
@@ -91,6 +94,17 @@ class AudioPanel:
             "source": self.audio.source.value,
             "pcOutputsHidden": self.audio.pc_outputs_hidden,
             "outputs": [_output_json(o) for o in self.audio.outputs],
+            "lineup": {
+                "state": self.audio.lineup.state.value,
+                "output": self.audio.lineup.output,
+                "problem": None
+                if self.audio.lineup.problem is None
+                else self.audio.lineup.problem.value,
+            },
+            "groups": [
+                {"id": g.id, "name": g.name, "outputs": list(g.outputs), "state": g.state.value}
+                for g in self.audio.groups
+            ],
             "streaming": sum(o.state in LIVE for o in self.audio.outputs),
             "canPickFiles": self.can_pick_files,
             "picking": self.picking,
@@ -102,38 +116,70 @@ class AudioPanel:
 
     # Commands
 
-    def handle(self, kind: str, command: dict[str, Any]) -> bool:
-        """Run an Audio or Send command. False if `kind` isn't one of them."""
-        output_id = command.get("id")
-        has_id = isinstance(output_id, str)
-        if kind == "setOutput" and has_id and isinstance(command.get("on"), bool):
-            self._run(self._backend.set_output(output_id, command["on"]))
-        elif kind == "setOutputVolume" and has_id and _number(command.get("level"), 0, 100):
-            self._volumes.put(output_id, float(command["level"]))
-        elif kind == "setOutputDelay" and has_id and _number(command.get("ms"), 0, MAX_DELAY_MS):
-            self._delays.put(output_id, int(command["ms"]))
-        elif kind == "setAudioSource":
-            try:
-                source = AudioSourceChoice(command.get("source"))
-            except ValueError:
-                return True
-            self._run(self._backend.set_audio_source(source))
-        elif kind == "sendMedia" and has_id and isinstance(command.get("location"), str):
-            location = command["location"].strip()
-            if location and len(location) <= MAX_LOCATION:
-                self._run(self._backend.send_media(output_id, location))
-        elif kind == "pickMedia" and has_id:
+    def register(self, table: CommandTable) -> None:
+        """The Audio and Send to TV panels' commands."""
+        backend, run = self._backend, self._run
+
+        def set_output(f: Fields) -> None:
+            output_id, on = f.text("id"), f.flag("on")
+            if output_id is not None and on is not None:
+                run(backend.set_output(output_id, on))
+
+        def set_volume(f: Fields) -> None:
+            output_id, level = f.text("id"), f.number("level", 0, 100)
+            if output_id is not None and level is not None:
+                self._volumes.put(output_id, level)
+
+        def set_delay(f: Fields) -> None:
+            output_id, ms = f.text("id"), f.number("ms", 0, MAX_DELAY_MS)
+            if output_id is not None and ms is not None:
+                self._delays.put(output_id, int(ms))
+
+        def set_source(f: Fields) -> None:
+            source = f.choice(AudioSourceChoice, "source")
+            if source is not None:
+                run(backend.set_audio_source(source))
+
+        def send_media(f: Fields) -> None:
+            device_id, location = f.text("id"), f.text("location", limit=MAX_LOCATION)
+            if device_id is not None and location is not None and location.strip():
+                run(backend.send_media(device_id, location.strip()))
+
+        def pick_media(device_id: str) -> None:
             if self._picker is not None and not self.picking:
-                self._run(self._pick(output_id))
-        elif kind == "stopMedia" and has_id:
-            self._run(self._backend.stop_media(output_id))
-        elif kind == "allOutputsOff":
+                run(self._pick(device_id))
+
+        def save_group(f: Fields) -> None:
+            name, outputs = f.text("name"), f.texts("outputs", limit=50)
+            if name is not None and outputs is not None:
+                run(backend.save_group(name[:MAX_GROUP_NAME], outputs))
+
+        def set_group(f: Fields) -> None:
+            group_id, on = f.text("id"), f.flag("on")
+            if group_id is not None and on is not None:
+                run(backend.set_group(group_id, on))
+
+        def line_up(_f: Fields) -> None:
+            if self.audio.lineup.state.value != "listening":
+                run(backend.line_up())
+
+        def all_off(_f: Fields) -> None:
             for output in self.audio.outputs:
                 if output.state in LIVE or output.state is OutputState.FAILED:
-                    self._run(self._backend.set_output(output.id, False))
-        else:
-            return False
-        return True
+                    run(backend.set_output(output.id, False))
+
+        table.on("setOutput", set_output)
+        table.on("setOutputVolume", set_volume)
+        table.on("setOutputDelay", set_delay)
+        table.on("setAudioSource", set_source)
+        table.on("sendMedia", send_media)
+        table.on_id("pickMedia", pick_media)
+        table.on_id("stopMedia", lambda device_id: run(backend.stop_media(device_id)))
+        table.on("saveGroup", save_group)
+        table.on_id("deleteGroup", lambda group_id: run(backend.delete_group(group_id)))
+        table.on("setGroup", set_group)
+        table.on("lineUp", line_up)
+        table.on("allOutputsOff", all_off)
 
     async def _pick(self, device_id: str) -> None:
         assert self._picker is not None
@@ -158,8 +204,5 @@ def _output_json(output: OutputSnapshot) -> dict[str, Any]:
         "delayMs": output.delay_ms,
         "deviceKind": None if output.device_kind is None else output.device_kind.value,
         "needsPairing": output.needs_pairing,
+        "problem": None if output.problem is None else output.problem.value,
     }
-
-
-def _number(value: object, low: float, high: float) -> bool:
-    return isinstance(value, int | float) and not isinstance(value, bool) and low <= value <= high

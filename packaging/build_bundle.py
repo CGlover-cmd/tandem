@@ -66,9 +66,12 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
         [*pip, str(site_packages), "--no-binary", "zeroconf", "zeroconf"], check=True, env=env
     )
     subprocess.run([*pip, str(site_packages), f"{wheel}[ui]"], check=True, env=env)
-    for junk in site_packages.glob("*/__pycache__"):
+    for junk in site_packages.rglob("__pycache__"):
         shutil.rmtree(junk, ignore_errors=True)
     shutil.rmtree(site_packages / "bin", ignore_errors=True)
+    _prune(runtime, site_packages)
+    # No compiled bytecode in the folder (it would add about 16 MB to the download). The
+    # installer compiles it on the PC instead (tandem.iss); the portable copy caches it itself.
 
     from tandem.ui.icon import write_ico
 
@@ -76,6 +79,27 @@ def build(wheel: Path, out: Path, python_version: str) -> None:
     shutil.copy(ROOT / "LICENSE", out / "LICENSE.txt")
     shutil.copy(ROOT / "README.md", out / "README.md")
     print(f"Built {out}")
+
+
+# Parts of the runtime and libraries Tandem never uses, left out of the download.
+_UNUSED_RUNTIME = ("sqlite3.dll", "_sqlite3.pyd", "_msi.pyd")
+# Keep all of webview/lib/runtimes: pywebview looks up every architecture's folder when it
+# loads, and 1.2.0's window never opened without the x86 and ARM64 ones.
+_UNUSED_LIBRARY_PARTS = ("pythonnet/runtime/Python.Runtime.xml",)
+
+
+def _prune(runtime: Path, site_packages: Path) -> None:
+    for name in _UNUSED_RUNTIME:
+        (runtime / name).unlink(missing_ok=True)
+    for part in _UNUSED_LIBRARY_PARTS:
+        path = site_packages / part
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+    for tests in [*site_packages.glob("*/tests"), *site_packages.glob("*/test")]:
+        if tests.is_dir():
+            shutil.rmtree(tests)
 
 
 def smoke(out: Path) -> None:
@@ -87,6 +111,11 @@ def smoke(out: Path) -> None:
         "import winrt.windows.media.control; print(tandem.__version__)"
     )
     subprocess.run([str(python), "-c", imports], check=True)
+    # The window's own back end (WinForms + WebView2 through pythonnet). The demo check below
+    # runs without a window, so only this catches a missing piece of it (1.2.0 shipped one).
+    subprocess.run([str(python), "-c", "import webview.platforms.winforms"], check=True)
+    # The Apple handshake with the libraries as shipped: 1.0.0's broke here (ADR-0017).
+    subprocess.run([str(python), "-I", str(ROOT / "packaging" / "check_handshake.py")], check=True)
     subprocess.run([str(python), "-m", "tandem", "--help"], check=True, stdout=subprocess.DEVNULL)
 
     process = subprocess.Popen(

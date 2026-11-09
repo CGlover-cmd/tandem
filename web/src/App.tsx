@@ -1,5 +1,5 @@
 import { Button, Chip, Kbd, Spinner, Tabs, Toast, toast } from "@heroui/react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
 import { isCommandShortcut } from "./commands";
@@ -9,6 +9,8 @@ import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { NowPlayingBar } from "./components/Music";
 import { MusicTab } from "./components/MusicTab";
+import { NetworkNote } from "./components/NetworkNote";
+import { UpdateNote } from "./components/UpdateNote";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
 import { RemoteSheet } from "./components/RemoteSheet";
@@ -42,6 +44,17 @@ export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [networkDismissed, setNetworkDismissed] = useState(false);
+  const showNetworkNote = (state?.network.untrusted ?? false) && !networkDismissed;
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  const update = updateDismissed ? null : (state?.update ?? null);
+  // Ctrl+Alt+K anywhere: the app brings the window up and bumps this count.
+  const commandsRequested = state?.commandsRequested ?? 0;
+  const seenRequests = useRef<number | null>(null);
+  useEffect(() => {
+    if (seenRequests.current !== null && commandsRequested > seenRequests.current) setCommandsOpen(true);
+    seenRequests.current = commandsRequested;
+  }, [commandsRequested]);
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [remoteId, setRemoteId] = useState<string | null>(null);
   const [audioOpen, setAudioOpen] = useState(false);
@@ -93,9 +106,17 @@ export function App() {
   }, [message, send]);
 
   const backdrop = useMemo(() => windowBackground(backgroundId, photo, mode), [backgroundId, photo, mode]);
+  const blur = state?.appearance.photoBlur ?? 0;
 
   return (
-    <div className="app-backdrop" style={{ background: backdrop }} data-photo={onPhoto || undefined}>
+    <div
+      className="app-backdrop"
+      style={{ background: onPhoto ? "transparent" : backdrop }}
+      data-photo={onPhoto || undefined}
+    >
+      {onPhoto && (
+        <div className="photo-layer" aria-hidden="true" style={{ background: backdrop, filter: blur ? `blur(${blur}px)` : undefined }} />
+      )}
       <Toast.Provider placement="bottom" />
       <Tabs
         className="app-shell"
@@ -108,7 +129,7 @@ export function App() {
             <LogoMark size={30} />
             <div>
               <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
-                {view === "music" ? strings.music.title : strings.devicesTitle}
+                {strings.appName}
               </h1>
               <p className="text-[13px] text-[var(--muted)]">
                 {view === "music" ? strings.music.subtitle : strings.devicesSubtitle}
@@ -175,6 +196,8 @@ export function App() {
         </header>
 
         <Tabs.Panel id="devices">
+          {showNetworkNote && <NetworkNote send={send} onDismiss={() => setNetworkDismissed(true)} />}
+          {update && <UpdateNote version={update.version} send={send} onDismiss={() => setUpdateDismissed(true)} />}
           {state && state.devices.length > 0 ? (
             <ul className="device-grid" aria-label={strings.devicesTitle}>
               {state.devices.map((device) => (
@@ -244,7 +267,13 @@ export function App() {
         />
       )}
       {state && (
-        <AudioSheet isOpen={audioOpen} onClose={() => setAudioOpen(false)} audio={state.audio} send={send} />
+        <AudioSheet
+          isOpen={audioOpen}
+          onClose={() => setAudioOpen(false)}
+          audio={state.audio}
+          untrusted={state.network.untrusted}
+          send={send}
+        />
       )}
       <SendSheet
         device={sendDevice}
@@ -281,6 +310,7 @@ export function App() {
           appearance={state.appearance}
           audio={state.audio}
           home={state.home}
+          reporting={state.reporting}
           send={send}
         />
       )}

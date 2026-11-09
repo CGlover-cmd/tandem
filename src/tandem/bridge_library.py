@@ -19,10 +19,7 @@ from tandem.engine.radio import Radio, RadioChanged, RadioStatus, Station
 from tandem.engine.service import AudioSource, Engine
 from tandem.ui import backend as ui
 
-GONE = "That isn't in your music library any more."
-NO_STATION = "That station isn't in the list any more. Search again."
-NO_FOLDER = "Tandem couldn't add that folder."
-NO_APPLE_MUSIC = "The Apple Music app didn't open. Make sure it's installed."
+Problem = ui.Problem
 
 
 class EngineLibrary:
@@ -99,7 +96,7 @@ class EngineLibrary:
 
     async def add_music_folder(self, folder: str) -> None:
         if self._library is None or not await asyncio.to_thread(Path(folder).is_dir):
-            raise ui.LibraryError(NO_FOLDER)
+            raise ui.LibraryError(Problem.FOLDER_NOT_ADDED)
         await self._library.add_folder(folder)
 
     async def remove_music_folder(self, folder: str) -> None:
@@ -141,7 +138,7 @@ class EngineLibrary:
     async def play_station(self, station_id: str) -> None:
         station = self._radio.station(station_id) if self._radio else None
         if station is None:
-            raise ui.LibraryError(NO_STATION)
+            raise ui.LibraryError(Problem.STATION_GONE)
         await self._use_player()
         self._player_engine.play_tracks([_station_track(station)])
 
@@ -164,7 +161,7 @@ class EngineLibrary:
 
     async def open_in_apple_music(self, item_id: str) -> None:
         if self._catalog is None or not await self._catalog.open(item_id):
-            raise ui.LibraryError(NO_APPLE_MUSIC)
+            raise ui.LibraryError(Problem.APPLE_MUSIC_DIDNT_OPEN)
 
     async def catalog_art(self, item_id: str) -> ui.MusicArtwork | None:
         return _art(await self._catalog.artwork(item_id) if self._catalog else None)
@@ -211,13 +208,13 @@ class EngineLibrary:
     def _album(self, album_id: str) -> Album:
         album = self._library.album(album_id) if self._library else None
         if album is None:
-            raise ui.LibraryError(GONE)
+            raise ui.LibraryError(Problem.NOT_IN_LIBRARY)
         return album
 
     def _track(self, song_id: str) -> LibraryTrack:
         track = self._library.track(song_id) if self._library else None
         if track is None:
-            raise ui.LibraryError(GONE)
+            raise ui.LibraryError(Problem.NOT_IN_LIBRARY)
         return track
 
     def _album_of(self, track: LibraryTrack) -> Album | None:

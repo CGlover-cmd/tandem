@@ -30,7 +30,14 @@ VIDEO_SUFFIXES = (".mp4", ".m4v", ".mov", ".mp3", ".m4a", ".aac", ".wav")
 
 
 class MediaError(Exception):
-    """The media can't be sent. `str()` is safe to show."""
+    """The media can't be sent. `str()` is safe to show; `reason` says why, as a code."""
+
+    NOT_A_TV = "not_a_tv"
+    FILE_GONE = "file_gone"
+
+    def __init__(self, message: str, reason: str = "") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class SendState(Enum):

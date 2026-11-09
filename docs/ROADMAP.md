@@ -14,6 +14,26 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **1.2.1 (2026-11-09), a pre-release: fixes 1.2.0's install.** It carries the three entries
+  below.
+- **1.2.0's window doesn't open (2026-11-09, fixed in 1.2.1):** the app folder left out
+  pywebview's x86 and ARM64 WebView2 folders, which it looks up at start, so the window failed
+  and the tray thread kept a windowless Tandem holding the single-instance lock. The folders
+  are kept, the smoke check imports the window's back end, and a failed window now says so
+  and exits.
+- **Installer closes Tandem (2026-11-09, in 1.2.1):** installing 1.2.0 over a running
+  copy hit Windows' "unable to automatically close all applications" prompt. Setup now asks
+  Tandem to quit, stops older copies run from its folder, and reopens it afterwards; the
+  uninstaller closes it too (ADR-0017, 1.2.1 addendum). Checked in CI's installer job.
+- **Architecture and UI review (2026-11-08, in 1.2.1):** the review's 14
+  recommendations are on their own branch, on top of 1.2.0
+  ([ADR-0019](adr/0019-one-bridge-demo-on-the-engine.md)). The demo runs on the real engine
+  through a demo device adapter (the old demo backend is gone), audio outputs live in the
+  engine, play/pause and control errors are handled once, the bridge sends problem codes, and
+  `tools/write_contract.py` keeps `types.ts` checked against Python. Window polish: icons at
+  their real size, primary-colour row titles in sheets, card actions that wrap, quiet
+  scrollbars and sliders, a remote that fits without scrolling, one close per sheet. Nothing
+  here changes what talks to devices, but it should ride along with the next hardware retest.
 - **Current state (2026-11-06): 1.1.0, a pre-release, fixes the maintainer's 1.0.0 test.**
   The 1.0.0 installer shipped srptools 2.0, which broke every Apple handshake (pairing showed
   "wrong PIN"; HomePods and the soundbar failed). Library versions are now pinned
@@ -21,9 +41,17 @@ _Update this section at the end of every working session._
   was checked from a locally built app folder. Also in 1.1.0: instant feedback on the Audio
   panel's switches, Windows' own output shown as on, one source (ADR-0015 addendum), Advanced
   settings (delays, app icons, Home bridge), a Pair button in Getting started, Sky as the
-  default background and a photo background. Still open from the test: a second firewall
-  prompt on networks Windows marks Public (the rule covers private networks; widening it
-  needs the maintainer's OK).
+  default background and a photo background.
+- **1.2.0 (2026-11-08):** the maintainer's ideas list after the 1.0 test: automatic line-up
+  with the microphone and speaker groups (ADR-0018), an All speakers slider, remembered
+  speakers, tray speaker switches, Ctrl+Alt+K from anywhere, clearer speaker errors, update
+  check and Report a problem, photo blur, compile-on-install and a smaller app folder, idle
+  scanning, a monthly dependency check and a SignPath signing hook (docs/signing.md). All
+  untested on hardware; the release notes list the checks.
+- **1.1.1 (2026-11-08):** Windows' Private/Public setting is Tandem's per-network trust list:
+  allowed (local subnet) on Private, blocked on Public, so Windows no longer asks "allow
+  Python?"; on a Public network the window offers to mark it Private (maintainer's choice;
+  ADR-0017 addendum). The maintainer's own Wi-Fi is currently Public, so expect the note.
 - **1.0.0 (2026-11-04)** was built as a pre-release. Every phase except the
   shelved mirroring (8) and the optional smart-home steps 10c–10d is built and covered by tests,
   and CI builds, installs and smoke-tests the Windows installer
@@ -33,10 +61,10 @@ _Update this section at the end of every working session._
   (AirPlay and PC outputs with volume and delay, source choice; ADR-0015), Send to TV (file
   picker or link), the Music tab and now-playing bar, command-bar audio, the Getting started
   checklist, the Home bridge (ADR-0016), one window per user, and the installer.
-- **Next:** the maintainer installs 1.1.0 and reruns the release notes' checklist (pairing
+- **Next:** the maintainer installs 1.1.1 and reruns the release notes' checklist (pairing
   first); then the HomePod mini's ~5 s lag (needed for the Phase 5 sync exit), code
   signing (SignPath), and 10c voice input.
-- **Repo note:** 1.0.0 was PR #12 (merged); 1.1.0 is on `claude/project-thread-o66qn3`. The Raspberry Pi test receiver was retired on
+- **Repo note:** 1.0.0 was PR #12, 1.1.0 was PR #16 (both merged). The Raspberry Pi test receiver was retired on
   2026-10-27, so classic-AirPlay checks need a new receiver if they're wanted again.
 - **Done:** dev environment, device discovery (all reference devices found), privacy guardrails,
   public repo with GitHub secret scanning and push protection. Spike A passed: pairing, remote
@@ -351,8 +379,9 @@ Foundation, free for open source), docs site, contributor docs, reproducible bui
 - [x] CI builds, installs, smoke-tests and uninstalls it; a `v*` tag publishes a pre-release
 - [x] One window per user; Getting started checklist on first run
 - [x] Pinned, tested library versions in every build (1.1.0, after 1.0.0 shipped a breaking one)
-- [ ] Code signing (SignPath Foundation; needs the maintainer to apply)
-- [ ] Auto-update (for now the releases page)
+- [ ] Code signing (SignPath Foundation; needs the maintainer to apply; the release workflow
+  is ready: docs/signing.md)
+- [x] Update check (the window links to new releases; installing stays manual)
 
 ### Phase 10 · Smart home and commands
 Tandem can't call Siri: there's no supported way in from Windows, and we won't reverse-engineer

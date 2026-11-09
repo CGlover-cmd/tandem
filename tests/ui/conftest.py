@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-import asyncio
+from collections.abc import AsyncIterator
+from contextlib import suppress
 
 import pytest
+from demo_harness import demo_backend
 
-from tandem.ui.demo_backend import DemoBackend
-
-
-async def _no_wait(_seconds: float) -> None:
-    await asyncio.sleep(0)
+from tandem.bridge import DemoBackend
 
 
 @pytest.fixture
-def backend() -> DemoBackend:
-    """A demo backend whose delays take no time."""
-    return DemoBackend(sleep=_no_wait)
+async def backend() -> AsyncIterator[DemoBackend]:
+    """The real bridge and engine on the demo's invented devices, without waits."""
+    backend = demo_backend()
+    yield backend
+    with suppress(Exception):
+        await backend.stop()

@@ -7,10 +7,12 @@ from pathlib import Path
 
 import aiohttp
 import pytest
+from demo_harness import settle, until
 
+from tandem.bridge import DemoBackend
+from tandem.engine.adapters.demo import DEMO_TRACKS
 from tandem.ui.backend import ControlError, MusicCommand
 from tandem.ui.controller import AppController
-from tandem.ui.demo_backend import DEMO_TRACKS, DemoBackend
 from tandem.ui.server import UiServer
 
 
@@ -68,24 +70,24 @@ async def test_snapshot_counts_on_while_playing(
 
 async def test_commands_from_the_page(controller: AppController, clock: FakeClock) -> None:
     controller.handle({"type": "music", "command": "play_pause"})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.music is not None
     assert controller.music.state == "paused"
     clock.now += 10
     assert controller.snapshot()["music"]["position"] == 42.0  # paused: no counting
 
     controller.handle({"type": "music", "command": "next"})
-    await controller.runner.drain()
+    await settle(controller)
     music = controller.snapshot()["music"]
     assert (music["title"], music["position"], music["artwork"]) == (DEMO_TRACKS[1][0], 0.0, 2)
 
     controller.handle({"type": "music", "command": "previous"})
     controller.handle({"type": "music", "command": "previous"})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["music"]["title"] == DEMO_TRACKS[-1][0]  # wraps round
 
     controller.handle({"type": "musicSeek", "position": 30})
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["music"]["position"] == 30.0
 
 
@@ -104,19 +106,19 @@ async def test_malformed_music_commands_are_ignored(
 ) -> None:
     before = controller.snapshot()["music"]
     controller.handle(command)
-    await controller.runner.drain()
+    await settle(controller)
     assert controller.snapshot()["music"] == before
     assert controller.message is None
 
 
 async def test_nothing_playing(controller: AppController, demo: DemoBackend) -> None:
     demo.stop_music()
-    assert controller.snapshot()["music"] is None
+    await until(lambda: controller.snapshot()["music"] is None)
     assert controller.music_artwork() is None
 
     controller.music_command(MusicCommand.NEXT)
-    await controller.runner.drain()
-    assert controller.message == {"code": "backend", "text": "Nothing is playing on this PC."}
+    await settle(controller)
+    assert controller.message == {"code": "nothingPlaying"}
     with pytest.raises(ControlError):
         await demo.music_seek(1.0)
     assert demo.music_artwork() is None
@@ -141,6 +143,7 @@ async def test_artwork_is_served_with_the_token_only(
             async with http.get(f"{server.origin}/artwork") as refused:
                 assert refused.status == 403
             demo.stop_music()
+            await until(lambda: controller.music is None)
             async with http.get(url) as gone:
                 assert gone.status == 404
     finally:

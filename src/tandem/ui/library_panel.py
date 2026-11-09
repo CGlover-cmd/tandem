@@ -1,9 +1,9 @@
 """The Music tab's library, radio and queue, in plain Python (part of `AppController`).
 
-Like `audio_panel`: the page renders `snapshot()` and sends commands, which `handle` checks
-and runs. Albums travel without their songs; an album's songs and a song search are sent
-only while the page shows them, to keep each state message small. Titles, folders and
-searches are personal: never logged.
+Like `audio_panel`: the page renders `snapshot()` and sends commands, which `register` adds
+to the window's command table. Albums travel without their songs; an album's songs and a song
+search are sent only while the page shows them, to keep each state message small. Titles,
+folders and searches are personal: never logged.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from tandem.ui.backend import (
     RadioSnapshot,
     StationSnapshot,
 )
+from tandem.ui.window_commands import CommandTable, Fields, Handler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,67 +161,88 @@ class LibraryPanel:
 
     # Commands
 
-    def handle(self, kind: str, command: dict[str, Any]) -> bool:
-        """Run a library, radio or queue command. False if `kind` isn't one of them."""
-        b = self._backend
-        item = command.get("id")
-        has_id = isinstance(item, str)
-        play_next = command.get("next") is True
-        if kind == "addMusicFolder":
+    def register(self, table: CommandTable) -> None:
+        """The library, radio, catalog and queue commands."""
+        b, run = self._backend, self._run
+
+        def add_folder(_f: Fields) -> None:
             if self._picker is not None and not self.picking:
-                self._run(self._pick_folder())
-        elif kind == "removeMusicFolder" and isinstance(command.get("folder"), str):
-            self._run(b.remove_music_folder(command["folder"]))
-        elif kind == "rescanLibrary":
-            self._run(b.rescan_library())
-        elif kind == "openAlbum" and has_id:
-            self.open_album = item
-            self.album_songs = b.album_songs(item)
+                run(self._pick_folder())
+
+        def remove_folder(f: Fields) -> None:
+            folder = f.text("folder")
+            if folder is not None:
+                run(b.remove_music_folder(folder))
+
+        def open_album(album_id: str) -> None:
+            self.open_album = album_id
+            self.album_songs = b.album_songs(album_id)
             self._on_change()
-        elif kind == "closeAlbum":
+
+        def close_album(_f: Fields) -> None:
             self.open_album, self.album_songs = None, []
             self._on_change()
-        elif kind == "searchLibrary" and isinstance(command.get("text"), str):
-            text = command["text"][:MAX_SEARCH_TEXT]
-            self.search_text = text
-            self.search_results = b.search_songs(text) if text.strip() else []
-            self._on_change()
-        elif kind == "playAlbum" and has_id:
-            song = command.get("songId")
-            self._run(b.play_album(item, song if isinstance(song, str) else None))
-        elif kind == "queueAlbum" and has_id:
-            self._run(b.queue_album(item, play_next))
-        elif kind == "playSong" and has_id:
-            self._run(b.play_song(item))
-        elif kind == "queueSong" and has_id:
-            self._run(b.queue_song(item, play_next))
-        elif kind == "searchRadio" and isinstance(command.get("text"), str):
-            self._run(b.search_radio(command["text"][:MAX_SEARCH_TEXT]))
-        elif kind == "playStation" and has_id:
-            self._run(b.play_station(item))
-        elif kind == "saveStation" and has_id:
-            self._run(b.save_station(item))
-        elif kind == "removeStation" and has_id:
-            self._run(b.remove_station(item))
-        elif kind == "searchCatalog" and isinstance(command.get("text"), str):
-            self._run(b.search_catalog(command["text"][:MAX_SEARCH_TEXT]))
-        elif kind == "openInAppleMusic" and has_id:
-            self._run(b.open_in_apple_music(item))
-        elif kind == "player":
-            try:
-                action = PlayerCommand(command.get("command"))
-            except ValueError:
-                return True
-            self._run(b.player_command(action))
-        elif kind == "playQueueItem" and has_id:
-            self._run(b.play_queue_item(item))
-        elif kind == "removeQueueItem" and has_id:
-            self._run(b.remove_queue_item(item))
-        elif kind == "clearQueue":
-            self._run(b.clear_queue())
-        else:
-            return False
-        return True
+
+        def search_library(f: Fields) -> None:
+            text = f.text("text")
+            if text is not None:
+                text = text[:MAX_SEARCH_TEXT]
+                self.search_text = text
+                self.search_results = b.search_songs(text) if text.strip() else []
+                self._on_change()
+
+        def play_album(f: Fields) -> None:
+            album_id = f.text("id")
+            if album_id is not None:
+                run(b.play_album(album_id, f.text("songId")))
+
+        def queue(action: Callable[[str, bool], Coroutine[Any, Any, None]]) -> Handler:
+            def handler(f: Fields) -> None:
+                item = f.text("id")
+                if item is not None:
+                    run(action(item, f.flag("next") is True))
+
+            return handler
+
+        def search(action: Callable[[str], Coroutine[Any, Any, None]]) -> Handler:
+            def handler(f: Fields) -> None:
+                text = f.text("text")
+                if text is not None:
+                    run(action(text[:MAX_SEARCH_TEXT]))
+
+            return handler
+
+        def plain(action: Callable[[], Coroutine[Any, Any, None]]) -> Handler:
+            def handler(_f: Fields) -> None:
+                run(action())
+
+            return handler
+
+        def player(f: Fields) -> None:
+            command = f.choice(PlayerCommand, "command")
+            if command is not None:
+                run(b.player_command(command))
+
+        table.on("addMusicFolder", add_folder)
+        table.on("removeMusicFolder", remove_folder)
+        table.on("rescanLibrary", plain(b.rescan_library))
+        table.on_id("openAlbum", open_album)
+        table.on("closeAlbum", close_album)
+        table.on("searchLibrary", search_library)
+        table.on("playAlbum", play_album)
+        table.on("queueAlbum", queue(b.queue_album))
+        table.on_id("playSong", lambda song_id: run(b.play_song(song_id)))
+        table.on("queueSong", queue(b.queue_song))
+        table.on("searchRadio", search(b.search_radio))
+        table.on_id("playStation", lambda station_id: run(b.play_station(station_id)))
+        table.on_id("saveStation", lambda station_id: run(b.save_station(station_id)))
+        table.on_id("removeStation", lambda station_id: run(b.remove_station(station_id)))
+        table.on("searchCatalog", search(b.search_catalog))
+        table.on_id("openInAppleMusic", lambda item_id: run(b.open_in_apple_music(item_id)))
+        table.on("player", player)
+        table.on_id("playQueueItem", lambda item_id: run(b.play_queue_item(item_id)))
+        table.on_id("removeQueueItem", lambda item_id: run(b.remove_queue_item(item_id)))
+        table.on("clearQueue", plain(b.clear_queue))
 
     async def _pick_folder(self) -> None:
         assert self._picker is not None

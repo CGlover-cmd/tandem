@@ -1,7 +1,7 @@
 """The real engine behind the window: the UI's `Backend` contract (ADR-0008) on `Engine`.
 
 This is the one module that imports both `tandem.engine` and `tandem.ui`; the two layers
-never import each other. `DemoBackend` implements the same contract with invented devices.
+never import each other. `DemoBackend` is the same bridge on invented devices (ADR-0019).
 """
 
 from __future__ import annotations
@@ -9,34 +9,30 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+import time
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeVar
+from pathlib import Path
+from typing import TypeVar
 
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
 from tandem.bridge_library import EngineLibrary
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
+from tandem.engine import paths
 from tandem.engine.apple_catalog import AppleCatalog
 from tandem.engine.command_dispatch import (
-    Ability,
-    ActionError,
-    AppChoice,
-    Code,
     CommandDispatcher,
     CommandResult,
     EngineCommandServices,
-    SwitchState,
-    TargetState,
 )
-from tandem.engine.commands import MediaAction, Target
 from tandem.engine.events import EventBus
 from tandem.engine.home_bridge import BridgeServer
 from tandem.engine.library import MusicLibrary
 from tandem.engine.models import Device, Service
-from tandem.engine.models import DeviceKind as EngineKind
+from tandem.engine.output_groups import GroupStore
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
 from tandem.engine.radio import Radio
@@ -46,9 +42,6 @@ from tandem.engine.session import ConnectionState, ConnectionStateChanged
 from tandem.engine.settings import SettingsChanged, SettingsStore
 from tandem.engine.settings import Theme as EngineTheme
 from tandem.ui import backend as ui
-
-if TYPE_CHECKING:
-    from tandem.ui.demo_backend import DemoBackend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,20 +53,7 @@ MAX_ATTEMPTS = 6
 # How pyatv reports a PIN the device rejected (an exception type name, or the engine's own).
 _WRONG_PIN = {engine_pairing.NOT_PAIRED, "PairingError", "AuthenticationError"}
 
-# Words the window shows. Safe to show: no names, addresses or PINs.
-NOT_AVAILABLE = "That device is no longer available."
-PAIR_FIRST = "Pair this device first."
-NO_PAIRING_NEEDED = "This device doesn't need pairing."
-PIN_EXPIRED = "The PIN expired. Try again."
-COULD_NOT_PAIR = "Tandem couldn't pair with this device. Make sure it's on and try again."
-WRONG_PIN = "That PIN didn't match."
-NOT_CONNECTED = "This device isn't connected."
-CANT_DO_THAT = "This device can't do that right now."
-NO_RESPONSE = "The device didn't respond. Try again."
-NO_TEXT_FIELD = "Select a search box or text field on the TV first, then type."
-NOTHING_PLAYING = "Nothing is playing on this PC."
-APP_CANT = "The app that's playing doesn't allow that right now."
-APP_DIDNT_RESPOND = "The app didn't respond. Try again, or use the app itself."
+Problem = ui.Problem
 
 _PC_MEDIA = {
     ui.MusicCommand.PLAY_PAUSE: PcMediaCommand.PLAY_PAUSE,
@@ -93,7 +73,12 @@ _MEDIA_NEEDS = {
     ui.MediaCommand.SKIP_FORWARD: ec.Capability.SKIP_FORWARD,
     ui.MediaCommand.SKIP_BACKWARD: ec.Capability.SKIP_BACKWARD,
 }
-_PLAY_PAUSE = {ec.Capability.PLAY_PAUSE, ec.Capability.PLAY, ec.Capability.PAUSE}
+_FAILURE = {
+    ec.Failure.NOT_CONNECTED: Problem.NOT_CONNECTED,
+    ec.Failure.NO_TEXT_FIELD: Problem.NO_TEXT_FIELD,
+    ec.Failure.CANT_DO_THAT: Problem.CANT_DO_THAT,
+    ec.Failure.NO_RESPONSE: Problem.NO_RESPONSE,
+}
 
 _LINK = {
     ConnectionState.DISCONNECTED: ui.LinkState.DISCONNECTED,
@@ -118,7 +103,6 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         *,
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
-        output_prefs: OutputPrefsStore | None = None,
         home_server: Callable[[], BridgeServer] | None = None,
         library: MusicLibrary | None = None,
         radio: Radio | None = None,
@@ -139,14 +123,10 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
             bus.subscribe(ec.ControlEvent, self._on_control),
             bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
-        self._unsubscribe += self._init_audio(output_prefs or OutputPrefsStore(None))
+        self._unsubscribe += self._init_audio()
         self._unsubscribe += self._init_home(home_server)
         self._unsubscribe += self._init_library(library, radio, catalog)
-        self._commands = CommandDispatcher(
-            EngineCommandServices(
-                engine, start_output=self._start_from_command, home=self.home_bridge
-            )
-        )
+        self._commands = CommandDispatcher(EngineCommandServices(engine, home=self.home_bridge))
 
     # Observing
 
@@ -168,7 +148,13 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         if background not in ui.BACKGROUNDS:
             background = ui.Appearance().background
         return ui.Appearance(
-            ui.Theme(settings.theme.value), background, settings.app_icons, settings.onboarded
+            ui.Theme(settings.theme.value),
+            background,
+            settings.app_icons,
+            settings.onboarded,
+            update_check=settings.update_check,
+            restore_outputs=settings.restore_outputs,
+            photo_blur=settings.photo_blur,
         )
 
     def controls(self, device_id: str) -> ui.ControlsSnapshot | None:
@@ -195,6 +181,8 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         finally:
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
+        if self._settings.settings.restore_outputs:
+            self.restore_outputs()
         await self._start_home()
         await self._start_library()
 
@@ -211,7 +199,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
     async def connect(self, device_id: str) -> None:
         device = self._device(device_id)
         if engine_pairing.services_to_pair(device):
-            raise ui.PairingError(PAIR_FIRST)
+            raise ui.PairingError(Problem.PAIR_FIRST)
         # Start and return: progress arrives as ConnectionStateChanged events.
         self._engine.session(device_id, max_attempts=self._max_attempts).start()
 
@@ -223,7 +211,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         device = self._device(device_id)
         services = engine_pairing.services_to_pair(device)
         if not services:
-            raise ui.PairingError(NO_PAIRING_NEEDED)
+            raise ui.PairingError(Problem.NO_PAIRING_NEEDED)
         flow = _EnginePairing(self._engine, device_id, services, self._pin_timeout)
         await flow.start()
         return flow
@@ -234,17 +222,10 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
 
     async def media(self, device_id: str, command: ui.MediaCommand) -> None:
         controls = self._engine.controls(device_id)
-        if command is not ui.MediaCommand.PLAY_PAUSE:
-            await _control(controls.media(_MEDIA[command]))
-            return
-        # Some apps offer only play or only pause; pick what fits.
-        status = controls.status()
-        if ec.Capability.PLAY_PAUSE in status.capabilities:
-            await _control(controls.media(ec.MediaCommand.PLAY_PAUSE))
-        elif status.now_playing.state is ec.PlayState.PLAYING:
-            await _control(controls.media(ec.MediaCommand.PAUSE))
+        if command is ui.MediaCommand.PLAY_PAUSE:
+            await _control(controls.play_pause())
         else:
-            await _control(controls.media(ec.MediaCommand.PLAY))
+            await _control(controls.media(_MEDIA[command]))
 
     async def set_volume(self, device_id: str, level: float) -> None:
         await _control(self._engine.controls(device_id).set_volume(level))
@@ -265,20 +246,20 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
     async def music_command(self, command: ui.MusicCommand) -> None:
         music = self.music()
         if music is None:
-            raise ui.ControlError(NOTHING_PLAYING)
+            raise ui.ControlError(Problem.NOTHING_PLAYING)
         if command not in music.commands:
-            raise ui.ControlError(APP_CANT)
+            raise ui.ControlError(Problem.APP_CANT)
         if not await self._engine.pc_media.command(_PC_MEDIA[command]):
-            raise ui.ControlError(APP_DIDNT_RESPOND)
+            raise ui.ControlError(Problem.APP_DIDNT_RESPOND)
 
     async def music_seek(self, position: float) -> None:
         music = self.music()
         if music is None:
-            raise ui.ControlError(NOTHING_PLAYING)
+            raise ui.ControlError(Problem.NOTHING_PLAYING)
         if not music.can_seek or position < 0:
-            raise ui.ControlError(APP_CANT)
+            raise ui.ControlError(Problem.APP_CANT)
         if not await self._engine.pc_media.seek(position):
-            raise ui.ControlError(APP_DIDNT_RESPOND)
+            raise ui.ControlError(Problem.APP_DIDNT_RESPOND)
 
     async def set_appearance(self, appearance: ui.Appearance) -> None:
         # The store publishes SettingsChanged on the engine's bus, which `_on_settings` relays.
@@ -287,6 +268,9 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
             background=appearance.background,
             app_icons=appearance.app_icons,
             onboarded=appearance.onboarded,
+            update_check=appearance.update_check,
+            restore_outputs=appearance.restore_outputs,
+            photo_blur=appearance.photo_blur,
         )
 
     def preview_command(self, text: str) -> ui.CommandOutcome:
@@ -295,8 +279,19 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
     async def run_command(self, text: str) -> ui.CommandOutcome:
         return _outcome(await self._commands.run(text))
 
-    async def _start_from_command(self, output_id: str) -> None:
-        await self.set_output(output_id, True)
+    async def set_window_visible(self, visible: bool) -> None:
+        # Hidden and silent: scan once a minute instead of every few seconds.
+        idle = not visible and not self._engine.outputs_on()
+        await self._engine.discovery.set_idle(idle)
+
+    async def write_diagnostics(self) -> Path | None:
+        settings = self._settings.settings.to_json()
+        return await asyncio.to_thread(
+            self._engine.diagnostics,
+            paths.data_dir() / "diagnostics",
+            log_dir=paths.log_dir(),
+            settings=settings,
+        )
 
     # Engine events
 
@@ -351,7 +346,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineHome):
         try:
             return self._engine.device(device_id)
         except UnknownDeviceError:
-            raise ui.PairingError(NOT_AVAILABLE) from None
+            raise ui.PairingError(Problem.NOT_AVAILABLE) from None
 
     def _set_link(self, device_id: str, link: _Link) -> None:
         self._links[device_id] = link
@@ -411,7 +406,7 @@ class _EnginePairing:
         except engine_pairing.PairingError as error:
             if error.reason in _WRONG_PIN:
                 await self._show_next_pin()  # the same service again: the device shows a new PIN
-                raise ui.WrongPinError(WRONG_PIN) from None
+                raise ui.WrongPinError(Problem.WRONG_PIN) from None
             raise ui.PairingError(_message(error.reason)) from None
         self._index += 1
         return await self._show_next_pin()
@@ -461,24 +456,20 @@ class _EnginePairing:
 
 
 async def _control(command: Awaitable[T]) -> T:
-    """Run a control command, turning engine errors into words the window can show."""
+    """Run a control command, turning engine errors into problem codes for the window."""
     try:
         return await command
-    except ec.NotConnectedError:
-        raise ui.ControlError(NOT_CONNECTED) from None
-    except ec.NoTextFieldError:
-        raise ui.ControlError(NO_TEXT_FIELD) from None
-    except (ec.UnsupportedError, ValueError):
-        raise ui.ControlError(CANT_DO_THAT) from None
-    except (ec.ControlError, OSError, TimeoutError) as exc:
-        _LOGGER.info("A control command failed (%s)", type(exc).__name__)
-        raise ui.ControlError(NO_RESPONSE) from None
+    except Exception as error:
+        failure = ec.failure_of(error)
+        if failure is None:
+            raise
+        raise ui.ControlError(_FAILURE[failure]) from None
 
 
 def _controls(status: ec.ControlStatus) -> ui.ControlsSnapshot:
     caps = status.capabilities
     media = {command for command, needs in _MEDIA_NEEDS.items() if needs in caps}
-    if caps & _PLAY_PAUSE:
+    if status.can_play or status.can_pause:
         media.add(ui.MediaCommand.PLAY_PAUSE)
     playing = status.now_playing
     now_playing = None
@@ -536,147 +527,81 @@ def _outcome(result: CommandResult) -> ui.CommandOutcome:
     )
 
 
-# --- Typed commands in the demo window ----------------------------------------------------
-
-# Invented apps for the demo TV (docs/PRIVACY.md).
-_DEMO_APPS = (
-    AppChoice("demo.tv", "TV"),
-    AppChoice("demo.music", "Music"),
-    AppChoice("demo.photos", "Photos"),
-    AppChoice("demo.podcasts", "Podcasts"),
-    AppChoice("demo.video", "Example Video"),
-)
-_DEMO_VOLUME_STEP = 10.0
-
-
-class DemoCommands:
-    """The engine's command dispatcher on the demo backend's invented devices."""
-
-    def __init__(self, backend: DemoBackend) -> None:
-        self._dispatcher = CommandDispatcher(_DemoServices(backend))
-
-    def preview_command(self, text: str) -> ui.CommandOutcome:
-        return _outcome(self._dispatcher.preview(text))
-
-    async def run_command(self, text: str) -> ui.CommandOutcome:
-        return _outcome(await self._dispatcher.run(text))
-
-
-def demo_commands(backend: DemoBackend) -> DemoCommands:
-    return DemoCommands(backend)
-
-
-class _DemoServices:
-    def __init__(self, backend: DemoBackend) -> None:
-        self._backend = backend
-        self.launched: list[str] = []
-        self._last_audio: tuple[str, ...] = ()
-
-    def targets(self) -> list[TargetState]:
-        states: list[TargetState] = []
-        for device in self._backend.devices():
-            target = Target(device.id, device.name, EngineKind(device.kind.value))
-            controls = self._backend.controls(device.id)
-            if controls is None:
-                states.append(TargetState(target))
-                continue
-            found: set[Ability] = set()
-            if ui.MediaCommand.PLAY_PAUSE in controls.media:
-                found |= {Ability.PLAY, Ability.PAUSE}
-            if ui.MediaCommand.NEXT in controls.media:
-                found.add(Ability.NEXT)
-            if ui.MediaCommand.PREVIOUS in controls.media:
-                found.add(Ability.PREVIOUS)
-            if controls.volume is ui.Volume.LEVEL:
-                found |= {Ability.VOLUME_LEVEL, Ability.VOLUME_STEPS}
-            elif controls.volume is ui.Volume.STEPS:
-                found.add(Ability.VOLUME_STEPS)
-            if controls.can_power:
-                found.add(Ability.POWER)
-            if device.kind is ui.DeviceKind.APPLE_TV:
-                found.add(Ability.APPS)
-            playing = controls.now_playing is not None and controls.now_playing.state == "playing"
-            states.append(TargetState(target, True, frozenset(found), playing))
-        return states
-
-    def switches(self) -> Sequence[SwitchState]:
-        return ()
-
-    async def media(self, device_id: str, action: MediaAction) -> None:
-        if action is MediaAction.NEXT:
-            await _demo(self._backend.media(device_id, ui.MediaCommand.NEXT))
-        elif action is MediaAction.PREVIOUS:
-            await _demo(self._backend.media(device_id, ui.MediaCommand.PREVIOUS))
-        else:
-            controls = self._backend.controls(device_id)
-            playing = (
-                controls is not None
-                and controls.now_playing is not None
-                and (controls.now_playing.state == "playing")
-            )
-            if playing is not (action is MediaAction.PLAY):
-                await _demo(self._backend.media(device_id, ui.MediaCommand.PLAY_PAUSE))
-
-    async def set_volume(self, device_id: str, level: int) -> None:
-        await _demo(self._backend.set_volume(device_id, float(level)))
-
-    async def volume_step(self, device_id: str, up: bool) -> None:
-        controls = self._backend.controls(device_id)
-        if controls is not None and controls.volume_level is not None:
-            step = _DEMO_VOLUME_STEP if up else -_DEMO_VOLUME_STEP
-            await _demo(self._backend.set_volume(device_id, controls.volume_level + step))
-            return
-        key = ui.RemoteKey.VOLUME_UP if up else ui.RemoteKey.VOLUME_DOWN
-        await _demo(self._backend.press(device_id, key, ui.KeyAction.TAP))
-
-    async def set_power(self, device_id: str, on: bool) -> None:
-        await _demo(self._backend.set_power(device_id, on))
-
-    async def apps(self, device_id: str) -> list[AppChoice]:
-        return list(_DEMO_APPS)
-
-    async def launch(self, device_id: str, app_id: str) -> None:
-        self.launched.append(app_id)
-
-    async def set_switch(self, switch_id: str, on: bool) -> None:
-        raise ActionError(Code.CANT_DO_THAT)
-
-    def audio_targets(self) -> frozenset[str]:
-        return frozenset(
-            o.id for o in self._backend.audio().outputs if o.kind is ui.OutputKind.AIRPLAY
-        )
-
-    def streaming(self) -> frozenset[str]:
-        return frozenset(
-            o.id for o in self._backend.audio().outputs if o.state is not ui.OutputState.OFF
-        )
-
-    def last_audio(self) -> tuple[str, ...]:
-        return self._last_audio
-
-    async def start_audio(self, device_ids: Sequence[str]) -> None:
-        self._last_audio = tuple(device_ids)
-        for device_id in device_ids:
-            try:
-                await self._backend.set_output(device_id, True)
-            except ui.AudioError:
-                raise ActionError(Code.CANT_DO_THAT) from None
-
-    async def stop_audio(self) -> None:
-        for output_id in self.streaming():
-            await self._backend.set_output(output_id, False)
-
-
-async def _demo(command: Awaitable[None]) -> None:
-    try:
-        await command
-    except ui.ControlError as error:
-        code = Code.NOT_CONNECTED if str(error) == NOT_CONNECTED else Code.CANT_DO_THAT
-        raise ActionError(code) from None
-
-
 def _message(reason: str) -> str:
-    return PIN_EXPIRED if reason == engine_pairing.PIN_TIMEOUT else COULD_NOT_PAIR
+    return Problem.PIN_EXPIRED if reason == engine_pairing.PIN_TIMEOUT else Problem.COULD_NOT_PAIR
+
+
+class DemoBackend(EngineBackend):
+    """The real bridge and engine on invented devices: `--demo`, screenshots and the window's
+    tests (ADR-0019). `demo` is the device adapter, for tests that look at what was sent.
+
+    `sleep` sets how long the invented devices take to answer; `engine_sleep` is the engine's
+    own (retries, discovery). Settings live in `settings_file`, or in memory without one.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings_file: Path | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        engine_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        delay: float = 0.6,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        from tandem.engine.adapters.demo import DemoBridgeServer, DemoDevices
+
+        self.demo = DemoDevices(sleep=sleep, delay=delay, clock=clock)
+        bus = EventBus()
+        store = SettingsStore(settings_file, bus)
+        if settings_file is not None:
+            store.load()
+        engine = Engine(
+            self.demo, bus=bus, sleep=engine_sleep, clock=clock, discovery_interval=30.0
+        )
+        music = self.demo.music
+        library = MusicLibrary(
+            bus,
+            store=None,
+            list_files=music.list_files,
+            read_tags=music.read_tags,
+            read_art=music.read_art,
+        )
+        catalog = AppleCatalog(
+            bus,
+            music.search_catalog,
+            music.fetch_image,
+            music.open_link,
+            fetch_badge=music.fetch_badge,
+            clock=clock,
+        )
+        super().__init__(
+            engine,
+            store,
+            home_server=DemoBridgeServer,
+            library=library,
+            radio=Radio(bus, music.search_stations, store=None),
+            catalog=catalog,
+        )
+
+    async def start(self) -> None:
+        await super().start()
+        if self._library is not None:
+            from tandem.engine.adapters.demo_music import DEMO_FOLDER
+
+            await self._library.add_folder(DEMO_FOLDER)  # the invented albums
+            await self._library.wait_idle()  # so the demo starts in a settled state
+
+    async def write_diagnostics(self) -> Path | None:
+        return None  # invented devices: nothing worth reporting, and no real logs to read
+
+    def remove(self, device_id: str) -> None:
+        """A device leaves the network (used by tests)."""
+        self.demo.remove(device_id)
+        self._engine.registry.remove(device_id)
+
+    def stop_music(self) -> None:
+        """The demo music app closes (used by tests)."""
+        self.demo.sessions.close_app()
 
 
 def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the network
@@ -694,11 +619,15 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     settings = store.load()
     prefs = OutputPrefsStore(paths.data_dir() / "outputs.json")
     prefs.load()
+    groups = GroupStore(paths.data_dir() / "groups.json")
+    groups.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
         redactor=redactor,
         discovery_interval=settings.discovery_interval_s,
+        output_prefs=prefs,
+        output_groups=groups,
     )
 
     def home_server() -> BridgeServer:
@@ -737,7 +666,6 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     return EngineBackend(
         engine,
         store,
-        output_prefs=prefs,
         home_server=home_server,
         library=library,
         radio=radio,
