@@ -68,6 +68,9 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""T
 ; Compile Tandem's libraries once, here: under Program Files Python can't write its cache, so
 ; without this it would recompile them on every start (about a third slower to open).
 Filename: "{app}\python\python.exe"; Parameters: "-m compileall -q -j 0 ""{app}\python\Lib\site-packages"""; StatusMsg: "Preparing Tandem..."; Flags: runhidden waituntilterminated
+; The Privacy page's choices (docs/privacy-policy.md). Only "off" is written, as the user who
+; started setup, so their own settings file gets it even though setup runs elevated.
+Filename: "{app}\python\python.exe"; Parameters: "-m tandem privacy {code:PrivacyArgs}"; WorkingDir: "{app}"; Check: PrivacyChanged; Flags: runhidden waituntilterminated runasoriginaluser
 ; Opens as the signed-in user, not as administrator (setup itself runs elevated).
 Filename: "{app}\python\pythonw.exe"; Parameters: "-m tandem.ui"; WorkingDir: "{app}"; Description: "Open Tandem"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
@@ -78,6 +81,58 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 Type: filesandordirs; Name: "{app}\python"
 
 [Code]
+var
+  PrivacyPage: TInputOptionWizardPage;
+  PrivacyLink: TNewStaticText;
+
+procedure PrivacyLinkClick(Sender: TObject);
+var
+  ErrorCode: Integer;
+begin
+  ShellExec('open', 'https://github.com/CGlover-cmd/tandem/blob/main/docs/privacy-policy.md', '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+end;
+
+{ Shows Tandem's two optional internet lookups and lets the user turn them off (SignPath
+  Foundation's terms ask for this). Silent installs skip the page; /NoAppIcons=1 and
+  /NoUpdateCheck=1 start the boxes unticked, which the installer test uses. }
+procedure InitializeWizard();
+begin
+  PrivacyPage := CreateInputOptionPage(wpLicense, 'Privacy',
+    'Tandem makes two small requests on the internet',
+    'Tandem sends nothing about you or your PC to anyone, and has no accounts or telemetry. ' +
+    'The icons lookup tells Apple which apps are on your Apple TV. The update check asks GitHub ' +
+    'for the list of Tandem releases. Both see this PC''s internet address. You can change ' +
+    'either one later in Tandem''s Settings.',
+    False, False);
+  PrivacyPage.Add('Look up App Store icons for my Apple TV''s apps');
+  PrivacyPage.Add('Check GitHub for a newer version of Tandem');
+  PrivacyPage.Values[0] := ExpandConstant('{param:NoAppIcons|0}') <> '1';
+  PrivacyPage.Values[1] := ExpandConstant('{param:NoUpdateCheck|0}') <> '1';
+
+  PrivacyLink := TNewStaticText.Create(PrivacyPage);
+  PrivacyLink.Parent := PrivacyPage.Surface;
+  PrivacyLink.Caption := 'Read the full privacy policy';
+  PrivacyLink.Cursor := crHand;
+  PrivacyLink.Font.Style := [fsUnderline];
+  PrivacyLink.Font.Color := clBlue;
+  PrivacyLink.OnClick := @PrivacyLinkClick;
+  PrivacyPage.CheckListBox.Height := ScaleY(48);
+  PrivacyLink.Left := 0;
+  PrivacyLink.Top := PrivacyPage.CheckListBox.Top + PrivacyPage.CheckListBox.Height + ScaleY(12);
+end;
+
+function PrivacyChanged(): Boolean;
+begin
+  Result := not (PrivacyPage.Values[0] and PrivacyPage.Values[1]);
+end;
+
+function PrivacyArgs(Param: String): String;
+begin
+  Result := '';
+  if not PrivacyPage.Values[0] then Result := '--app-icons off';
+  if not PrivacyPage.Values[1] then Result := Trim(Result + ' --update-check off');
+end;
+
 function NeedsWebView2(): Boolean;
 var
   Version: String;

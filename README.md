@@ -135,7 +135,24 @@ small exceptions you can turn off in Advanced settings:
   version.
 
 The recordings made by **Line up automatically** stay in memory and are thrown away as soon as
-the beeps are timed.
+the beeps are timed. The installer asks about both lookups, and the full
+[privacy policy](docs/privacy-policy.md) lists exactly what is sent and to whom.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- **Until the first signed release, the installer is unsigned.** Windows may warn about it, and
+  Smart App Control blocks it; the Python install above works around that.
+- **Roles:** Tandem has one maintainer, [CGlover-cmd](https://github.com/CGlover-cmd), who is
+  the committer, reviewer and approver. Every signing request is approved by hand, and only
+  installers built from a tagged release by this repository's
+  [GitHub Actions workflow](.github/workflows/release.yml) are submitted for signing
+  ([how it works](docs/signing.md)).
+- **Privacy:** Tandem sends nothing about you or your PC to anyone, apart from two lookups you
+  can turn off, in the installer or in Settings. See the
+  [privacy policy](docs/privacy-policy.md).
 
 ## Network and security
 

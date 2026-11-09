@@ -219,6 +219,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `auto` and `::-webkit-scrollbar` is styled (it is, in `index.css`).
 - HeroUI's `Switch` renders its input only inside `Switch.Content`: put `Switch.Control` (and a
   label, or an `sr-only` span) inside it, or the switch has no accessible control.
+- Online lookups (docs/privacy-policy.md): app icons (itunes.apple.com) and the update check
+  (api.github.com), both on by default, both offered on the installer's Privacy page. Any new
+  request that leaves the PC must be added to that policy and get an off switch; SignPath
+  Foundation's terms require it. `python -m tandem privacy --app-icons off` is how the installer
+  writes the choice.
 - New architecture decisions get an ADR in docs/adr/ (next number, short, Status/Context/Decision/Consequences).
 - Model: Opus 5.5 at high effort for all work, coordinator and threads alike (maintainer's choice:
   quality over token cost). When a task would fail or be very inefficient at high (mirroring

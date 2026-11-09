@@ -15,6 +15,20 @@ The release workflow is ready: signing turns on by itself once the secrets below
    - secret `SIGNPATH_API_TOKEN`: a SignPath CI user's API token
    - variable `SIGNPATH_ORGANIZATION_ID`: the SignPath organisation id
 
+## What SignPath requires of the project
+
+Done in the repository already, and worth keeping true:
+
+- The README's and every release's "Code signing policy" section, with the SignPath statement,
+  the team roles and a link to the privacy policy.
+- [docs/privacy-policy.md](privacy-policy.md): what Tandem sends over the internet (two
+  lookups, on by default). The installer shows it on its Privacy page and lets the user turn
+  both off (`packaging/tandem.iss`, applied with `python -m tandem privacy`).
+- Two-factor sign-in for GitHub and SignPath for everyone with access (the maintainer's own
+  account setting, not something the repository can show).
+- Binary metadata: product name `Tandem`, the same product version in every build
+  (`VersionInfo*` in `packaging/tandem.iss`).
+
 ## What happens then
 
 On a `v*` tag, `.github/workflows/release.yml` uploads the built installer, SignPath signs it
