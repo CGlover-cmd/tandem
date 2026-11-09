@@ -16,6 +16,7 @@ from tandem.engine.adapters.loopback import LoopbackCapture
 from tandem.engine.adapters.media_sessions import media_sessions as windows_media_sessions
 from tandem.engine.adapters.pyatv_audio import PyatvAudioSink
 from tandem.engine.adapters.pyatv_control import PyatvController
+from tandem.engine.adapters.pyatv_ptp import PtpClockShare
 from tandem.engine.audio import AudioSink, PcmCapture
 from tandem.engine.control import Controller
 from tandem.engine.media_send import MediaSender
@@ -100,8 +101,9 @@ class _Listener(DeviceListener):
 class PyatvLink:
     """An open pyatv connection. `atv` is the pyatv facade for protocol adapters to use."""
 
-    def __init__(self, atv: AppleTV, listener: _Listener) -> None:
+    def __init__(self, atv: AppleTV, listener: _Listener, config: BaseConfig | None = None) -> None:
         self.atv = atv
+        self.config = config
         self._listener = listener  # pyatv keeps listeners as weak references
 
     async def close(self) -> None:
@@ -140,9 +142,13 @@ class _PyatvPairing:
 class PyatvBackend:
     """Engine backend on pyatv. Credentials live in `storage` (the encrypted vault)."""
 
-    def __init__(self, storage: AbstractStorage) -> None:
+    def __init__(self, storage: AbstractStorage, *, ptp_timing: bool = True) -> None:
         self._storage = storage
         self._configs: dict[str, BaseConfig] = {}
+        # One PTP clock for every AirPlay 2 stream (ADR-0022), and the receivers that
+        # wouldn't take it this run.
+        self._ptp = PtpClockShare() if ptp_timing else None
+        self._ptp_refused: set[str] = set()
 
     async def load(self) -> None:
         await self._storage.load()
@@ -201,7 +207,7 @@ class PyatvBackend:
             atv = await pyatv.connect(config, asyncio.get_running_loop(), storage=self._storage)
             listener = _Listener(on_lost)
             atv.listener = listener
-            return PyatvLink(atv, listener)
+            return PyatvLink(atv, listener, config)
 
         return connect
 
@@ -228,7 +234,15 @@ class PyatvBackend:
 
     def audio_sink(self, link: Link) -> AudioSink | None:
         if isinstance(link, PyatvLink):
-            return PyatvAudioSink(link.atv)
+            config = link.config
+            raop = config.get_service(Protocol.RAOP) if config is not None else None
+            return PyatvAudioSink(
+                link.atv,
+                address=str(config.address) if config is not None else None,
+                properties=dict(raop.properties) if raop is not None else None,
+                ptp=self._ptp,
+                ptp_refused=self._ptp_refused,
+            )
         return None
 
     def capture(self) -> PcmCapture:

@@ -1,4 +1,4 @@
-"""PTP timing for pyatv's AirPlay 2 audio sender (ADR-0020).
+"""PTP timing for pyatv's AirPlay 2 audio sender (ADR-0022).
 
 pyatv 0.18 sets every AirPlay 2 stream up with NTP timing, and its sync packets tie each
 stream's RTP clock to that stream's own start. Receivers then pick their own delay, which is
@@ -277,3 +277,31 @@ def install_hooks() -> None:
         airplayv2.AirPlayV2._setup_base = _setup_base  # type: ignore[method-assign]
     if stream_client.ControlClient._sync_task is not _sync_task:  # pyright: ignore[reportPrivateUsage]
         stream_client.ControlClient._sync_task = _sync_task  # type: ignore[method-assign]
+
+
+class PtpClockShare:
+    """One PTP clock for every stream: started for the first, stopped after the last."""
+
+    def __init__(self, factory: Any = ptp.PtpMaster) -> None:
+        self._factory = factory
+        self._master: ptp.PtpMaster | None = None
+        self._users = 0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> ptp.PtpMaster:
+        """The running clock. Raises `ptp.PtpError` if it can't start."""
+        async with self._lock:
+            master = self._master
+            if master is None:
+                master = self._factory()
+                await master.start()
+                self._master = master
+            self._users += 1
+            return master
+
+    async def release(self) -> None:
+        async with self._lock:
+            self._users = max(0, self._users - 1)
+            if self._users == 0 and self._master is not None:
+                master, self._master = self._master, None
+                await master.stop()

@@ -1,4 +1,4 @@
-"""A small PTP (IEEE 1588) master clock for AirPlay 2 receivers (ADR-0020).
+"""A small PTP (IEEE 1588) master clock for AirPlay 2 receivers (ADR-0022).
 
 AirPlay 2 speakers that advertise `SupportsPTP` can follow a sender's PTP clock. Then every
 speaker knows the same time, and a sync packet that says "audio sample R plays at time T"
@@ -24,9 +24,10 @@ import contextlib
 import logging
 import secrets
 import struct
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from tandem.engine import timeline
 
 _LOG = logging.getLogger(__name__)
 
@@ -74,8 +75,9 @@ TIME_SOURCE_GPS = 0x20
 
 
 def now_ns() -> int:
-    """The PTP clock: the PC's high-resolution counter, in nanoseconds."""
-    return time.perf_counter_ns()
+    """The PTP clock: the PC's high-resolution counter, in nanoseconds (the same clock as
+    `tandem.engine.timeline.now_ns`, which times the captured audio)."""
+    return timeline.now_ns()
 
 
 def new_clock_id() -> int:

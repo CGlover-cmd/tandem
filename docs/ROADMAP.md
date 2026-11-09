@@ -292,6 +292,11 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 - [x] Audio panel in the window; command-bar "send audio" and "stop streaming"
 - [ ] Exit check on the reference devices (lined up by ear with the delay sliders; no automatic
   sync yet)
+- [ ] PTP timing for AirPlay 2 speakers (ADR-0022, the maintainer's go 2026-11-09): Tandem runs
+  a PTP clock that the speakers follow, and each stream reads the shared source by capture time,
+  so every PTP speaker plays the same moment together. Code and tests done; Spike H hardware
+  check next ([findings](spikes/spike-h-ptp-timing.md)). **Exit:** the soundbar and a HomePod
+  mini beep together on the click test, then the Phase 5 exit check.
 
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries

@@ -1,4 +1,4 @@
-"""Spike H: do AirPlay 2 speakers follow Tandem's PTP clock and play together? (ADR-0020)
+"""Spike H: do AirPlay 2 speakers follow Tandem's PTP clock and play together? (ADR-0022)
 
 Throwaway check code. It plays a click track whose content is set by the PTP clock: at every
 whole second of that clock, a short beep, its note cycling through four (C, E, G, high C).
@@ -9,6 +9,9 @@ delay beep apart, or on different notes when they are whole seconds out.
               advertise PTP
     compare   PTP timing for --seconds, a pause, then pyatv's usual NTP timing for --seconds,
               to the chosen speakers at once; writes counts to local/ptp-hw/compare.json
+    engine    the real engine path: Tandem's player plays a click file (same beeps) through
+              the audio hub to the chosen speakers, which use PTP timing when they offer it;
+              writes counts to local/ptp-hw/engine.json
 
 Privacy: speakers are picked by model, never by name; no name, address or id is printed.
 Counts only. pyatv's debug log (which does hold addresses) goes to local/ptp-hw/ only.
@@ -279,6 +282,80 @@ async def cmd_compare(models: list[str], seconds: float, lead: float, pause: flo
         await link.close()
 
 
+def make_click_file(seconds: float) -> Path:
+    """The same beep pattern, as a WAV file (beeps on each whole second of the file)."""
+    import wave
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    path = OUT / "ptp-clicks.wav"
+    data = bytearray()
+    for n in range(int(seconds * RATE)):
+        value = beep_sample(n * 1_000_000_000 // RATE)
+        data += struct.pack("<hh", value, value)
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(RATE)
+        wav.writeframes(bytes(data))
+    return path
+
+
+async def cmd_engine(models: list[str], seconds: float) -> None:
+    from tandem.engine import paths
+    from tandem.engine.adapters.credential_vault import CredentialVault
+    from tandem.engine.adapters.pyatv_adapter import PyatvBackend
+    from tandem.engine.events import EventBus
+    from tandem.engine.logs import configure_logging
+    from tandem.engine.player import TrackKind
+    from tandem.engine.redact import Redactor
+    from tandem.engine.service import AudioSource, Engine
+
+    path = make_click_file(seconds)
+    redactor = Redactor()
+    configure_logging(redactor, log_dir=paths.log_dir())
+    backend = PyatvBackend(CredentialVault(paths.credentials_file()))
+    engine = Engine(backend, bus=EventBus(), redactor=redactor)
+    await engine.open()
+    await engine.scan()
+    devices = _speakers(engine.registry.devices())
+    chosen = []
+    for model in models:
+        match = next((d for d in devices if d.model == model and d not in chosen), None)
+        if match is None:
+            sys.exit(f"No speaker of model {model!r} found.")
+        chosen.append(match)
+    labels = [f"speaker{n + 1} ({d.model})" for n, d in enumerate(chosen)]
+    report: dict[str, Any] = {"outputs": labels, "seconds": seconds}
+    try:
+        await engine.set_audio_source(AudioSource.PLAYER)
+        for device in chosen:
+            await engine.start_output(device.id, volume=None)
+        await asyncio.sleep(3)
+        print("Engine run: listen for one beep per second, same note on every speaker.", flush=True)
+        engine.player.add([(TrackKind.FILE, str(path), "Timing test")])
+        engine.player.play()
+        await asyncio.sleep(seconds + 4)
+        for label, device in zip(labels, chosen, strict=True):
+            stats = engine.audio_stats(device.id)
+            report[label] = None if stats is None else {
+                "sent_s": round(stats.sent_seconds, 1),
+                "silence_s": round(stats.silence_seconds, 1),
+                "dropped_s": round(stats.dropped_seconds, 1),
+                "underruns": stats.underruns,
+                "state": engine.outputs_on().get(device.id, ("off",))[0].__str__(),
+            }
+        report["ptp_refused"] = len(backend._ptp_refused)
+        report["player_error"] = engine.player.status.error
+    finally:
+        engine.player.stop()
+        for device in chosen:
+            await engine.stop_output(device.id)
+        await engine.close()
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "engine.json").write_text(json.dumps(report, indent=2), "utf-8")
+    print(json.dumps(report, indent=2))
+
+
 def main() -> None:
     _require_local_home()
     parser = argparse.ArgumentParser()
@@ -289,9 +366,14 @@ def main() -> None:
     compare.add_argument("--seconds", type=float, default=30.0)
     compare.add_argument("--lead", type=float, default=2.0)
     compare.add_argument("--pause", type=float, default=5.0)
+    engine = sub.add_parser("engine")
+    engine.add_argument("--model", action="append", required=True)
+    engine.add_argument("--seconds", type=float, default=30.0)
     args = parser.parse_args()
     if args.command == "find":
         asyncio.run(cmd_find())
+    elif args.command == "engine":
+        asyncio.run(cmd_engine(args.model, args.seconds))
     else:
         asyncio.run(cmd_compare(args.model, args.seconds, args.lead, args.pause))
     sys.stdout.flush()

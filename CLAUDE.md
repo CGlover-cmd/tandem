@@ -138,6 +138,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
   Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
   the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
+- PTP timing (ADR-0022): Tandem's PTP clock binds UDP 319/320 (no admin needed on Windows; the
+  firewall rule is per program). Time everything audio with `time.perf_counter_ns`
+  (`engine.timeline.now_ns`): `time.monotonic` is 15.6 ms coarse on Python 3.11 for Windows.
+  `pyatv_ptp` wraps `AirPlayV2._setup_base` and `ControlClient._sync_task`; re-check both when
+  moving the pyatv pin. (Two open PRs both claim ADR-0020, so this one skipped to 0022.)
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
