@@ -61,3 +61,25 @@ and hotel Wi-Fi. The maintainer chose per-network trust instead:
   network?" with a button to `ms-settings:network-status`.
 - Consequence: on a Public network Tandem can't find or reach speakers until the user marks it
   Private. The UI server stays loopback-only either way.
+
+## Addendum (1.2.1): setup closes a running Tandem
+Installing 1.2.0 over a running copy showed Windows' "applications are using files" prompt,
+then "Setup was unable to automatically close all applications". Inno Setup's
+`CloseApplications` uses the Restart Manager, which asks a program's windows to close; Tandem's
+window hides to the tray when closed, and its tray and engine have no window to ask. Now:
+- Tandem waits on a named event, `Local\TandemQuit` (`tandem.ui.platform.on_quit_request`),
+  in window and `--no-window` modes. When it's set, Tandem quits as if Quit were chosen in the
+  tray, so streams stop and devices disconnect cleanly.
+- Setup (`PrepareToInstall`) and the uninstaller (`usUninstall`) set the event, wait up to 15
+  seconds for every listening copy to exit, then stop any Python process still running from
+  Tandem's own folder (WMI). That covers copies from before 1.2.1, which can't be asked.
+  Python run from anywhere else is never stopped.
+- If a Tandem window was open (its single-instance mutex was held), setup opens Tandem again
+  afterwards as the signed-in user, silent installs included, instead of offering the
+  "Open Tandem" box. It doesn't when a copy setup leaves alone still holds the mutex.
+- `CloseApplications` stays on as a backstop. The release workflow installs over a running copy
+  and a stand-in older one, checks the first quit cleanly (exit 0) and the second was stopped,
+  and that the Restart Manager found nothing; then uninstalls over a running copy.
+- Limits: a copy from before 1.2.1 is stopped, not asked, so it doesn't say goodbye to its
+  devices. A copy run from a developer checkout on code older than 1.2.1 is left running; it
+  doesn't hold the installed files, so setup isn't blocked, but Tandem isn't reopened.

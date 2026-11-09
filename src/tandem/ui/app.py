@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import sys
 import threading
@@ -25,6 +26,7 @@ from tandem.ui.file_picker import WindowFilePicker
 from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.platform import (
     GlobalHotkey,
+    on_quit_request,
     reduce_motion,
     reveal_in_explorer,
     store_country,
@@ -116,8 +118,16 @@ async def _serve_only(args: argparse.Namespace) -> int:
     print(f"Tandem is running. Open {server.url}", flush=True)
     for origin in args.dev_origin:
         print(f"  or, from the dev server: {origin}/?token={server.token}", flush=True)
+    quit_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def stop_soon() -> None:  # setup is about to replace Tandem's files
+        with contextlib.suppress(RuntimeError):  # the loop already closed
+            loop.call_soon_threadsafe(quit_requested.set)
+
+    on_quit_request(stop_soon)
     try:
-        await asyncio.Event().wait()
+        await quit_requested.wait()
     finally:
         await server.stop()
         await controller.stop()
@@ -189,6 +199,12 @@ def _run_with_window(args: argparse.Namespace) -> int:  # pragma: no cover - che
         window.destroy()
 
     tray = Tray(controller, loop, show_window=show_window, quit_app=quit_app)
+
+    def quit_for_setup() -> None:  # the installer or uninstaller is about to change our files
+        window.events.shown.wait()  # destroy() needs the window up
+        quit_app()
+
+    on_quit_request(quit_for_setup)
 
     def on_closing() -> bool:
         # Closing the window keeps Tandem running in the tray; Quit in the tray ends it.

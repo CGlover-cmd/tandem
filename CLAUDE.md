@@ -213,6 +213,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   `packaging/tandem.iss` (Inno Setup). The version lives in `pyproject.toml` and
   `tandem/__init__.py`; release notes in `docs/release-notes.md`. Pushing a `v*` tag publishes a
   GitHub pre-release: only with the maintainer's OK.
+- Setup closes a running Tandem (ADR-0017, 1.2.1 addendum): it sets the `Local\TandemQuit`
+  event, which `tandem.ui.platform.on_quit_request` waits on, then stops any Python still
+  running from the install folder, and reopens Tandem if its window was open. The event and
+  mutex names live in both `platform.py` and `tandem.iss`; a test keeps them equal. Running a
+  dev copy while setup runs: it gets asked to quit too.
 - HeroUI sizes every svg inside a `Button` with a class (14 px here); our icons set their size
   inline so it wins. HeroUI's `.modal__body` is muted by default; `index.css` resets it to the
   primary colour. WebView2 draws arrow scrollbars unless `scrollbar-width`/`-color` stay at
