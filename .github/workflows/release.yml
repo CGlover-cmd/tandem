@@ -92,7 +92,11 @@ jobs:
         shell: pwsh
         run: |
           $setup = "dist\Tandem-${{ steps.version.outputs.version }}-setup.exe"
-          Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          # The privacy page's choices reach the settings file (docs/privacy-policy.md).
+          Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NoAppIcons=1 /NoUpdateCheck=1" -Wait
+          $settings = Get-Content "$env:LOCALAPPDATA\Tandem\settings.json" -Raw | ConvertFrom-Json
+          if ($settings.app_icons -ne $false -or $settings.update_check -ne $false) { Write-Error "Setup didn't turn the online lookups off"; exit 1 }
+          Remove-Item "$env:LOCALAPPDATA\Tandem\settings.json"
           # Setup compiles the libraries (checked before anything else runs Python there).
           if (-not (Test-Path "$env:ProgramFiles\Tandem\python\Lib\site-packages\tandem\__pycache__")) { Write-Error "Setup didn't compile Tandem's libraries"; exit 1 }
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"

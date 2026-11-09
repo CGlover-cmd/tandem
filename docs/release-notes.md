@@ -108,3 +108,12 @@ Media keys need nothing from Tandem: Windows already sends them to the app that'
   they are (Windows plays them directly).
 - Tandem tells you about updates but doesn't install them: download the new setup from the
   [releases page](https://github.com/CGlover-cmd/tandem/releases).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). Until the first signed release, the installer is
+unsigned. Tandem has one maintainer, [CGlover-cmd](https://github.com/CGlover-cmd), who is its
+committer, reviewer and approver. Tandem sends nothing about you or your PC to anyone, apart
+from two lookups you can turn off: see the
+[privacy policy](https://github.com/CGlover-cmd/tandem/blob/main/docs/privacy-policy.md).
