@@ -112,7 +112,34 @@ jobs:
             $allow[0] | Format-List; Write-Error "The allow rule isn't Private/Domain and local subnet only"; exit 1
           }
           if ("$($block[0].Profile)" -ne "Public") { $block[0] | Format-List; Write-Error "The block rule isn't for Public networks"; exit 1 }
+
+          # Setup closes a running Tandem itself (ADR-0017, 1.2.1 addendum): a copy that listens
+          # for setup quits cleanly, and anything else run from Tandem's folder (here a stand-in
+          # for a copy from before 1.2.1) is stopped. Windows' "close applications" prompt never
+          # shows.
+          $pythonw = "$env:ProgramFiles\Tandem\python\pythonw.exe"
+          function Start-Tandem {
+            $process = Start-Process $pythonw -ArgumentList "-m tandem.ui --demo --no-window" -PassThru
+            $null = $process.Handle # keeps the exit code readable
+            $listening = $null
+            for ($i = 0; $i -lt 120 -and -not [System.Threading.EventWaitHandle]::TryOpenExisting("Local\TandemQuit", [ref]$listening); $i++) { Start-Sleep -Milliseconds 500 }
+            if (-not $listening) { Write-Error "Tandem didn't start listening for setup"; exit 1 }
+            $listening.Dispose()
+            return $process
+          }
+          $tandem = Start-Tandem
+          $older = Start-Process $pythonw -ArgumentList "-c `"import time; time.sleep(600)`"" -PassThru
+          $null = $older.Handle
+          $update = Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=setup-update.log" -Wait -PassThru
+          if ($update.ExitCode -ne 0) { Get-Content setup-update.log; Write-Error "Installing over a running Tandem failed ($($update.ExitCode))"; exit 1 }
+          if (-not $tandem.WaitForExit(1000) -or $tandem.ExitCode -ne 0) { Get-Content setup-update.log; Write-Error "Setup didn't get Tandem to quit cleanly"; exit 1 }
+          if (-not $older.WaitForExit(1000) -or $older.ExitCode -ne 1) { Get-Content setup-update.log; Write-Error "Setup didn't stop the older copy"; exit 1 }
+          if (Select-String -Path setup-update.log -Pattern "found an application using one of our files" -Quiet) { Get-Content setup-update.log; Write-Error "Windows' close-applications prompt would have shown"; exit 1 }
+
+          # The uninstaller closes it too, so it can remove every file.
+          $tandem = Start-Tandem
           Start-Process "$env:ProgramFiles\Tandem\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait
+          if (-not $tandem.WaitForExit(1000) -or $tandem.ExitCode -ne 0) { Write-Error "Uninstall didn't get Tandem to quit cleanly"; exit 1 }
           if (Test-Path "$env:ProgramFiles\Tandem\python") { Write-Error "Uninstall left files"; exit 1 }
           if (Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue) { Write-Error "Uninstall left firewall rules"; exit 1 }
 

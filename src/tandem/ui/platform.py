@@ -50,8 +50,12 @@ def ui_data_dir() -> Path:
 _ERROR_ALREADY_EXISTS = 183
 _held: list[int] = []
 
+# Named objects Tandem's installer (packaging/tandem.iss) looks for: keep the two in step.
+SINGLE_INSTANCE = r"Local\TandemApp"
+QUIT_EVENT = r"Local\TandemQuit"
 
-def claim_single_instance(name: str = r"Local\TandemApp") -> bool:
+
+def claim_single_instance(name: str = SINGLE_INSTANCE) -> bool:
     """True if this is the only Tandem window running (for this Windows user).
 
     A second copy would open its own connection to the Apple TV, which makes the TV drop the
@@ -67,6 +71,39 @@ def claim_single_instance(name: str = r"Local\TandemApp") -> bool:
         kernel32.CloseHandle(handle)
         return False
     _held.append(handle)
+    return True
+
+
+def on_quit_request(callback: Callable[[], None], name: str = QUIT_EVENT) -> bool:
+    """Call `callback` (on a helper thread) when setup asks this copy of Tandem to quit.
+
+    The installer and uninstaller set this named event before they replace or remove Tandem's
+    files, so a running copy closes itself cleanly instead of holding them (ADR-0017). Setup
+    leaves the event set until every copy listening has exited. False if there's no event to
+    wait on (not Windows, or it couldn't be made).
+    """
+    if sys.platform != "win32":
+        return False
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateEventW.restype = wintypes.HANDLE
+    kernel32.CreateEventW.argtypes = (
+        wintypes.LPVOID,
+        wintypes.BOOL,
+        wintypes.BOOL,
+        wintypes.LPCWSTR,
+    )
+    kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    handle = kernel32.CreateEventW(None, True, False, name)  # manual reset: wakes every copy
+    if not handle:
+        return False
+
+    def wait() -> None:
+        kernel32.WaitForSingleObject(handle, 0xFFFFFFFF)
+        callback()
+
+    threading.Thread(target=wait, name="tandem-quit-request", daemon=True).start()
     return True
 
 
