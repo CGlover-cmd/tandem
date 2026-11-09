@@ -39,6 +39,7 @@ ALLOWED = [
     re.compile(r"^noreply@anthropic\.com$", re.IGNORECASE),
     re.compile(r"@example\.(?:com|org|net)$", re.IGNORECASE),
     re.compile(r"^git@github\.com$", re.IGNORECASE),
+    re.compile(r"^\w+@kernel32\.dll$", re.IGNORECASE),  # Inno Setup DLL imports (tandem.iss)
 ]
 
 
