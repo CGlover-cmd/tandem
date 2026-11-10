@@ -24,6 +24,7 @@ from tandem.engine.pairing import PairingFactory, PairingHandle
 from tandem.engine.pc_media import MediaSessions
 from tandem.engine.pc_mute import SpeakerMute
 from tandem.engine.player import DecodedStream, Track
+from tandem.engine.screen_cast import Screen, ScreenEncoder
 from tandem.engine.service import UnknownDeviceError
 from tandem.engine.session import Connector, Link, LostCallback
 
@@ -247,6 +248,18 @@ class PyatvBackend:
         from tandem.engine.adapters.microphone import MicrophoneCapture
 
         return MicrophoneCapture()
+
+    def screens(self) -> Sequence[Screen]:  # pragma: no cover - the PC's displays
+        from tandem.engine.adapters import screen_capture
+
+        return screen_capture.screens()
+
+    def screen_encoder(self) -> ScreenEncoder | None:  # pragma: no cover - needs a GPU
+        from tandem.engine.adapters import screen_capture
+
+        if not screen_capture.available():
+            return None
+        return screen_capture.DxcamScreenEncoder()
 
     def local_outputs(self) -> Sequence[LocalOutput]:  # pragma: no cover - sound hardware
         return local_audio.list_outputs()

@@ -56,3 +56,33 @@ Concretely:
   secrets.
 - If a legitimate path opens later, mirroring can be reopened as a fresh spike; the encoder
   work from Spike E would carry over.
+
+## Addendum (2026-11-10): open-source senders exist; Cast screen instead
+
+Two open-source mirroring *senders* have appeared since Spike D:
+- **lcd1232/pyatv** (a pyatv fork, its PR #1, MIT): a pure-Python FairPlay SAP sender
+  handshake (`pyatv/protocols/airplay/mirror/fairplay_sap/`) and a mirroring session, reported
+  working on an Apple TV 4K with tvOS 27. Registering it with a TV takes a one-time PIN.
+- **omarroth/doubletake** (Go, LGPL-3.0+): a mirroring sender for Linux.
+
+Both still implement FairPlay. That is the step this ADR declined, and their existence doesn't
+change the reasons: the legal exposure of distributing it, the project's values, and fixed key
+material that Apple can break with an update. The fork's FairPlay files carry no licence
+header of their own (only the repository's MIT licence), and one notes that it computes the
+same values as playfair's `hand_garble.c`, which is GPL-3.0. So their provenance is not clean
+enough to bundle either.
+
+The maintainer chose option A of the 2026-11-10 decision doc:
+- **Tandem still ships no FairPlay code.** Nothing in this repository performs or bypasses
+  FairPlay, and Tandem's installer doesn't download anything that does.
+- **Cast screen, built now (FairPlay-free).** Tandem captures the screen, encodes it to H.264
+  with AAC sound, writes it as a live HLS stream with short segments, serves it from the PC on
+  the home network, and asks the Apple TV to play that address. This uses the same "play this
+  URL" request as Send to TV (Phase 7, ADR-0015). The TV plays it as an ordinary video, so it
+  runs a few seconds behind: fine for slides, photos, a video or a shared browser tab, but not
+  for games or typing. Spike I measures the lag ([findings](../spikes/spike-i-cast.md)).
+- **Real, low-lag mirroring later only as a user-installed add-on**, the same pattern as the
+  virtual audio driver in ADR-0005: the user installs a third-party sender themselves, and
+  Tandem finds it and hands it the work. Tandem doesn't bundle it, download it or link to a
+  download from inside the app. Spike J is a private test of the pyatv fork to see whether
+  such an add-on is worth designing ([findings](../spikes/spike-j-mirror-addon.md)).

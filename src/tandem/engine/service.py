@@ -42,6 +42,14 @@ from tandem.engine.pc_mute import PcMute, SpeakerMute
 from tandem.engine.player import DecodedStream, Player, Track
 from tandem.engine.redact import Redactor
 from tandem.engine.registry import DeviceRegistry
+from tandem.engine.screen_cast import (
+    CastError,
+    CastQuality,
+    Screen,
+    ScreenCasts,
+    ScreenEncoder,
+    settings_for,
+)
 from tandem.engine.session import ConnectionSession, Connector, Link
 
 
@@ -99,6 +107,14 @@ class Backend(Protocol):
 
     def microphone(self) -> PcmCapture:
         """The default microphone as 16 kHz mono PCM (for lining speakers up)."""
+        ...
+
+    def screens(self) -> Sequence[Screen]:
+        """The PC's displays that can be cast, the main one first."""
+        ...
+
+    def screen_encoder(self) -> ScreenEncoder | None:
+        """Captures and encodes a screen for casting; None if this PC can't."""
         ...
 
     def speaker_mute(self) -> SpeakerMute | None:
@@ -167,6 +183,7 @@ class Engine:
         self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions(), clock=clock)
         self._media_server: MediaServer | None = None
         self._sends = MediaSends(self.bus.publish)
+        self._casts = ScreenCasts(self.bus.publish)
         self.outputs = Outputs(
             self, output_prefs, output_groups, PcMute(backend.speaker_mute(), pc_mute_record)
         )
@@ -190,6 +207,7 @@ class Engine:
         await self.outputs.close()
         await self.discovery.stop()
         await self._sends.close()
+        await self._casts.close()
         if self._media_server is not None:
             await self._media_server.stop()
         await self.pc_media.stop()
@@ -445,15 +463,66 @@ class Engine:
             path = Path(location)
             if not await asyncio.to_thread(path.is_file):
                 raise MediaError("That file isn't there any more.", MediaError.FILE_GONE)
-            if self._media_server is None:
-                self._media_server = MediaServer()
-            await self._media_server.start()
+            server = await self._served()
             host = local_address_towards(device.address)
-            url = f"http://{host}:{self._media_server.port}{self._media_server.share(path)}"
+            url = f"http://{host}:{server.port}{server.share(path)}"
+        await self._casts.stop(device_id)  # the TV plays one thing at a time
         await self._sends.start(device_id, sender, url, title_for(location))
+
+    async def _served(self) -> MediaServer:
+        if self._media_server is None:
+            self._media_server = MediaServer()
+        await self._media_server.start()
+        return self._media_server
 
     async def stop_media(self, device_id: str) -> None:
         await self._sends.stop(device_id)
 
     def sending_media(self, device_id: str) -> bool:
         return self._sends.playing(device_id)
+
+    # --- Cast the screen to an Apple TV (ADR-0006 addendum) -------------------------------
+
+    def screens(self) -> list[Screen]:
+        return list(self._backend.screens())
+
+    def casting(self) -> str | None:
+        """The TV the screen is being cast to, if any (one at a time)."""
+        return self._casts.device_id
+
+    async def cast_screen(
+        self,
+        device_id: str,
+        *,
+        quality: CastQuality = CastQuality.STANDARD,
+        screen: int | None = None,
+        sound: bool = True,
+        timeout: float = 30.0,
+    ) -> None:
+        """Show a screen of this PC (the main one unless `screen` is given) on the TV, with the
+        PC's sound. Replaces any other cast, and what was sent to this
+        TV before. Raises `CastError`; later problems come as `ScreenCastChanged`."""
+        device = self.device(device_id)
+        link = await self.connect(device_id, timeout=timeout)
+        sender = self._backend.media_sender(link)
+        if sender is None:
+            raise CastError(CastError.NOT_A_TV)
+        screens = self.screens()
+        encoder = self._backend.screen_encoder()
+        if encoder is None or not screens:
+            raise CastError(CastError.NO_SCREEN)
+        if screen not in {s.index for s in screens}:
+            screen = screens[0].index
+        await self._sends.stop(device_id)
+        server = await self._served()
+        base_url = f"http://{local_address_towards(device.address)}:{server.port}"
+        # The PC's own sound. Tandem's player feeds one consumer only (the speakers), so while
+        # it is the source the cast is silent.
+        capture = None
+        if sound and self.audio_source is AudioSource.SYSTEM:
+            capture = self._backend.capture()
+        settings = settings_for(quality, screen, sound=sound)
+        await self._casts.start(device_id, sender, encoder, settings, server, base_url, capture)
+
+    async def stop_cast(self, device_id: str | None = None) -> None:
+        await self._casts.stop(device_id)

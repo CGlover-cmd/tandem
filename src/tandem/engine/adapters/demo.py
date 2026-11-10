@@ -24,6 +24,7 @@ import math
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from tandem.engine import lineup
@@ -48,6 +49,7 @@ from tandem.engine.home_bridge import SwitchSpec
 from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
 from tandem.engine.pc_media import ChangeKind, PcArtwork, PcMediaCommand, PcNowPlaying
 from tandem.engine.player import Track
+from tandem.engine.screen_cast import PLAYLIST, CastSettings, Screen
 
 Sleep = Callable[[float], Awaitable[None]]
 
@@ -264,6 +266,12 @@ class DemoDevices:
 
     def speaker_mute(self) -> DemoSpeakerMute:
         return self.speakers
+
+    def screens(self) -> list[Screen]:
+        return list(DEMO_SCREENS)
+
+    def screen_encoder(self) -> _DemoScreenEncoder:
+        return _DemoScreenEncoder()
 
     # Media
 
@@ -505,6 +513,22 @@ class _DemoSender:
     async def play_url(self, url: str) -> None:
         self._demo.sent.append((self._device_id, url))
         await asyncio.Event().wait()
+
+
+DEMO_SCREENS = (Screen(0, 1920, 1080, primary=True), Screen(1, 2560, 1440))
+
+
+class _DemoScreenEncoder:
+    """'Encodes' a screen: writes a playlist that lists three segments, so a cast starts."""
+
+    failed = False
+
+    def start(self, folder: Path, settings: CastSettings, sound: Any) -> None:
+        entries = "".join(f"#EXTINF:1.0,\nindex{i}.ts\n" for i in range(3))
+        (folder / PLAYLIST).write_text("#EXTM3U\n" + entries, encoding="utf-8")
+
+    def stop(self) -> None:
+        return None
 
 
 # Invented music on the PC: title, artist, album, length, artwork colours.

@@ -14,6 +14,7 @@ import asyncio
 import logging
 import secrets
 import socket
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
@@ -81,13 +82,19 @@ def local_address_towards(address: str) -> str:
         return str(probe.getsockname()[0])
 
 
+_FOLDER_TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t"}
+"""Set explicitly: Windows' own file types call .ts something else."""
+
+
 class MediaServer:
-    """Serves shared files over HTTP, one random path per file."""
+    """Serves shared files over HTTP, one random path per file, and shared folders (a screen
+    cast's live playlist and segments), one random path per folder."""
 
     def __init__(self, *, host: str = "0.0.0.0", port: int = 0) -> None:
         self._host = host
         self._port = port
         self._files: dict[str, Path] = {}
+        self._folders: dict[str, tuple[Path, Callable[[str], bool]]] = {}
         self._runner: Any = None
         self.port = 0
 
@@ -115,6 +122,7 @@ class MediaServer:
         if runner is not None:
             await runner.cleanup()
         self._files.clear()
+        self._folders.clear()
 
     def share(self, path: Path) -> str:
         """The URL path for one file. Earlier files stay shared until the server stops."""
@@ -122,10 +130,38 @@ class MediaServer:
         self._files[token] = path
         return f"/media/{token}/{quote(path.name)}"
 
+    def share_folder(self, folder: Path, allow: Callable[[str], bool], entry: str) -> str:
+        """The URL path of `entry` in a folder. Only file names `allow` accepts are served,
+        and never cached: a live playlist changes every second."""
+        token = secrets.token_urlsafe(18)
+        self._folders[token] = (folder, allow)
+        return f"/media/{token}/{quote(entry)}"
+
+    def unshare(self, path: str) -> None:
+        """Stop serving what `share` or `share_folder` returned."""
+        parts = path.split("/")
+        if len(parts) > 2 and parts[1] == "media":
+            self._files.pop(parts[2], None)
+            self._folders.pop(parts[2], None)
+
     async def _serve(self, request: Any) -> Any:
         from aiohttp import web
 
-        path = self._files.get(request.match_info["token"])
+        token, name = request.match_info["token"], request.match_info["name"]
+        shared = self._folders.get(token)
+        if shared is not None:
+            folder, allow = shared
+            if not allow(name):
+                raise web.HTTPNotFound()
+            # Read it whole rather than streaming it: the encoder replaces the playlist every
+            # second, and on Windows a file held open can't be replaced.
+            try:
+                body = await asyncio.to_thread((folder / name).read_bytes)
+            except OSError:
+                raise web.HTTPNotFound() from None
+            kind = _FOLDER_TYPES.get(Path(name).suffix, "application/octet-stream")
+            return web.Response(body=body, content_type=kind, headers={"Cache-Control": "no-cache"})
+        path = self._files.get(token)
         if path is None or not path.is_file():
             raise web.HTTPNotFound()
         return web.FileResponse(path)

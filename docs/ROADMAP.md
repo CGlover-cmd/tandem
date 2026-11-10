@@ -14,6 +14,16 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **Cast screen, work in progress (2026-11-10, paused):** the maintainer chose a FairPlay-free
+  "Cast screen" (live HLS from the PC, played with "play this URL") plus, maybe later, real
+  mirroring as a user-installed add-on (ADR-0006 addendum). Done on this branch: the engine
+  (`engine/screen_cast.py`, `adapters/screen_capture.py`, folder sharing in the media server,
+  the PC muted while casting), demo and test fakes, and Spike I's PC side (NVENC 1080p30 with
+  sound in 1 s segments). Left: AirPlay PIN pairing for the spike and the lag measurements
+  ([Spike I](spikes/spike-i-cast.md)), engine tests, the bridge, controller, window (Cast
+  button, screen and quality pickers) and tray stop, Phase 8 in this roadmap, and Spike J
+  (the pyatv fork; needs the maintainer's go-ahead to run it).
+
 - **Device cards rework (2026-11-09, after 1.2.1 feedback):** cards offer Audio (every
   AirPlay device, the Audio panel's switch; pairs first if needed) and Video (Apple TV, opens
   Send to TV) instead of Pair/Connect/Send. Speakers get an audio-only remote; while they play
