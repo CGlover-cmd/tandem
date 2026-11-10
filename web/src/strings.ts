@@ -174,7 +174,7 @@ export const strings = {
     noOutputs: "No speakers found yet. Make sure they're on and on the same network.",
     noPcOutputs: "No other sound outputs on this PC.",
     echoNote:
-      "Windows keeps playing on its default output. To hear only your speakers, or to line the PC up with them, set a virtual audio cable as Windows' default output, then turn your real speakers on here.",
+      "Headphones or another output turned on here play in step with your speakers. Windows' default output can't: Windows plays there itself, ahead of AirPlay.",
     volume: "Volume",
     volumeOf: (name: string) => `Volume for ${name}`,
     delay: "Delay",
@@ -188,8 +188,13 @@ export const strings = {
       waiting: "Reconnecting…",
       failed: "Couldn't play",
       direct: "Playing from Windows",
+      muted: "Muted while AirPlay plays",
+      ahead: "Playing ahead of AirPlay",
     } as Record<string, string>,
     directNote: "Windows plays here itself, so it's always on.",
+    mutedNote: "So you only hear AirPlay. Turn it on to hear this PC too, a little ahead of AirPlay.",
+    aheadNote: "Windows plays here before AirPlay does, so it won't be in step. Turn it off to mute it again.",
+    turnPcOn: (name: string) => `Play on ${name} too`,
     problem: {
       unreachable: "No answer. Check it's on and on the same Wi-Fi as this PC, then try again.",
       access:
@@ -386,6 +391,9 @@ export const strings = {
     updateCheckDetail: "When Tandem opens, it asks GitHub whether there's a newer version. Nothing about your PC or devices is sent.",
     restoreOutputs: "Turn my speakers back on",
     restoreOutputsDetail: "When Tandem starts, the speakers you left on play again as soon as they're found.",
+    mutePc: "Mute this PC while AirPlay plays",
+    mutePcDetail:
+      "AirPlay plays a moment after the PC, so hearing both sounds like an echo. Tandem mutes Windows' default output while your speakers play this PC's sound, and unmutes it when they stop.",
     report: "Report a problem…",
     reportDetail: "Saves a diagnostics file with names and addresses removed, then opens a GitHub issue for you to describe the problem and attach it.",
     reporting: "Saving diagnostics…",

@@ -38,6 +38,7 @@ from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.outputs import Outputs
 from tandem.engine.pairing import PairingError, PairingFactory, PinProvider
 from tandem.engine.pc_media import MediaSessions, PcMediaWatcher
+from tandem.engine.pc_mute import PcMute, SpeakerMute
 from tandem.engine.player import DecodedStream, Player, Track
 from tandem.engine.redact import Redactor
 from tandem.engine.registry import DeviceRegistry
@@ -100,6 +101,10 @@ class Backend(Protocol):
         """The default microphone as 16 kHz mono PCM (for lining speakers up)."""
         ...
 
+    def speaker_mute(self) -> SpeakerMute | None:
+        """Mutes the PC's default output without silencing the capture; None if it can't."""
+        ...
+
 
 AUDIO_CONNECT_TIMEOUT = 15.0
 """Seconds to wait for a speaker before saying it couldn't play (it normally takes one)."""
@@ -132,6 +137,7 @@ class Engine:
         clock: Callable[[], float] = time.monotonic,
         output_prefs: OutputPrefsStore | None = None,
         output_groups: GroupStore | None = None,
+        pc_mute_record: Path | None = None,
     ) -> None:
         self.bus = bus or EventBus()
         self.redactor = redactor or Redactor()
@@ -161,7 +167,9 @@ class Engine:
         self.pc_media = PcMediaWatcher(self.bus, backend.media_sessions(), clock=clock)
         self._media_server: MediaServer | None = None
         self._sends = MediaSends(self.bus.publish)
-        self.outputs = Outputs(self, output_prefs, output_groups)
+        self.outputs = Outputs(
+            self, output_prefs, output_groups, PcMute(backend.speaker_mute(), pc_mute_record)
+        )
         """Outputs as the user sees them: switch them here, not with `start_output`."""
 
     def _live_link(self, device_id: str) -> Link | None:
@@ -175,6 +183,7 @@ class Engine:
 
     async def open(self) -> None:
         await self._backend.load()
+        await self.outputs.pc_mute.recover()  # a previous run stopped with the PC muted
 
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
@@ -418,6 +427,7 @@ class Engine:
             self._audio.set_capture(self._backend.capture)
         else:
             self._audio.set_capture(self.player.capture)
+        self.outputs.refresh()  # the PC's default output is shown, and muted, only for its audio
 
     # --- Send media to an Apple TV (Phase 7) --------------------------------------------
 

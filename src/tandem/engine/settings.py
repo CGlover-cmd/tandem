@@ -51,6 +51,8 @@ class Settings:
     """Look for a newer Tandem on GitHub's releases page when the window opens."""
     restore_outputs: bool = False
     """Turn the speakers that were on back on when Tandem starts."""
+    mute_pc: bool = True
+    """Mute the PC's own speakers while AirPlay plays its sound (ADR-0020)."""
     photo_blur: int = 0
     """Blur over the user's background photo, in pixels (0 to 24)."""
 

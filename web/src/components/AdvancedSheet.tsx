@@ -125,6 +125,12 @@ export function AdvancedSheet({ isOpen, onClose, onBack, appearance, audio, home
               detail={words.restoreOutputsDetail}
             />
             <SettingSwitch
+              isSelected={appearance.mutePc}
+              onChange={(mutePc) => send({ type: "setAppearance", mutePc })}
+              title={words.mutePc}
+              detail={words.mutePcDetail}
+            />
+            <SettingSwitch
               isSelected={appearance.appIcons}
               onChange={(appIcons) => send({ type: "setAppearance", appIcons })}
               title={words.appIcons}

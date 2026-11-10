@@ -1,6 +1,7 @@
 import { Button, Modal, Spinner, Switch } from "@heroui/react";
 
 import {
+  directSwitch,
   groupOutputs,
   masterChanges,
   masterVolume,
@@ -36,7 +37,16 @@ function OutputRow({
   const problem = problemText(output, untrusted);
   const direct = outputDirect(output);
   const live = outputLive(output);
-  const on = live || direct;
+  const pcSwitch = direct ? directSwitch(output) : null;
+  const on = live || (pcSwitch?.on ?? false);
+  const note =
+    output.state === "muted"
+      ? strings.audio.mutedNote
+      : output.state === "ahead"
+        ? strings.audio.aheadNote
+        : direct
+          ? strings.audio.directNote
+          : null;
   const busy = output.state === "starting" || output.state === "waiting";
   const status = output.needsPairing ? strings.audio.pairFirst : strings.audio.state[output.state];
   return (
@@ -58,18 +68,20 @@ function OutputRow({
         {busy && <Spinner size="sm" color="accent" aria-hidden="true" />}
         <Switch
           isSelected={on}
-          isDisabled={output.needsPairing || direct}
+          isDisabled={output.needsPairing || (pcSwitch !== null && !pcSwitch.enabled)}
           onChange={(turnOn) => send({ type: "setOutput", id: output.id, on: turnOn })}
         >
           <Switch.Content>
             <Switch.Control>
               <Switch.Thumb />
             </Switch.Control>
-            <span className="sr-only">{strings.audio.turnOn(output.name)}</span>
+            <span className="sr-only">
+              {direct ? strings.audio.turnPcOn(output.name) : strings.audio.turnOn(output.name)}
+            </span>
           </Switch.Content>
         </Switch>
       </div>
-      {direct && <p className="mt-2 text-[12px] text-[var(--muted)]">{strings.audio.directNote}</p>}
+      {note && <p className="mt-2 text-[12px] text-[var(--muted)]">{note}</p>}
       {problem && (
         <div className="mt-2 flex flex-col items-start gap-2" role="status">
           <p className="text-[12px] text-[var(--danger)]">{problem}</p>

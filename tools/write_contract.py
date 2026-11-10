@@ -51,6 +51,20 @@ async def _settle(controller: object) -> None:
             await asyncio.sleep(0)
 
 
+async def _pc_muted(controller: object) -> None:
+    """Wait, in real time, for the PC's output to show muted: the mute runs on a worker
+    thread, which `_settle` can't wait for (ADR-0020)."""
+    from tandem.ui.controller import AppController
+
+    assert isinstance(controller, AppController)
+    loop = asyncio.get_running_loop()
+    end = loop.time() + 5
+    while not any(o.state.value == "muted" for o in controller.audio.audio.outputs):
+        if loop.time() > end:
+            raise RuntimeError("the demo PC never showed muted")
+        await asyncio.sleep(0.02)
+
+
 async def _demo_snapshot() -> tuple[dict[str, object], list[str]]:
     from tandem.bridge import DemoBackend
     from tandem.ui.controller import AppController
@@ -75,6 +89,7 @@ async def _demo_snapshot() -> tuple[dict[str, object], list[str]]:
         {"type": "saveGroup", "name": "Out Back", "outputs": ["demo-speaker-1", "demo-soundbar"]}
     )
     await _settle(controller)
+    await _pc_muted(controller)
     snapshot = controller.snapshot()
     audio = snapshot["audio"]
     assert isinstance(audio, dict)
