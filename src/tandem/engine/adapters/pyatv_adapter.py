@@ -12,8 +12,8 @@ from pyatv.interface import AppleTV, BaseConfig, DeviceListener, PairingHandler
 from pyatv.storage import AbstractStorage
 
 from tandem.engine.adapters import decoders, local_audio
-from tandem.engine.adapters.loopback import LoopbackCapture
 from tandem.engine.adapters.media_sessions import media_sessions as windows_media_sessions
+from tandem.engine.adapters.process_loopback import CaptureMode, SystemCapture
 from tandem.engine.adapters.pyatv_audio import PyatvAudioSink
 from tandem.engine.adapters.pyatv_control import PyatvController
 from tandem.engine.adapters.pyatv_ptp import PtpClockShare
@@ -23,6 +23,7 @@ from tandem.engine.media_send import MediaSender
 from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
 from tandem.engine.pairing import PairingFactory, PairingHandle
 from tandem.engine.pc_media import MediaSessions
+from tandem.engine.pc_mute import SpeakerMute
 from tandem.engine.player import DecodedStream, Track
 from tandem.engine.service import UnknownDeviceError
 from tandem.engine.session import Connector, Link, LostCallback
@@ -149,6 +150,7 @@ class PyatvBackend:
         # wouldn't take it this run.
         self._ptp = PtpClockShare() if ptp_timing else None
         self._ptp_refused: set[str] = set()
+        self._capture_mode = CaptureMode()
 
     async def load(self) -> None:
         await self._storage.load()
@@ -246,7 +248,14 @@ class PyatvBackend:
         return None
 
     def capture(self) -> PcmCapture:
-        return LoopbackCapture()
+        return SystemCapture(self._capture_mode)
+
+    def speaker_mute(self) -> SpeakerMute | None:
+        if not self._capture_mode.process:
+            return None  # classic loopback follows the mute: muting would silence AirPlay
+        from tandem.engine.adapters.endpoint_mute import WindowsSpeakerMute
+
+        return WindowsSpeakerMute(lambda: self._capture_mode.process)
 
     def microphone(self) -> PcmCapture:  # pragma: no cover - needs a microphone
         from tandem.engine.adapters.microphone import MicrophoneCapture

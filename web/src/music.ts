@@ -37,3 +37,14 @@ export function progressKind(music: Music): "seek" | "bar" | "live" {
   if (music.duration === null || music.duration <= 0 || music.position === null) return "live";
   return music.canSeek ? "seek" : "bar";
 }
+
+/** Where a skip back or forward lands: `by` seconds from `position`, kept inside the track. */
+export function seekTarget(music: Music, position: number, by: number): number {
+  const end = music.duration ?? Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.min(end, position + by));
+}
+
+/** Skip back and forward are offered when the app lets us seek within a track. */
+export function canSkip(music: Music): boolean {
+  return progressKind(music) === "seek";
+}

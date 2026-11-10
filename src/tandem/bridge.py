@@ -118,6 +118,7 @@ class EngineBackend(EngineAudio, EngineHome):
         ]
         self._unsubscribe += self._init_audio()
         self._unsubscribe += self._init_home(home_server)
+        engine.outputs.pc_mute.enabled = settings.settings.mute_pc
         self._commands = CommandDispatcher(EngineCommandServices(engine, home=self.home_bridge))
 
     # Observing
@@ -146,6 +147,7 @@ class EngineBackend(EngineAudio, EngineHome):
             settings.onboarded,
             update_check=settings.update_check,
             restore_outputs=settings.restore_outputs,
+            mute_pc=settings.mute_pc,
             photo_blur=settings.photo_blur,
         )
 
@@ -260,6 +262,7 @@ class EngineBackend(EngineAudio, EngineHome):
             onboarded=appearance.onboarded,
             update_check=appearance.update_check,
             restore_outputs=appearance.restore_outputs,
+            mute_pc=appearance.mute_pc,
             photo_blur=appearance.photo_blur,
         )
 
@@ -296,6 +299,7 @@ class EngineBackend(EngineAudio, EngineHome):
         self._set_link(event.device_id, _Link(_LINK[event.state], event.retry_in))
 
     def _on_settings(self, event: SettingsChanged) -> None:
+        self._engine.outputs.set_pc_mute(self._settings.settings.mute_pc)
         self._publish(ui.AppearanceChanged(self.appearance()))
 
     def _on_pc_media(self, event: PcNowPlayingChanged) -> None:

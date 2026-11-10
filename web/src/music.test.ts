@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { allows, artworkUrl, isPlaying, musicPosition, musicSubtitle, progressKind } from "./music";
+import {
+  allows,
+  artworkUrl,
+  canSkip,
+  isPlaying,
+  musicPosition,
+  musicSubtitle,
+  progressKind,
+  seekTarget,
+} from "./music";
 import type { Music } from "./types";
 
 // Invented music (docs/PRIVACY.md).
@@ -61,5 +70,20 @@ describe("controls", () => {
     expect(progressKind({ ...song, duration: null })).toBe("live");
     expect(progressKind({ ...song, duration: 0 })).toBe("live");
     expect(progressKind({ ...song, position: null })).toBe("live");
+  });
+});
+
+describe("speaker remote skips", () => {
+  it("move 15 seconds within the track", () => {
+    expect(seekTarget(song, 42, 15)).toBe(57);
+    expect(seekTarget(song, 5, -15)).toBe(0);
+    expect(seekTarget(song, 210, 15)).toBe(214);
+    expect(seekTarget({ ...song, duration: null }, 500, 15)).toBe(515);
+  });
+
+  it("are offered only when the app can seek", () => {
+    expect(canSkip(song)).toBe(true);
+    expect(canSkip({ ...song, canSeek: false })).toBe(false);
+    expect(canSkip({ ...song, duration: null })).toBe(false);
   });
 });

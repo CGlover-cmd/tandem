@@ -78,7 +78,11 @@ export interface Device {
   apps: AppList | null;
   /** What was last sent to this Apple TV (a link or a video file), while it plays. */
   send: SendState | null;
+  /** The card's Audio button: the PC's sound on this device. Null if it can't play audio. */
+  audio: DeviceAudio | null;
 }
+
+export type DeviceAudio = "off" | "starting" | "on" | "failed";
 
 /** A video or link sent to an Apple TV. `title` is a file name or link host: never log it. */
 export interface SendState {
@@ -87,8 +91,19 @@ export interface SendState {
 }
 
 export type OutputKind = "airplay" | "pc";
-/** "direct": the PC's default output. Windows plays there itself, so it's always on. */
-export type OutputState = "off" | "starting" | "streaming" | "waiting" | "failed" | "direct";
+/**
+ * The PC's default output, where Windows plays itself, is "direct" (always on), "muted" (Tandem
+ * muted it while AirPlay plays) or "ahead" (kept on while AirPlay plays, so it plays ahead).
+ */
+export type OutputState =
+  | "off"
+  | "starting"
+  | "streaming"
+  | "waiting"
+  | "failed"
+  | "direct"
+  | "muted"
+  | "ahead";
 export type AudioSource = "system" | "player";
 
 /** One place the sound can go: an AirPlay device or one of the PC's own sound outputs. */
@@ -162,6 +177,8 @@ export interface Appearance {
   updateCheck: boolean;
   /** Turn the speakers that were on back on when Tandem starts. */
   restoreOutputs: boolean;
+  /** Mute the PC's own speakers while AirPlay plays its sound. */
+  mutePc: boolean;
   /** Blur over the background photo, in pixels (0 to 24). */
   photoBlur: number;
 }
@@ -248,7 +265,8 @@ export interface AppState {
 }
 
 export type Command =
-  | { type: "activate" | "connect" | "disconnect" | "pair"; id: string }
+  | { type: "activate" | "connect" | "disconnect" | "pair" | "openDevice"; id: string }
+  | { type: "deviceAudio"; id: string; on: boolean }
   | { type: "submitPin"; pin: string }
   | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
   | { type: "openUpdate" | "reportProblem" | "lineUp" }
@@ -263,6 +281,7 @@ export type Command =
       onboarded?: boolean;
       updateCheck?: boolean;
       restoreOutputs?: boolean;
+      mutePc?: boolean;
       photoBlur?: number;
     }
   | { type: "press"; id: string; key: RemoteKey; action?: KeyAction }

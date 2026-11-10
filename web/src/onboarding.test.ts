@@ -13,6 +13,7 @@ const speaker: Device = {
   apps: null,
   controls: null,
   send: null,
+  audio: "off",
 };
 const tv: Device = { ...speaker, id: "demo-tv", name: "Living Room TV", kind: "apple_tv", needsPairing: true };
 const output: AudioOutput = {
@@ -53,6 +54,7 @@ function state(over: Partial<AppState> = {}): AppState {
       photo: null,
       updateCheck: true,
       restoreOutputs: false,
+      mutePc: true,
       photoBlur: 0,
     },
     network: { untrusted: false },

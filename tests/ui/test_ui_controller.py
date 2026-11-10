@@ -81,6 +81,7 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "controls": None,
         "apps": None,
         "send": None,
+        "audio": "off",
     }
     assert snapshot["appearance"] == {
         "theme": "system",
@@ -89,6 +90,7 @@ async def test_snapshot_is_ready_for_json(backend: DemoBackend) -> None:
         "onboarded": False,
         "updateCheck": True,
         "restoreOutputs": False,
+        "mutePc": True,
         "photoBlur": 0,
         "photo": None,
     }
@@ -334,6 +336,7 @@ async def test_set_appearance_saves_and_updates(backend: DemoBackend) -> None:
         "onboarded": False,
         "updateCheck": True,
         "restoreOutputs": False,
+        "mutePc": True,
         "photoBlur": 0,
         "photo": None,
     }
@@ -355,6 +358,7 @@ async def test_unknown_appearance_is_ignored(
         "onboarded": False,
         "updateCheck": True,
         "restoreOutputs": False,
+        "mutePc": True,
         "photoBlur": 0,
         "photo": None,
     }
