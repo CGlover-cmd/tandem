@@ -7,8 +7,8 @@ import { AdvancedSheet } from "./components/AdvancedSheet";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
+import { FindSpeakerSheet } from "./components/FindSpeakerSheet";
 import { MusicPanel, NowPlayingBar } from "./components/Music";
-import { NetworkNote } from "./components/NetworkNote";
 import { UpdateNote } from "./components/UpdateNote";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
@@ -43,8 +43,7 @@ export function App() {
   const { state, status, send } = useBridge();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [networkDismissed, setNetworkDismissed] = useState(false);
-  const showNetworkNote = (state?.network.untrusted ?? false) && !networkDismissed;
+  const [findOpen, setFindOpen] = useState(false);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const update = updateDismissed ? null : (state?.update ?? null);
   // Ctrl+Alt+K anywhere: the app brings the window up and bumps this count.
@@ -211,7 +210,6 @@ export function App() {
         </header>
 
         <Tabs.Panel id="devices">
-          {showNetworkNote && <NetworkNote send={send} onDismiss={() => setNetworkDismissed(true)} />}
           {update && <UpdateNote version={update.version} send={send} onDismiss={() => setUpdateDismissed(true)} />}
           {state && state.devices.length > 0 ? (
             <ul className="device-grid" aria-label={strings.devicesTitle}>
@@ -255,6 +253,9 @@ export function App() {
                 <>
                   <h2 className="text-[17px] font-semibold">{strings.emptyTitle}</h2>
                   <p className="max-w-sm text-center text-[var(--muted)]">{strings.emptyBody}</p>
+                  <Button size="sm" variant="secondary" onPress={() => setFindOpen(true)}>
+                    {strings.findSpeaker.open}
+                  </Button>
                 </>
               )}
             </div>
@@ -310,7 +311,18 @@ export function App() {
           isOpen={audioOpen}
           onClose={() => setAudioOpen(false)}
           audio={state.audio}
-          untrusted={state.network.untrusted}
+          onFindSpeaker={() => {
+            setAudioOpen(false);
+            setFindOpen(true);
+          }}
+          send={send}
+        />
+      )}
+      {state && (
+        <FindSpeakerSheet
+          isOpen={findOpen}
+          onClose={() => setFindOpen(false)}
+          network={state.network}
           send={send}
         />
       )}
@@ -332,6 +344,10 @@ export function App() {
           onOpenAdvanced={() => {
             setSettingsOpen(false);
             setAdvancedOpen(true);
+          }}
+          onFindSpeaker={() => {
+            setSettingsOpen(false);
+            setFindOpen(true);
           }}
           appearance={state.appearance}
           mode={mode}

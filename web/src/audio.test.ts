@@ -14,6 +14,7 @@ import {
   outputLive,
   outputVolume,
   problemText,
+  wantsPassword,
   sendText,
 } from "./audio";
 import type { AudioOutput, Device } from "./types";
@@ -132,12 +133,18 @@ describe("the All speakers slider", () => {
 });
 
 describe("why a speaker couldn't play", () => {
-  it("names the fix, and the untrusted network first", () => {
+  it("names the fix", () => {
     const failed = output({ state: "failed", problem: "access" });
-    expect(problemText(failed, false)).toContain("Allow Speaker & TV Access");
-    expect(problemText(failed, true)).toContain("doesn't trust this network");
-    expect(problemText(output({ state: "failed", problem: "unreachable" }), false)).toContain("No answer");
-    expect(problemText(output(), false)).toBeNull();
+    expect(problemText(failed)).toContain("Allow Speaker & TV Access");
+    expect(problemText(output({ state: "failed", problem: "unreachable" }))).toContain("No answer");
+    expect(problemText(output({ state: "failed", problem: "stereoPair" }))).toContain("stereo pair");
+    expect(problemText(output())).toBeNull();
+  });
+
+  it("asks for a password only when the speaker wants one", () => {
+    expect(wantsPassword(output({ state: "failed", problem: "password" }))).toBe(true);
+    expect(wantsPassword(output({ state: "failed", problem: "access" }))).toBe(false);
+    expect(wantsPassword(output({ problem: "password" }))).toBe(false);
   });
 });
 

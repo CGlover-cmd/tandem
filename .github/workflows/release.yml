@@ -101,17 +101,14 @@ jobs:
           if (-not (Test-Path "$env:ProgramFiles\Tandem\python\Lib\site-packages\tandem\__pycache__")) { Write-Error "Setup didn't compile Tandem's libraries"; exit 1 }
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Allowed from the local subnet on Private and Domain networks, blocked on Public
-          # (ADR-0017, 1.1.1 addendum).
+          # One rule: allowed from the local subnet on every network type, Public included
+          # (ADR-0017, ADR-0021). An update from an older Tandem removes its Public block rule.
           $rules = @(Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue)
-          $allow = @($rules | Where-Object { $_.Action -eq "Allow" })
-          $block = @($rules | Where-Object { $_.Action -eq "Block" })
-          if ($allow.Count -ne 1 -or $block.Count -ne 1) { $rules | Format-List; Write-Error "Expected one allow and one block rule"; exit 1 }
-          $remote = ($allow[0] | Get-NetFirewallAddressFilter).RemoteAddress
-          if ("$($allow[0].Profile)" -ne "Domain, Private" -or "$remote" -ne "LocalSubnet") {
-            $allow[0] | Format-List; Write-Error "The allow rule isn't Private/Domain and local subnet only"; exit 1
+          if ($rules.Count -ne 1 -or $rules[0].Action -ne "Allow") { $rules | Format-List; Write-Error "Expected one allow rule"; exit 1 }
+          $remote = ($rules[0] | Get-NetFirewallAddressFilter).RemoteAddress
+          if ("$($rules[0].Profile)" -ne "Any" -or "$remote" -ne "LocalSubnet") {
+            $rules[0] | Format-List; Write-Error "The allow rule isn't every network and local subnet only"; exit 1
           }
-          if ("$($block[0].Profile)" -ne "Public") { $block[0] | Format-List; Write-Error "The block rule isn't for Public networks"; exit 1 }
 
           # Setup closes a running Tandem itself (ADR-0017, 1.2.1 addendum): a copy that listens
           # for setup quits cleanly, and anything else run from Tandem's folder (here a stand-in

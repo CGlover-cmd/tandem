@@ -60,13 +60,12 @@ Name: "{autostartup}\Tandem"; Filename: "{app}\python\pythonw.exe"; Parameters: 
 ; WebView2 (Tandem's window) ships with Windows 11 and with Edge on Windows 10; install it if missing.
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft Edge WebView2..."; Check: NeedsWebView2; Flags: waituntilterminated
 ; Speakers and the TV connect back to Tandem (AirPlay timing, the TV fetching a sent file, the
-; Home app reaching the bridge). Windows' Private/Public setting is the trust list (ADR-0017,
-; 1.1.1 addendum): on Private (and work-domain) networks, devices on the local subnet may reach
-; Tandem; on Public networks Tandem is blocked, and the window offers to mark the network
-; Private. With a rule for Tandem on every network type, Windows never asks "allow Python?".
+; Home app reaching the bridge, a speaker's own buttons). One rule on every network type,
+; Public included, so speakers work on any network with nothing to change in Windows, and
+; Windows never asks "allow Python?". It lets in devices on the PC's own local subnet only:
+; nothing from beyond the router, and only Tandem's program (ADR-0017, ADR-0021).
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Lets AirPlay speakers and TVs on your trusted (Private) networks reach Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=private,domain remoteip=localsubnet"; StatusMsg: "Letting speakers on your network reach Tandem..."; Flags: runhidden waituntilterminated
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Keeps Tandem closed on Public networks; mark a network Private in Windows to trust it"" dir=in action=block program=""{app}\python\pythonw.exe"" enable=yes profile=public"; Flags: runhidden waituntilterminated
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Lets AirPlay speakers and TVs on your local network reach Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=any remoteip=localsubnet"; StatusMsg: "Letting speakers on your network reach Tandem..."; Flags: runhidden waituntilterminated
 ; Compile Tandem's libraries once, here: under Program Files Python can't write its cache, so
 ; without this it would recompile them on every start (about a third slower to open).
 Filename: "{app}\python\python.exe"; Parameters: "-m compileall -q -j 0 ""{app}\python\Lib\site-packages"""; StatusMsg: "Preparing Tandem..."; Flags: runhidden waituntilterminated

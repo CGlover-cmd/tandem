@@ -8,6 +8,10 @@ Tandem's player; switching it keeps every output streaming.
 A stream that fails while its device is still wanted waits and resumes: straight away when
 the connection comes back (the session reconnects on its own), or after a backoff when the
 connection stayed up but the stream itself broke. So a Wi-Fi blip costs a gap, not the stream.
+
+A stream can also stall without failing: the sender stops asking for audio and no error comes
+(pyatv's audio path doesn't report a lost connection on its own). A watchdog notices when an
+output's sender hasn't taken audio for a few seconds and restarts just that output.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import time
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -44,6 +49,11 @@ LOCAL_PREFIX = "local:"
 BASE_DELAY = 0.1
 """Seconds of cushion every output builds before it sends (ADR-0011)."""
 MAX_DELAY_MS = 10_000
+STALL_SECONDS = 5.0
+"""A playing output whose sender took no audio for this long has stalled: restart it."""
+START_GRACE = 30.0
+"""A new stream may take this long to take its first audio (the receiver sets up)."""
+WATCH_INTERVAL = 1.0
 
 
 def is_local(output_id: str) -> bool:
@@ -69,6 +79,11 @@ class _Output:
     silent_frames: int = 0
     underruns: int = 0
     retry: asyncio.TimerHandle | None = field(default=None, repr=False)
+    progress: int = 0
+    """Frames the sender had taken at the last watchdog check."""
+    progress_at: float = 0.0
+    """When `progress` last moved (or the stream was launched)."""
+    stalls: int = 0
 
 
 class AudioHub:
@@ -85,6 +100,8 @@ class AudioHub:
         sleep: Sleep = asyncio.sleep,
         rng: random.Random | None = None,
         local_sink: LocalSinkFactory = _no_local_sink,
+        clock: Callable[[], float] = time.monotonic,
+        stall_seconds: float = STALL_SECONDS,
     ) -> None:
         self._bus = bus
         self._capture_factory = capture
@@ -101,6 +118,9 @@ class AudioHub:
         self._probing: set[str] = set()
         """Outputs playing a line-up probe instead of the shared source."""
         self._capture: PcmCapture | None = None
+        self._clock = clock
+        self._stall_seconds = stall_seconds
+        self._watch: asyncio.TimerHandle | None = None
         bus.subscribe(ConnectionStateChanged, self._on_state)
 
     # --- public --------------------------------------------------------------------
@@ -141,6 +161,9 @@ class AudioHub:
     async def close(self) -> None:
         for device_id in list(self._outputs):
             await self.stop(device_id)
+        if self._watch is not None:
+            self._watch.cancel()
+            self._watch = None
 
     async def set_volume(self, output_id: str, level: float) -> None:
         """Set one output's volume (0 to 100); kept for restarts."""
@@ -153,6 +176,13 @@ class AudioHub:
         if output.sink is not None and output.state is StreamState.STREAMING:
             await output.sink.set_volume(level)
         self._publish(output_id, output.state)
+
+    def note_volume(self, output_id: str, level: float) -> None:
+        """The device changed its own volume: keep it (for restarts) without sending it."""
+        output = self._outputs.get(output_id)
+        if output is not None and 0 <= level <= 100:
+            output.volume = level
+            self._publish(output_id, output.state)
 
     def set_delay(self, output_id: str, delay_ms: int) -> None:
         """Add `delay_ms` to one output, to line it up with the others by ear."""
@@ -188,6 +218,45 @@ class AudioHub:
         finally:
             self._probing.discard(output_id)
             self._refresh_buffers()
+
+    def check_stalls(self) -> list[str]:
+        """Restart every playing output whose sender has stopped taking audio. Returns the
+        restarted output ids (the watchdog calls this every second)."""
+        now = self._clock()
+        stalled: list[str] = []
+        for device_id, output in list(self._outputs.items()):
+            task = output.task
+            if task is None or task.done() or output.state is not StreamState.STREAMING:
+                continue
+            if device_id in self._probing:
+                continue
+            taken = output.buffer.sent_frames + output.buffer.silent_frames
+            if taken != output.progress:
+                output.progress, output.progress_at = taken, now
+                continue
+            limit = self._stall_seconds if taken else START_GRACE
+            if now - output.progress_at <= limit:
+                continue
+            stalled.append(device_id)
+            output.stalls += 1
+            _LOGGER.info("Audio stream to %s stalled; restarting it", device_id)
+            output.task = None
+            task.cancel()
+            self._publish(device_id, StreamState.WAITING, "Stalled")
+            self._schedule_retry(device_id, output)
+        return stalled
+
+    def _arm_watch(self) -> None:
+        if self._watch is None and self._outputs:
+            self._watch = asyncio.get_running_loop().call_later(WATCH_INTERVAL, self._tick)
+
+    def _tick(self) -> None:
+        self._watch = None
+        try:
+            self.check_stalls()
+        except Exception:
+            _LOGGER.exception("The audio watchdog failed")
+        self._arm_watch()
 
     def stats(self, device_id: str) -> AudioStats | None:
         output = self._outputs.get(device_id)
@@ -274,7 +343,9 @@ class AudioHub:
         old.close()
         output.buffer = self._new_buffer(output.delay_ms)
         output.sink = sink
+        output.progress, output.progress_at = 0, self._clock()
         self._refresh_buffers()
+        self._arm_watch()
         output.task = asyncio.get_running_loop().create_task(
             self._run(device_id, output, sink), name="audio-stream"
         )

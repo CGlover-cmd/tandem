@@ -305,7 +305,11 @@ export const demoSnapshot: AppState = {
     "photo": null
   },
   "network": {
-    "untrusted": false
+    "addresses": [],
+    "adding": false,
+    "checking": false,
+    "findings": null,
+    "speakersSeen": 0
   },
   "update": null,
   "reporting": false,
@@ -333,8 +337,10 @@ export const demoSnapshot: AppState = {
 /** Every command AppController.handle accepts. */
 export const commandTypes = [
   "activate",
+  "addSpeakerAddress",
   "allOutputsOff",
   "cancelPairing",
+  "checkNetwork",
   "clearCommand",
   "closePairing",
   "connect",
@@ -349,12 +355,12 @@ export const commandTypes = [
   "music",
   "musicSeek",
   "openDevice",
-  "openNetworkSettings",
   "openUpdate",
   "pair",
   "pickMedia",
   "press",
   "previewCommand",
+  "removeSpeakerAddress",
   "reportProblem",
   "runCommand",
   "saveGroup",
@@ -367,6 +373,7 @@ export const commandTypes = [
   "setOutputDelay",
   "setOutputVolume",
   "setPower",
+  "setSpeakerPassword",
   "setText",
   "setVolume",
   "stopMedia",
@@ -381,6 +388,7 @@ export const everyCommandIsHandled: [Unhandled] extends [never] ? true : never =
 export const problemCodes = [
   "appCant",
   "appDidntRespond",
+  "badAddress",
   "badGroup",
   "cantDoThat",
   "connectFirst",
@@ -395,10 +403,13 @@ export const problemCodes = [
   "noPairingNeeded",
   "noResponse",
   "noSend",
+  "noSpeakerThere",
   "noTextField",
   "notATv",
   "notAvailable",
   "notConnected",
+  "notLocalAddress",
+  "notPlayable",
   "nothingPlaying",
   "pairFirst",
   "pairingFailed",
@@ -406,5 +417,6 @@ export const problemCodes = [
   "pinFormat",
   "speakerGone",
   "taskFailed",
+  "tooManyAddresses",
   "wrongPin",
 ] as const;

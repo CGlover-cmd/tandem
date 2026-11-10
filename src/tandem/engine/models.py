@@ -43,6 +43,15 @@ class Device:
     """Services with stored pairing credentials."""
     needs_pairing: frozenset[Service] = field(default=frozenset[Service]())
     """Services the device only allows after pairing, not paired yet."""
+    os_version: str = ""
+    """The receiver's software version as it announces it ("18.4"); not personal. Kept for
+    diagnostics and problem reports, so an OS update that breaks things shows up."""
+    password_required: bool = False
+    """The speaker asks for a password (the Home app's "Require Password")."""
+    password_set: bool = False
+    """Tandem has a password saved for it (in the credential vault)."""
+    stereo_pair: bool = False
+    """It looks like one half of a stereo pair (two HomePods sharing a sync group)."""
 
     @property
     def can_play_audio(self) -> bool:

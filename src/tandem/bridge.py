@@ -18,6 +18,7 @@ from typing import TypeVar
 
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
+from tandem.bridge_network import EngineNetwork
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine import paths
@@ -91,7 +92,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend(EngineAudio, EngineHome):
+class EngineBackend(EngineAudio, EngineHome, EngineNetwork):
     def __init__(
         self,
         engine: Engine,
@@ -118,6 +119,7 @@ class EngineBackend(EngineAudio, EngineHome):
         ]
         self._unsubscribe += self._init_audio()
         self._unsubscribe += self._init_home(home_server)
+        self._init_network()
         engine.outputs.pc_mute.enabled = settings.settings.mute_pc
         self._commands = CommandDispatcher(EngineCommandServices(engine, home=self.home_bridge))
 
@@ -175,6 +177,8 @@ class EngineBackend(EngineAudio, EngineHome):
         finally:
             self._publish(ui.DiscoveryChanged(active=False))
         self._engine.discovery.start()
+        self._engine.start_network_watch()
+        await self._engine.start_speaker_buttons()
         if self._settings.settings.restore_outputs:
             self.restore_outputs()
         await self._start_home()
@@ -572,8 +576,12 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     from tandem.engine import paths
     from tandem.engine.adapters.credential_vault import CredentialVault
     from tandem.engine.adapters.pyatv_adapter import PyatvBackend
+    from tandem.engine.adapters.pyatv_dacp import ZeroconfAdvertiser
+    from tandem.engine.addresses import AddressStore
     from tandem.engine.logs import configure_logging
+    from tandem.engine.network import NetworkWatch
     from tandem.engine.redact import Redactor
+    from tandem.engine.speaker_buttons import SpeakerButtons
 
     redactor = Redactor()
     configure_logging(redactor, log_dir=paths.log_dir())
@@ -584,6 +592,8 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
     prefs.load()
     groups = GroupStore(paths.data_dir() / "groups.json")
     groups.load()
+    addresses = AddressStore(paths.data_dir() / "addresses.json")
+    addresses.load()
     engine = Engine(
         PyatvBackend(CredentialVault(paths.credentials_file())),
         bus=bus,
@@ -591,6 +601,9 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
         discovery_interval=settings.discovery_interval_s,
         output_prefs=prefs,
         output_groups=groups,
+        addresses=addresses,
+        network_watch=NetworkWatch(),
+        speaker_buttons=SpeakerButtons(ZeroconfAdvertiser()),
     )
 
     def home_server() -> BridgeServer:

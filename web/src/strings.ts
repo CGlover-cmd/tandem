@@ -199,10 +199,15 @@ export const strings = {
       unreachable: "No answer. Check it's on and on the same Wi-Fi as this PC, then try again.",
       access:
         "It turned Tandem away. In the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+      password: "This speaker has a password. Type it below; Tandem remembers it.",
+      stereoPair:
+        "This HomePod is half of a stereo pair, and the pair only plays from Apple devices. Tandem can play on it after you ungroup the pair in the Home app.",
       failed: "Couldn't play here. Turn it on to try again.",
-      network: "Windows doesn't trust this network yet, so speakers can't reach Tandem.",
     } as Record<string, string>,
-    trustNetwork: "Trust this network…",
+    password: "Speaker password",
+    passwordFor: (name: string) => `Password for ${name}`,
+    savePassword: "Save",
+    findSpeaker: "Can't find a speaker?",
     pairFirst: "Pair first",
     turnOn: (name: string) => `Play on ${name}`,
     allOff: "Turn all off",
@@ -243,12 +248,41 @@ export const strings = {
     open: "Get the update",
     later: "Later",
   },
-  network: {
-    title: "Is this your network?",
-    body: "Windows treats this network as Public, so Tandem keeps your speakers and TV out. If it's your own network, mark it as trusted (Private) in Windows. Windows remembers your choice for each network.",
-    trust: "Trust this network…",
-    steps: "In Windows Settings, open this network's Properties and choose Private network.",
-    later: "Not now",
+  findSpeaker: {
+    open: "Can't find a speaker?",
+    title: "Can't find a speaker?",
+    subtitle:
+      "Tandem looks for speakers on your network by itself. If one doesn't show up, add it by its address, or let Tandem check this PC for the usual reasons.",
+    addTitle: "Add a speaker by its address",
+    addDetail:
+      "Find the address in your router's list of devices, or in the speaker's own app: four numbers with dots between them. Tandem asks it directly on every search.",
+    addressLabel: "Speaker address",
+    addressPlaceholder: "Address from your router",
+    add: "Add",
+    adding: "Asking…",
+    saved: "Asked on every search",
+    remove: (address: string) => `Remove ${address}`,
+    checkTitle: "Check this PC",
+    checkDetail: "Looks at this PC's network, VPN and firewall, and at what the last searches found.",
+    check: "Check my network",
+    checking: "Checking…",
+    seen: (count: number) =>
+      count === 1 ? "Tandem can see 1 device right now." : `Tandem can see ${count} devices right now.`,
+    nothingFound:
+      "Tandem didn't find a problem on this PC. If a speaker still doesn't show, check it's on, then add it by its address above.",
+    finding: {
+      offline: "This PC isn't connected to a network. Connect to your home Wi-Fi.",
+      noFirewallRule:
+        "Tandem's firewall rule is missing, so Windows Firewall may keep speakers out. Run Tandem's setup again to add it back.",
+      noAnswers:
+        "Nothing answered Tandem's search for a while. Some routers block it: look for a setting called client isolation, AP isolation or multicast filtering and turn it off, or add your speakers by address above.",
+      otherSubnet:
+        "A speaker is on a different part of the network than this PC, such as guest Wi-Fi or a second router. Put them on the same Wi-Fi.",
+      vpn: "A VPN is on and can hide your home network. Turn it off, or allow local network access in the VPN's settings.",
+      homeAccess:
+        "A speaker turned Tandem away. In the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+    } as Record<string, string>,
+    close: "Done",
   },
   onboarding: {
     title: "Getting started",
@@ -453,6 +487,12 @@ export const problems: Record<string, string> = {
   badGroup: "A group needs a name and at least one speaker.",
   groupNonePlayed: "None of the speakers in that group could play.",
   groupGone: "That group is no longer available.",
+  badAddress: "That isn't an address Tandem can use. Type four numbers with dots between them, as your router shows it.",
+  notLocalAddress: "That address isn't on a home network. Speaker addresses usually start with 192.168, 10 or 172.",
+  tooManyAddresses: "Tandem keeps up to 20 addresses. Remove one first.",
+  noSpeakerThere: "No speaker answered at that address. Check the address and that the speaker is on.",
+  notPlayable:
+    "The TV can't play that file's video or sound format. Try an MP4 with H.264 video and AAC sound, or convert the file first.",
 };
 
 export function problemText(problem: Problem): string {

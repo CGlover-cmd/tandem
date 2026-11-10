@@ -240,6 +240,8 @@ class OutputProblem(Enum):
 
     UNREACHABLE = "unreachable"  # no answer: off, asleep, or on another network
     ACCESS = "access"  # it answered and refused: the Home app's speaker access setting
+    PASSWORD = "password"  # it wants its password (Home app "Require Password")
+    STEREO_PAIR = "stereoPair"  # half of a stereo pair, which Tandem can't play to yet
     FAILED = "failed"  # anything else
 
 
@@ -420,8 +422,38 @@ class HomeUpdated:
     home: HomeSnapshot
 
 
+class NetworkFinding(Enum):
+    """One thing the network check found (worst first). The window holds the words."""
+
+    OFFLINE = "offline"
+    NO_FIREWALL_RULE = "noFirewallRule"
+    NO_ANSWERS = "noAnswers"
+    OTHER_SUBNET = "otherSubnet"
+    VPN = "vpn"
+    HOME_ACCESS = "homeAccess"
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkSnapshot:
+    """The "Can't find a speaker?" sheet: speakers added by address and the network check."""
+
+    addresses: tuple[str, ...] = ()
+    """Speaker addresses the user added (private: shown, never logged)."""
+    adding: bool = False
+    checking: bool = False
+    findings: tuple[NetworkFinding, ...] | None = None
+    """The last check's findings; None until a check has run."""
+    speakers_seen: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkChanged:
+    network: NetworkSnapshot
+
+
 BackendEvent = (
-    HomeUpdated
+    NetworkChanged
+    | HomeUpdated
     | DeviceUpdated
     | DeviceRemoved
     | DiscoveryChanged
@@ -463,6 +495,11 @@ class Problem:
     BAD_GROUP = "badGroup"
     GROUP_NONE_PLAYED = "groupNonePlayed"
     GROUP_GONE = "groupGone"
+    BAD_ADDRESS = "badAddress"
+    NOT_LOCAL_ADDRESS = "notLocalAddress"
+    TOO_MANY_ADDRESSES = "tooManyAddresses"
+    NO_SPEAKER_THERE = "noSpeakerThere"
+    NOT_PLAYABLE = "notPlayable"
 
 
 class BackendError(Exception):
@@ -650,6 +687,26 @@ class Backend(Protocol):
 
     async def set_group(self, group_id: str, on: bool) -> None:
         """Turn every member on or off. Raises AudioError only if none would play."""
+        ...
+
+    # Can't find a speaker? (lessons from AirParrot)
+
+    def network(self) -> NetworkSnapshot: ...
+
+    async def add_speaker_address(self, address: str) -> None:
+        """Ask one address directly and keep it if a speaker answers. Raises `BackendError`
+        (BAD_ADDRESS, NOT_LOCAL_ADDRESS, TOO_MANY_ADDRESSES, NO_SPEAKER_THERE)."""
+        ...
+
+    async def remove_speaker_address(self, address: str) -> None: ...
+
+    async def check_network(self) -> None:
+        """Run the network check; findings arrive as `NetworkChanged`."""
+        ...
+
+    async def set_speaker_password(self, device_id: str, password: str) -> None:
+        """Save a speaker's password and try it again if it was on. The password is private:
+        never logged."""
         ...
 
     # Housekeeping
