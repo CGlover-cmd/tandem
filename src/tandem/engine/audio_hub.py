@@ -8,6 +8,9 @@ Tandem's player; switching it keeps every output streaming.
 A stream that fails while its device is still wanted waits and resumes: straight away when
 the connection comes back (the session reconnects on its own), or after a backoff when the
 connection stayed up but the stream itself broke. So a Wi-Fi blip costs a gap, not the stream.
+
+The source also goes into one `CaptureTimeline`, by capture time. Senders on PTP timing read
+that instead of their queue (ADR-0022), so they all play the same moment at the same time.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from tandem.engine.audio import (
 from tandem.engine.backoff import Backoff
 from tandem.engine.events import EventBus
 from tandem.engine.session import ConnectionState, ConnectionStateChanged, Link, Sleep
+from tandem.engine.timeline import CaptureTimeline
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +105,7 @@ class AudioHub:
         self._probing: set[str] = set()
         """Outputs playing a line-up probe instead of the shared source."""
         self._capture: PcmCapture | None = None
+        self._timeline = CaptureTimeline()
         bus.subscribe(ConnectionStateChanged, self._on_state)
 
     # --- public --------------------------------------------------------------------
@@ -161,6 +166,7 @@ class AudioHub:
             raise AudioError("not streaming")
         output.delay_ms = _clamp_delay(delay_ms)
         output.buffer.set_delay(BASE_DELAY + output.delay_ms / 1000)
+        output.buffer.offset_seconds = output.delay_ms / 1000
         self._publish(output_id, output.state)
 
     def set_capture(self, capture: Callable[[], PcmCapture]) -> None:
@@ -179,13 +185,25 @@ class AudioHub:
             raise AudioError("not streaming")
         self._probing.add(output_id)
         self._refresh_buffers()
+        buffer = output.buffer
+        # A timed sender plays the probe from its own timeline, on the same timing as the
+        # shared one: nothing is queued ahead of it.
+        probe_timeline = CaptureTimeline() if buffer.timed else None
+        shared = buffer.timeline
+        if probe_timeline is not None:
+            buffer.timeline = probe_timeline
         try:
-            ahead = frames_to_seconds(output.buffer.buffered_frames) * 1000
+            ahead = 0.0 if buffer.timed else frames_to_seconds(buffer.buffered_frames) * 1000
             for chunk in pcm_chunks:
-                output.buffer.push(chunk)
+                if probe_timeline is not None:
+                    probe_timeline.push(chunk)
+                else:
+                    buffer.push(chunk)
                 await self._sleep(chunk_ms / 1000)
             return ahead
         finally:
+            if probe_timeline is not None:
+                buffer.timeline = shared
             self._probing.discard(output_id)
             self._refresh_buffers()
 
@@ -206,7 +224,10 @@ class AudioHub:
 
     def _new_buffer(self, delay_ms: int = 0) -> PcmBuffer:
         delay = BASE_DELAY + delay_ms / 1000
-        return PcmBuffer(max_seconds=delay + 1.0, prime_seconds=delay)
+        buffer = PcmBuffer(max_seconds=delay + 1.0, prime_seconds=delay)
+        buffer.timeline = self._timeline
+        buffer.offset_seconds = delay_ms / 1000
+        return buffer
 
     def _refresh_buffers(self) -> None:
         self._buffers = tuple(o.buffer for i, o in self._outputs.items() if i not in self._probing)
@@ -215,8 +236,9 @@ class AudioHub:
         # Capture thread: whole frames only, to every output's buffer.
         if len(data) % FRAME_BYTES:
             data = data[: len(data) - len(data) % FRAME_BYTES]
+        self._timeline.push(data)
         for buffer in self._buffers:
-            buffer.push(data)
+            buffer.push(data)  # a timed sender's buffer ignores it
 
     def _ensure_capture(self) -> None:
         if self._capture is None:
@@ -229,6 +251,7 @@ class AudioHub:
         if capture is not None:
             with suppress(Exception):
                 capture.stop()
+        self._timeline.clear()
 
     async def _halt(self, output: _Output) -> None:
         if output.retry is not None:

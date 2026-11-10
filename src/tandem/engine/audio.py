@@ -16,9 +16,12 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from tandem.engine.events import Event
+
+if TYPE_CHECKING:
+    from tandem.engine.timeline import CaptureTimeline
 
 SAMPLE_RATE = 44_100
 CHANNELS = 2
@@ -60,6 +63,12 @@ class PcmBuffer:
         self.underruns = 0
         self.trimmed_frames = 0
         """Old audio skipped when (re)starting, so the stream starts live."""
+        self.timeline: CaptureTimeline | None = None
+        """The shared source by capture time, for senders on PTP timing (ADR-0022)."""
+        self.offset_seconds = 0.0
+        """This output's extra delay (line-up), for senders that read `timeline`."""
+        self.timed = False
+        """Set by a sender that reads `timeline` instead of this queue: pushes are ignored."""
 
     @property
     def buffered_frames(self) -> int:
@@ -72,7 +81,7 @@ class PcmBuffer:
 
     def push(self, data: bytes) -> None:
         """Add captured PCM. Thread-safe; partial frames are not allowed."""
-        if self._closed or not data:
+        if self._closed or not data or self.timed:
             return
         if len(data) % FRAME_BYTES:
             raise ValueError("PCM data must be whole frames")
@@ -124,6 +133,12 @@ class PcmBuffer:
                 self._max_bytes, int((prime_seconds + 1.0) * SAMPLE_RATE) * FRAME_BYTES
             )
             self._primed = False
+
+    def note_timed(self, frames: int, silent: int) -> None:
+        """Count what a timed sender sent: `frames` in all, `silent` of them filled in."""
+        with self._lock:
+            self.sent_frames += frames - silent
+            self.silent_frames += silent
 
     async def read(self, frames: int) -> bytes:
         """Exactly `frames` frames, at once: audio when enough is buffered, else silence.
