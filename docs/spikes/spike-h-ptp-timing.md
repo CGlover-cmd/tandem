@@ -1,6 +1,6 @@
 # Spike H: PTP timing for AirPlay 2 speakers
 
-Status: research done and code written (2026-11-09); hardware check waiting on the maintainer.
+Status: done. Hardware check passed on 2026-11-10 (soundbar and a HomePod mini).
 Decision record: [ADR-0022](../adr/0022-ptp-timing-for-airplay-2.md).
 
 ## Question
@@ -55,4 +55,22 @@ installer's firewall rule is per program, so it covers them.
 - `engine`: the same beeps as a file through Tandem's player and audio hub, which picks PTP
   for speakers that offer it.
 
-Results: to come.
+## Results (2026-11-10)
+Run on the maintainer's PC under the installed app's Python, with the soundbar (JBL Bar 5.1) and
+a HomePod mini. All three runs ended cleanly: no tracebacks, no errors or warnings in pyatv's log.
+
+- `find`: both HomePod minis and the soundbar advertise PTP.
+- `compare`, PTP round (30 s): both speakers took the PTP SETUP and SETPEERS (200), got about 32
+  sync packets each and sent about 250 Delay_Req each, so they follow Tandem's clock. Each also
+  sent Announce with priority1 248, which loses to Tandem's 128, as planned. Every SETUP,
+  SETPEERS, RECORD, FLUSH and SET_PARAMETER got 200.
+- `compare`, NTP round (30 s): ran without errors, as before.
+- `engine`: the beep file through Tandem's player and audio hub. Both speakers took the PTP path
+  (none refused), sent 29.8 s of audio each with no drops or underruns. The 6 to 7 s of silence
+  each is the 3 s wait before play, the 2.15 s latency and the tail after the file.
+- By ear (maintainer): "one beep per second and they appear to be synced in time".
+
+**Verdict:** PTP timing works on the reference AirPlay 2 speakers. ADR-0022 is accepted.
+
+Open: the Phase 5 exit check (soundbar, HomePods and the PC's speakers within ~20 ms for 30
+minutes) and the Apple TV as a PTP output are still to run.

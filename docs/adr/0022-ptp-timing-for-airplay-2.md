@@ -1,6 +1,6 @@
 # ADR-0022: PTP timing for AirPlay 2 speakers
 
-- Status: Proposed (waiting on the Spike H hardware check)
+- Status: Accepted (Spike H passed on the reference speakers, 2026-11-10)
 - Date: 2026-11-09
 
 ## Context
