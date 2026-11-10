@@ -144,11 +144,11 @@ _Update this section at the end of every working session._
   controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
   (needs a paid Apple Developer membership; resumes if the maintainer joins). The now-playing
   bar passed its exit test with the Apple Music app and a browser. The local player and radio
-  are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
-  still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
+  are in the window too (This PC, Radio and Queue in the Music tab) and passed their speaker
+  check on the soundbar and a HomePod mini, including a one-hour radio run. Apple Music catalog search is built too (Apple's keyless Search API; results
   open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
-  Music:** the speaker check's one-hour radio run, a decision on the catalog search's exit
-  (a link opens the song's page but doesn't play it), then Connections and Spotify.
+  Music:** a decision on the catalog search's exit (a link opens the song's page but doesn't
+  play it), then Connections and Spotify.
 
 ## Scope
 
@@ -331,7 +331,7 @@ one.)
   (2026-11-06, while the maintainer played songs): 5 track changes (skips sent through
   Windows' media controls, each confirmed by a new track), max 16 ms, mean 6 ms, with artwork
   each time; playback was left running.
-- [ ] Local player and internet radio: folder picker, library index, queue, radio search;
+- [x] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
   Built: the Music tab has **This PC** (music folders, an album grid with artwork, artists,
@@ -341,8 +341,10 @@ one.)
   `library.json`; artwork is read from the files into memory. Tracks join without a gap: one
   player thread and one real-time clock across tracks. Checked on this PC without speakers: a
   scan of test files, gapless decoding (6.00 s of 6.0 s of audio, no pauses, after fixing a
-  decoder bug that dropped each track's first 23 ms) and a live radio search. **To run:** an
-  album to the soundbar and a HomePod mini, and a station for an hour.
+  decoder bug that dropped each track's first 23 ms) and a live radio search. **Passed**
+  (2026-11-09): an album played to the soundbar and a HomePod mini with no errors (one brief
+  underrun each; the HomePod lags until AirPlay 2 timing lands), and a station played for an
+  hour to both: 3599 s sent to each, no dropouts, reconnects or errors.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.
