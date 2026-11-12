@@ -15,6 +15,7 @@ interface Props {
   onClose: () => void;
   onOpenGuide: () => void;
   onOpenAdvanced: () => void;
+  onFindSpeaker: () => void;
   onOpenSpotify: () => void;
   appearance: Appearance;
   spotify: Spotify;
@@ -89,7 +90,18 @@ function PhotoPicker({ hasPhoto }: { hasPhoto: boolean }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, onOpenSpotify, appearance, spotify, mode, send }: Props) {
+export function SettingsSheet({
+  isOpen,
+  onClose,
+  onOpenGuide,
+  onOpenAdvanced,
+  onFindSpeaker,
+  onOpenSpotify,
+  appearance,
+  spotify,
+  mode,
+  send,
+}: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
   const words = strings.settingsSheet;
@@ -189,6 +201,10 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, on
             <nav className="flex flex-col gap-1" aria-label={words.more}>
               <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenGuide}>
                 <span>{strings.onboarding.reopen}</span>
+                <ChevronIcon direction="right" size={16} />
+              </Button>
+              <Button variant="tertiary" fullWidth className="settings-link" onPress={onFindSpeaker}>
+                <span>{strings.findSpeaker.open}</span>
                 <ChevronIcon direction="right" size={16} />
               </Button>
               <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenAdvanced}>

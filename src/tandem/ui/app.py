@@ -23,7 +23,6 @@ from tandem.ui.backend import Backend
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.controller import AppController
 from tandem.ui.file_picker import WindowFilePicker
-from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.platform import (
     GlobalHotkey,
     on_quit_request,
@@ -90,7 +89,6 @@ def build(
         picker=picker,
         folder_picker=picker,
         photo=photo,
-        network=None if args.demo else NetworkWatch(),
         get_json=None if http is None else http.get_json,
         reveal=reveal_in_explorer,
     )

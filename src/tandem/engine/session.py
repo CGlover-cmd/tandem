@@ -65,6 +65,12 @@ Connector = Callable[[LostCallback], Awaitable[Link]]
 Sleep = Callable[[float], Awaitable[None]]
 
 
+REFUSALS = frozenset({"AuthenticationError"})
+"""Failures that retrying can't fix: the device turned the password down (or wants one).
+The session gives up at once, so the window can ask for the password instead of waiting out
+the connect timeout, and a wrong password isn't sent again and again."""
+
+
 class ConnectionFailedError(Exception):
     """The session gave up, or was closed, before it connected."""
 
@@ -95,6 +101,12 @@ class ConnectionSession:
         self._state = ConnectionState.DISCONNECTED
         self._link: Link | None = None
         self._task: asyncio.Task[None] | None = None
+        self._wake = asyncio.Event()
+        """Set by `retry_now` to cut a backoff wait short."""
+        self._fresh = False
+        """`retry_now` asked for a fresh start: count failures from zero again."""
+        self._drop: Callable[[], None] | None = None
+        """While connected: treat the connection as lost (see `reconnect`)."""
 
     @property
     def state(self) -> ConnectionState:
@@ -120,6 +132,38 @@ class ConnectionSession:
             with suppress(asyncio.CancelledError):
                 await task
         self._set(ConnectionState.DISCONNECTED)
+
+    def reconnect(self, reason: str = "Stalled") -> bool:
+        """Drop a connection that looks alive but isn't (a stalled stream) and connect again.
+        True if it was connected."""
+        if self._state is not ConnectionState.CONNECTED or self._drop is None:
+            return False
+        _LOGGER.info("Reconnecting %s (%s)", self.device_id, reason)
+        self._drop()
+        return True
+
+    def retry_now(self) -> bool:
+        """Cut a backoff wait short and try again at once, with the backoff reset (the network
+        changed, so earlier failures say nothing). True if the session was waiting."""
+        if self._state is not ConnectionState.WAITING:
+            return False
+        self._fresh = True
+        self._wake.set()
+        return True
+
+    async def _pause(self, delay: float) -> None:
+        """Wait out a backoff delay, or until `retry_now`."""
+        self._wake.clear()
+        sleeper = asyncio.ensure_future(self._sleep(delay))
+        waker = asyncio.ensure_future(self._wake.wait())
+        try:
+            await asyncio.wait({sleeper, waker}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in (sleeper, waker):
+                if not task.done():
+                    task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await task
 
     async def wait_connected(self, timeout: float | None = None) -> Link:
         """Wait until CONNECTED and return the link. Raises ConnectionFailedError on FAILED
@@ -188,28 +232,34 @@ class ConnectionSession:
                 failures += 1
                 reason = type(exc).__name__
                 _LOGGER.info("Connecting to %s failed (%s)", self.device_id, reason)
-                if self._max_attempts is not None and failures >= self._max_attempts:
+                gave_up = self._max_attempts is not None and failures >= self._max_attempts
+                if gave_up or reason in REFUSALS:
                     self._set(ConnectionState.FAILED, attempt=failures, reason=reason)
                     return
                 delay = self._backoff.delay(failures - 1, self._rng)
                 self._set(ConnectionState.WAITING, attempt=failures, retry_in=delay, reason=reason)
-                await self._sleep(delay)
+                await self._pause(delay)
+                if self._fresh:
+                    self._fresh, failures = False, 0
                 continue
 
             failures = 0
             self._link = link
+            self._drop = lambda: on_lost(None)
             self._set(ConnectionState.CONNECTED)
             try:
                 await lost.wait()
             finally:
                 self._link = None
+                self._drop = None
                 await self._close_link(link)
 
             reason = lost_reason[0] if lost_reason else "ConnectionClosed"
             _LOGGER.info("Connection to %s dropped (%s)", self.device_id, reason)
             delay = self._backoff.delay(0, self._rng)
             self._set(ConnectionState.WAITING, retry_in=delay, reason=reason)
-            await self._sleep(delay)
+            await self._pause(delay)
+            self._fresh = False
 
     async def _close_link(self, link: Link) -> None:
         try:

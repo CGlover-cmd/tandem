@@ -35,3 +35,6 @@ desktop.ini
 # Front end (ADR-0010): dependencies, and the build that ships inside the package
 node_modules/
 src/tandem/ui/static/
+
+# tsc output: the web build is Vite; compiled copies beside the sources shadow them in tests
+web/src/**/*.js

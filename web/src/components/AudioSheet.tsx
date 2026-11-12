@@ -1,4 +1,5 @@
-import { Button, Modal, Spinner, Switch } from "@heroui/react";
+import { Button, Input, Label, Modal, Spinner, Switch, TextField } from "@heroui/react";
+import { useState } from "react";
 
 import {
   directSwitch,
@@ -9,6 +10,7 @@ import {
   outputLive,
   outputVolume,
   problemText,
+  wantsPassword,
 } from "../audio";
 import { DeviceIcon, HeadphonesIcon, VolumeIcon } from "../icons";
 import { strings } from "../strings";
@@ -20,21 +22,38 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   audio: AudioPanel;
-  /** Windows treats the network as Public: speakers can't reach Tandem. */
-  untrusted: boolean;
+  /** Opens "Can't find a speaker?". */
+  onFindSpeaker: () => void;
   send: (command: Command) => void;
 }
 
-function OutputRow({
-  output,
-  untrusted,
-  send,
-}: {
-  output: AudioOutput;
-  untrusted: boolean;
-  send: (command: Command) => void;
-}) {
-  const problem = problemText(output, untrusted);
+/** A speaker with a password: type it once, Tandem keeps it and plays there. */
+function PasswordForm({ output, send }: { output: AudioOutput; send: (command: Command) => void }) {
+  const [password, setPassword] = useState("");
+  const words = strings.audio;
+  return (
+    <form
+      className="flex w-full items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!password) return;
+        send({ type: "setSpeakerPassword", id: output.id, password });
+        setPassword("");
+      }}
+    >
+      <TextField value={password} onChange={setPassword} maxLength={128} type="password" className="flex-1">
+        <Label className="sr-only">{words.passwordFor(output.name)}</Label>
+        <Input placeholder={words.password} autoComplete="off" />
+      </TextField>
+      <Button size="sm" variant="primary" type="submit" isDisabled={!password}>
+        {words.savePassword}
+      </Button>
+    </form>
+  );
+}
+
+function OutputRow({ output, send }: { output: AudioOutput; send: (command: Command) => void }) {
+  const problem = problemText(output);
   const direct = outputDirect(output);
   const live = outputLive(output);
   const pcSwitch = direct ? directSwitch(output) : null;
@@ -85,11 +104,7 @@ function OutputRow({
       {problem && (
         <div className="mt-2 flex flex-col items-start gap-2" role="status">
           <p className="text-[12px] text-[var(--danger)]">{problem}</p>
-          {untrusted && output.kind === "airplay" && (
-            <Button size="sm" variant="secondary" onPress={() => send({ type: "openNetworkSettings" })}>
-              {strings.audio.trustNetwork}
-            </Button>
-          )}
+          {wantsPassword(output) && <PasswordForm output={output} send={send} />}
         </div>
       )}
       {live && (
@@ -111,7 +126,7 @@ function OutputRow({
   );
 }
 
-export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
+export function AudioSheet({ isOpen, onClose, audio, onFindSpeaker, send }: Props) {
   const { airplay, pc } = groupOutputs(audio.outputs);
   const master = masterVolume(audio.outputs);
   return (
@@ -159,11 +174,14 @@ export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
               ) : (
                 <ul className="flex flex-col gap-2" aria-labelledby="airplay-label">
                   {airplay.map((output) => (
-                    <OutputRow key={output.id} output={output} untrusted={untrusted} send={send} />
+                    <OutputRow key={output.id} output={output} send={send} />
                   ))}
                 </ul>
               )}
               <p className="text-[12px] text-[var(--muted)]">{strings.audio.delayHint}</p>
+              <Button size="sm" variant="tertiary" className="self-start" onPress={onFindSpeaker}>
+                {strings.audio.findSpeaker}
+              </Button>
             </section>
 
             <section className="flex flex-col gap-2" aria-labelledby="pc-label">
@@ -175,7 +193,7 @@ export function AudioSheet({ isOpen, onClose, audio, untrusted, send }: Props) {
               ) : (
                 <ul className="flex flex-col gap-2" aria-labelledby="pc-label">
                   {pc.map((output) => (
-                    <OutputRow key={output.id} output={output} untrusted={untrusted} send={send} />
+                    <OutputRow key={output.id} output={output} send={send} />
                   ))}
                 </ul>
               )}

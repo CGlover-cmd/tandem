@@ -35,11 +35,15 @@ export function lineUpText(lineup: AudioPanel["lineup"]): string | null {
   return null;
 }
 
-/** What a failed output's row says. On an untrusted network that comes first: it's the fix. */
-export function problemText(output: AudioOutput, untrusted: boolean): string | null {
+/** What a failed output's row says: the fix, when Tandem knows it. */
+export function problemText(output: AudioOutput): string | null {
   if (output.state !== "failed") return null;
-  if (untrusted && output.kind === "airplay") return strings.audio.problem.network!;
   return strings.audio.problem[output.problem ?? "failed"] ?? strings.audio.problem.failed!;
+}
+
+/** A speaker that asks for a password gets a password field on its row. */
+export function wantsPassword(output: AudioOutput): boolean {
+  return output.kind === "airplay" && output.state === "failed" && output.problem === "password";
 }
 
 /** The "All speakers" slider: the average volume of the outputs Tandem is playing on. */

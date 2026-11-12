@@ -82,6 +82,12 @@ class Discovery:
             await self.stop()
             self.start()
 
+    async def rescan(self) -> None:
+        """Scan again now (the network changed), then carry on at the usual pace."""
+        if self.running:
+            await self.stop()
+            self.start()
+
     def start(self) -> None:
         if not self.running:
             self._task = asyncio.get_running_loop().create_task(self._run(), name="discovery")

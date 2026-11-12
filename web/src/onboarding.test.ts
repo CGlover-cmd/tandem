@@ -57,7 +57,7 @@ function state(over: Partial<AppState> = {}): AppState {
       mutePc: true,
       photoBlur: 0,
     },
-    network: { untrusted: false },
+    network: { addresses: [], adding: false, checking: false, findings: null, speakersSeen: 0 },
     update: null,
     reporting: false,
     commandsRequested: 0,

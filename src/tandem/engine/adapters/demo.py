@@ -77,6 +77,24 @@ DEMO_DEVICES = (
     Device(SOUNDBAR, "Den Soundbar", "192.0.2.24", DeviceKind.RECEIVER, "Soundbar", _AIRPLAY),
 )
 
+HIDDEN = "demo-speaker-3"
+DEMO_HIDDEN = Device(
+    HIDDEN,
+    "Workshop Speaker",
+    "192.0.2.60",
+    DeviceKind.RECEIVER,
+    "Speaker",
+    _AIRPLAY,
+    password_required=True,
+)
+"""Only found by address (192.0.2.60), and it wants a password (any but "wrong")."""
+WRONG_PASSWORD = "wrong"
+
+
+class AuthenticationError(Exception):
+    """Named like pyatv's, so the engine reads it as a refusal."""
+
+
 PC_SPEAKERS = f"{LOCAL_PREFIX}demo-speakers"
 PC_HEADPHONES = f"{LOCAL_PREFIX}demo-headphones"
 DEMO_PC_OUTPUTS = (
@@ -183,6 +201,7 @@ class DemoDevices:
         self._delay = delay
         self.devices = list(DEMO_DEVICES)
         self._credentials: set[tuple[str, Service]] = set()
+        self._passwords: dict[str, str] = {}
         self._flaky = {FLAKY}
         self._states: dict[str, _DeviceState] = {}
         self.sessions = DemoSessions(clock)
@@ -205,6 +224,14 @@ class DemoDevices:
     async def scan(self, timeout: float) -> Sequence[Device]:
         return [self._described(d) for d in self.devices]
 
+    async def scan_hosts(self, hosts: Sequence[str], timeout: float) -> Sequence[Device]:
+        await self._sleep(self._delay)
+        every = [*self.devices, DEMO_HIDDEN]
+        return [self._described(d) for d in every if d.address in hosts]
+
+    async def set_password(self, device_id: str, password: str) -> None:
+        self._passwords[device_id] = password
+
     async def describe(self, device_id: str) -> Device | None:
         device = next((d for d in self.devices if d.id == device_id), None)
         return None if device is None else self._described(device)
@@ -212,7 +239,10 @@ class DemoDevices:
     def _described(self, device: Device) -> Device:
         paired = frozenset(s for i, s in self._credentials if i == device.id)
         return dataclasses.replace(
-            device, paired=paired, needs_pairing=device.needs_pairing - paired
+            device,
+            paired=paired,
+            needs_pairing=device.needs_pairing - paired,
+            password_set=device.id in self._passwords,
         )
 
     async def forget(self, device_id: str) -> bool:
@@ -231,6 +261,10 @@ class DemoDevices:
     def connector(self, device_id: str) -> Callable[..., Awaitable[_DemoLink]]:
         async def connect(on_lost: Callable[[BaseException | None], None]) -> _DemoLink:
             await self._sleep(self._delay)
+            if device_id == HIDDEN and self._passwords.get(device_id, WRONG_PASSWORD) == (
+                WRONG_PASSWORD
+            ):
+                raise AuthenticationError  # the speaker refuses: no password, or the wrong one
             if device_id in self._flaky:
                 self._flaky.discard(device_id)
                 raise ConnectionRefusedError  # once, so the window shows a retry

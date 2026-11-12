@@ -119,7 +119,7 @@ export interface AudioOutput {
   deviceKind: DeviceKind | null;
   needsPairing: boolean;
   /** Why it couldn't play, while `state` is "failed". */
-  problem: "unreachable" | "access" | "failed" | null;
+  problem: "unreachable" | "access" | "password" | "stereoPair" | "failed" | null;
 }
 
 /** A saved set of outputs turned on together. `name` is the user's own: never log it. */
@@ -239,6 +239,20 @@ export interface HomeBridge {
   setupCode: string | null;
   failed: boolean;
   switches: { id: string; name: string; on: boolean }[];
+}
+
+/** One thing the network check found (worst first). The words are in strings.ts. */
+export type NetworkFinding = "offline" | "noFirewallRule" | "noAnswers" | "otherSubnet" | "vpn" | "homeAccess";
+
+export interface NetworkState {
+  /** Speakers added by address (private network addresses), asked on every scan. */
+  addresses: string[];
+  adding: boolean;
+  checking: boolean;
+  /** The last check's findings; null until a check has run. */
+  findings: NetworkFinding[] | null;
+  /** Devices the last scan found. */
+  speakersSeen: number;
 }
 
 /** An album in the music library. Titles and artists are shown on screen only. */
@@ -402,8 +416,8 @@ export interface AppState {
   home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
-  /** Windows treats every connected network as Public, so the firewall keeps speakers out. */
-  network: { untrusted: boolean };
+  /** "Can't find a speaker?": speakers added by address and the network check. */
+  network: NetworkState;
   /** A newer Tandem on GitHub, found by the update check. */
   update: { version: string; url: string } | null;
   /** A diagnostics zip is being written for "Report a problem". */
@@ -425,7 +439,9 @@ export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair" | "openDevice"; id: string }
   | { type: "deviceAudio"; id: string; on: boolean }
   | { type: "submitPin"; pin: string }
-  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
+  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "checkNetwork" }
+  | { type: "addSpeakerAddress" | "removeSpeakerAddress"; address: string }
+  | { type: "setSpeakerPassword"; id: string; password: string }
   | { type: "openUpdate" | "reportProblem" | "lineUp" }
   | { type: "saveGroup"; name: string; outputs: string[] }
   | { type: "deleteGroup"; id: string }

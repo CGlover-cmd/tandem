@@ -83,3 +83,13 @@ window hides to the tray when closed, and its tray and engine have no window to 
 - Limits: a copy from before 1.2.1 is stopped, not asked, so it doesn't say goodbye to its
   devices. A copy run from a developer checkout on code older than 1.2.1 is left running; it
   doesn't hold the installed files, so setup isn't blocked, but Tandem isn't reopened.
+
+## Addendum (ADR-0023): one rule on every network
+The maintainer didn't want people to change a Windows setting before speakers work, so the
+1.1.1 trust list is replaced. Setup now adds a single allow rule for Tandem's pythonw.exe on
+every profile (`profile=any`), still `remoteip=localsubnet`, and no block rule. Setup's first
+step deletes every rule named "Tandem", so an update removes the old Public block rule. The
+release workflow checks for exactly one allow rule on all profiles, limited to the local
+subnet. `tandem.ui.network_trust` and the window's "Is this your network?" note are gone.
+Instead, "Can't find a speaker?" checks the rule is there (ADR-0023). Trade-off: on Public
+networks, devices on the same subnet can reach Tandem's listeners. See ADR-0023.
