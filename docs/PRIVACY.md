@@ -46,5 +46,9 @@ go for the Home bridge's switch names and setup code (Phase 10b) and voice input
 microphone stays off until the user turns it on, recognition runs on the PC, and no audio is
 saved or sent).
 
+Music services (Phase 6): searches, playlists, Spotify device names and listening go to the
+window only, never to a log. The Spotify sign-in is stored encrypted for the Windows user
+(`spotify.bin`), and artwork is fetched at run time and kept in memory.
+
 The app collects no telemetry. Crash reports are opt-in, and diagnostics bundles are redacted
 (names, addresses and identifiers replaced with stable placeholders) before they are written.

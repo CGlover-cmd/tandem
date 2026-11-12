@@ -6,7 +6,8 @@ import { CheckIcon, ChevronIcon } from "../icons";
 import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
-import type { Appearance, Command, ThemeChoice } from "../types";
+import type { Appearance, Command, Spotify, ThemeChoice } from "../types";
+import { ConnectionsSection } from "./Connections";
 import { LiveSlider } from "./LiveSlider";
 
 interface Props {
@@ -15,7 +16,9 @@ interface Props {
   onOpenGuide: () => void;
   onOpenAdvanced: () => void;
   onFindSpeaker: () => void;
+  onOpenSpotify: () => void;
   appearance: Appearance;
+  spotify: Spotify;
   mode: Mode;
   send: (command: Command) => void;
 }
@@ -93,7 +96,9 @@ export function SettingsSheet({
   onOpenGuide,
   onOpenAdvanced,
   onFindSpeaker,
+  onOpenSpotify,
   appearance,
+  spotify,
   mode,
   send,
 }: Props) {
@@ -186,6 +191,10 @@ export function SettingsSheet({
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            <ConnectionsSection spotify={spotify} onOpen={onOpenSpotify} />
 
             <Separator />
 

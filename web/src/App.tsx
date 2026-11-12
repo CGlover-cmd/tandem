@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useBridge } from "./bridge";
 import { isCommandShortcut } from "./commands";
 import { AdvancedSheet } from "./components/AdvancedSheet";
+import { SpotifySheet } from "./components/Connections";
 import { AudioSheet } from "./components/AudioSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { FindSpeakerSheet } from "./components/FindSpeakerSheet";
-import { MusicPanel, NowPlayingBar } from "./components/Music";
+import { NowPlayingBar } from "./components/Music";
+import { MusicTab } from "./components/MusicTab";
 import { UpdateNote } from "./components/UpdateNote";
 import { OnboardingSheet } from "./components/OnboardingSheet";
 import { PairingSheet } from "./components/PairingSheet";
@@ -44,6 +46,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [spotifyOpen, setSpotifyOpen] = useState(false);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const update = updateDismissed ? null : (state?.update ?? null);
   // Ctrl+Alt+K anywhere: the app brings the window up and bumps this count.
@@ -267,7 +270,7 @@ export function App() {
               <Spinner color="accent" />
             </div>
           ) : (
-            <MusicPanel music={music} send={send} />
+            <MusicTab state={state} send={send} onOpenAudio={() => setAudioOpen(true)} onOpenConnections={() => setSpotifyOpen(true)} />
           )}
         </Tabs.Panel>
       </Tabs>
@@ -349,8 +352,25 @@ export function App() {
             setSettingsOpen(false);
             setFindOpen(true);
           }}
+          onOpenSpotify={() => {
+            setSettingsOpen(false);
+            setSpotifyOpen(true);
+          }}
           appearance={state.appearance}
+          spotify={state.spotify}
           mode={mode}
+          send={send}
+        />
+      )}
+      {state && (
+        <SpotifySheet
+          isOpen={spotifyOpen}
+          onClose={() => setSpotifyOpen(false)}
+          onBack={() => {
+            setSpotifyOpen(false);
+            setSettingsOpen(true);
+          }}
+          spotify={state.spotify}
           send={send}
         />
       )}

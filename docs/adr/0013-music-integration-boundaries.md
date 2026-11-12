@@ -48,7 +48,11 @@ What we know:
   saying a session has gone (browsers drop theirs briefly on a track change), and confirms
   each command by the app's new state, since an app can accept a command and do nothing.
 - **Local files and internet radio** are decoded in the engine and sent straight to the
-  AirPlay sender, with no loopback capture.
+  AirPlay sender, with no loopback capture. Tags and artwork are read with tinytag (pure
+  Python, MIT) and cached in Tandem's data folder (`library.json`; artwork stays in memory).
+  Stations come from the public Radio Browser directory: only the search words are sent, with
+  a generic `Tandem/<version>` User-Agent; saved stations stay in `radio.json`. Only MP3 and
+  Ogg stations are listed, because those are what the player decodes.
 - **Apple Music:** the Apple Music API and MusicKit JS for browsing and sign-in. They need a
   MusicKit key owned by the maintainer; its private key stays in `local/` and is never
   committed, and the developer token is generated from it outside the repo. Playback is handed
@@ -80,3 +84,24 @@ and Apple Music browsing (Phase 6) are on hold and resume only if the maintainer
 Apple Music is supported the way every other app is: the Apple Music app plays, the Music
 tab shows and controls it through now playing, and the router carries its sound to the
 speakers. Borrowed keys, or the key inside Apple's own web player, are not an option.
+
+## Note (2026-11-08): Apple Music catalog search without a key
+Searching Apple's catalog needs no MusicKit key: Apple's public Search API
+(`itunes.apple.com/search`) is open to anyone. Its terms set the limits Tandem keeps:
+- **Artwork only beside the official badge.** Apple allows its artwork to be shown to promote
+  the item, next to an official Apple badge that links to it. Each result shows its artwork
+  with Apple's "Listen on Apple Music" badge as the button that opens it. The badge and the
+  artwork are fetched from Apple at run time and kept in memory only; neither is committed to
+  the repo or saved to disk. If the badge can't be fetched, the button shows words instead.
+- **No previews.** The API offers 30-second previews; Tandem doesn't play them.
+- **About 20 searches a minute.** The engine allows at most 20 searches in any minute (the
+  window waits for a pause in typing before it asks) and says so when the limit is reached.
+- **Only the search words leave the PC**, with a two-letter country and a generic
+  `Tandem/<version>` User-Agent; no account, cookies or identifiers. Searches and results
+  are never logged.
+
+Opening a result hands its `music://` link to the Apple Music app. The hands-on check
+(2026-11-09) found that a song link only opens its page there (the song's album, with whatever
+was playing left paused); it doesn't start playback. So the button says "Open in Apple Music"
+and the user presses play in the app; the router then carries the sound like any other app's.
+The user's own library and playlists still need a MusicKit key and stay on hold.
