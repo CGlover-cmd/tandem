@@ -701,6 +701,323 @@ h2 {
   color: #ffffff;
 }
 
+/* Music library, radio and queue (Phase 6). */
+
+.library-art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--field-background);
+  color: var(--muted);
+  border: 1px solid var(--tandem-hairline);
+}
+
+.library-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.library-art-small {
+  border-radius: 12px;
+}
+
+.library-art-tiny {
+  border-radius: 7px;
+}
+
+.player-strip {
+  border-radius: 20px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.player-speakers {
+  flex: none;
+}
+
+.library-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chip-remove {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 2px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.chip-remove:hover {
+  background: var(--tandem-hairline);
+}
+
+.chip-remove:focus-visible,
+.album-tile:focus-visible,
+.song-row-main:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.album-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: 18px 14px;
+}
+
+.album-tile {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 16px;
+}
+
+.album-tile-art {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px var(--tandem-shadow),
+    0 12px 28px -16px var(--tandem-shadow);
+  transition: transform 220ms var(--tandem-spring);
+}
+
+.album-tile:hover .album-tile-art {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.album-tile-title {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.album-tile-artist {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.album-header {
+  display: flex;
+  gap: 22px;
+  align-items: flex-end;
+}
+
+.album-header-art {
+  border-radius: 18px;
+  box-shadow:
+    0 2px 6px var(--tandem-shadow),
+    0 18px 40px -18px var(--tandem-shadow);
+}
+
+@media (max-width: 680px) {
+  .album-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.song-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  border-radius: 18px;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 12px;
+}
+
+.song-row:hover,
+.song-row[data-current] {
+  background: var(--field-background);
+}
+
+.song-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.song-row[data-current] .song-row-main {
+  color: var(--tandem-accent-text);
+  font-weight: 600;
+}
+
+.song-number {
+  flex: none;
+  width: 32px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.song-duration {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Apple Music catalog search (Phase 6). */
+
+.catalog-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.catalog-row:hover {
+  background: var(--field-background);
+}
+
+.catalog-albums {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px 12px;
+}
+
+.catalog-album {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.catalog-album .library-art {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1;
+}
+
+.apple-badge-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.apple-badge-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.apple-badge-text {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--tandem-hairline);
+  background: var(--field-background);
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Spotify (Phase 6): the setup walkthrough and the chosen device. */
+
+.setup-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.setup-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.setup-step-number {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--field-background);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-step[data-done] .setup-step-number {
+  color: var(--tandem-accent-text);
+  box-shadow: inset 0 0 0 1.5px var(--tandem-accent-text);
+}
+
+.setup-step[data-done] p {
+  color: var(--muted);
+}
+
+.setup-code {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--field-background);
+  font-size: 13px;
+  user-select: all;
+  word-break: break-all;
+}
+
+.catalog-row[data-current] {
+  background: var(--field-background);
+}
+
 /* Sheets: HeroUI gives a modal body its muted colour, which turned every row title grey.
    Body text is the primary colour; secondary lines opt into var(--muted) themselves. */
 .modal__body {

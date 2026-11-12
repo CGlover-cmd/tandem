@@ -50,6 +50,11 @@ def _device_entry(summary: DeviceSummary, redactor: Redactor) -> dict[str, Any]:
         "id": redactor.add(device.id, "id"),
         "kind": device.kind.value,
         "model": device.model,
+        # The receiver's software version: OS updates are what break AirPlay senders most
+        # (AirParrot needed fixes for HomePod 15.4 and tvOS 27). Not personal.
+        "os_version": device.os_version or None,
+        "password_required": device.password_required,
+        "stereo_pair": device.stereo_pair,
         "services": sorted(s.value for s in device.services),
         "paired": sorted(s.value for s in device.paired),
         "needs_pairing": sorted(s.value for s in device.needs_pairing),

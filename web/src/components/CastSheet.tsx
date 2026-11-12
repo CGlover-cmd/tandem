@@ -12,14 +12,13 @@ interface Props {
   /** The name of the TV the screen is cast to now, if that's another one. */
   elsewhere: string | null;
   source: AudioSource;
-  untrusted: boolean;
   onClose: () => void;
   send: (command: Command) => void;
 }
 
 const QUALITIES: CastQuality[] = ["low", "standard", "high"];
 
-export function CastSheet({ device, cast, elsewhere, source, untrusted, onClose, send }: Props) {
+export function CastSheet({ device, cast, elsewhere, source, onClose, send }: Props) {
   const words = strings.castSheet;
   const open = device !== null;
   const screens = cast.screens;
@@ -60,42 +59,29 @@ export function CastSheet({ device, cast, elsewhere, source, untrusted, onClose,
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-5">
             {status && (
-              <div className="glass send-status flex flex-col gap-2" role="status">
-                <div className="flex items-center gap-3">
-                  {status.state === "starting" ? (
-                    <Spinner size="sm" color="accent" />
-                  ) : (
-                    <CastIcon size={18} className="text-[var(--muted)]" />
-                  )}
-                  <span className="min-w-0 flex-1 text-[14px]">
-                    {status.state === "starting"
-                      ? words.starting
-                      : status.state === "playing"
-                        ? words.playing(device?.name ?? "")
-                        : status.state === "ended"
-                          ? words.ended
-                          : problemText(status.problem ?? { code: "castRefused" })}
-                  </span>
-                  {live && (
-                    <Button size="sm" variant="secondary" onPress={() => send({ type: "stopCast" })}>
-                      {words.stop}
-                    </Button>
-                  )}
-                </div>
-                {status.state === "failed" && untrusted && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="self-start"
-                    onPress={() => send({ type: "openNetworkSettings" })}
-                  >
-                    {words.trustNetwork}
+              <div className="glass send-status flex items-center gap-3" role="status">
+                {status.state === "starting" ? (
+                  <Spinner size="sm" color="accent" />
+                ) : (
+                  <CastIcon size={18} className="text-[var(--muted)]" />
+                )}
+                <span className="min-w-0 flex-1 text-[14px]">
+                  {status.state === "starting"
+                    ? words.starting
+                    : status.state === "playing"
+                      ? words.playing(device?.name ?? "")
+                      : status.state === "ended"
+                        ? words.ended
+                        : problemText(status.problem ?? { code: "castRefused" })}
+                </span>
+                {live && (
+                  <Button size="sm" variant="secondary" onPress={() => send({ type: "stopCast" })}>
+                    {words.stop}
                   </Button>
                 )}
               </div>
             )}
             {elsewhere && !live && <p className="text-[13px] text-[var(--muted)]">{words.elsewhere(elsewhere)}</p>}
-            {untrusted && !status && <p className="text-[13px] text-[var(--warning)]">{words.network}</p>}
 
             {screens.length === 0 ? (
               <p className="text-[13px] text-[var(--warning)]">{words.noScreens}</p>

@@ -1,6 +1,6 @@
 // Every word the window shows, in one place so it can be translated later.
 
-import type { DeviceKind, Problem } from "./types";
+import type { DeviceKind, Problem, SpotifyError } from "./types";
 
 type Params = Record<string, string>;
 type Words = (p: Params) => string;
@@ -42,6 +42,148 @@ export const strings = {
     openMusic: "Open Music",
     bar: (title: string) => `Now playing: ${title}. Open Music`,
     note: "Tandem is a remote for the app that's playing. To hear it on your speakers, send the PC's audio to them.",
+  },
+
+  library: {
+    sources: "Music sources",
+    nowPlaying: "Now playing",
+    thisPc: "This PC",
+    radio: "Radio",
+    queue: "Queue",
+    addFolder: "Add a music folder",
+    adding: "Choosing a folder…",
+    rescan: "Look for new music",
+    removeFolder: (folder: string) => `Stop using ${folder}`,
+    folders: "Music folders",
+    scanning: (count: number) => (count > 0 ? `Looking through your music… ${count} files` : "Looking through your music…"),
+    summary: (albums: number, songs: number) =>
+      `${albums} ${albums === 1 ? "album" : "albums"}, ${songs} ${songs === 1 ? "song" : "songs"}`,
+    emptyTitle: "Add your music",
+    emptyBody:
+      "Choose a folder with music files (MP3, FLAC, WAV or Ogg). Tandem plays them straight to the speakers you pick in Audio.",
+    noFolderPicker: "Folders can be added when Tandem runs in its own window.",
+    search: "Search songs, artists and albums",
+    noMatch: (text: string) => `No songs match "${text}".`,
+    albums: "Albums",
+    artists: "Artists",
+    allArtists: "All artists",
+    unknownArtist: "Unknown artist",
+    songsCount: (n: number) => `${n} ${n === 1 ? "song" : "songs"}`,
+    back: "Back to albums",
+    playAlbum: "Play",
+    playNext: "Play next",
+    addToQueue: "Add to queue",
+    play: (title: string) => `Play ${title}`,
+    more: (title: string) => `More for ${title}`,
+    radioSearch: "Search stations by name",
+    radioSaved: "Saved stations",
+    radioNoSaved: "Stations you save show up here.",
+    radioNoMatch: (text: string) => `No stations match "${text}" that Tandem can play.`,
+    radioUnavailable: "The station directory couldn't be reached. Check the internet connection and try again.",
+    radioSearching: "Searching…",
+    radioCredit: "Stations from radio-browser.info, a free community directory.",
+    save: "Save",
+    saved: "Saved",
+    remove: "Remove",
+    listen: (name: string) => `Listen to ${name}`,
+    kbps: (n: number) => `${n} kbps`,
+    queueEmpty: "Nothing queued. Play an album or a station, or add songs to the queue.",
+    clearQueue: "Clear the queue",
+    removeFromQueue: (title: string) => `Remove ${title} from the queue`,
+    upNext: "Up next",
+    nowPlayingLabel: "Playing in Tandem",
+    stopped: "Stopped",
+    loading: "Starting…",
+    failed: "That couldn't be played. Try another one.",
+    stop: "Stop",
+    speakers: "Speakers",
+    noSpeakers: "Pick speakers in Audio to hear it.",
+    toSpeakers: (n: number) => `Playing on ${n} ${n === 1 ? "speaker" : "speakers"}`,
+    live: "Live radio",
+  },
+
+  appleMusic: {
+    source: "Apple Music",
+    search: "Search the Apple Music catalog",
+    songs: "Songs",
+    albums: "Albums",
+    // A song link opens its page in the Apple Music app without starting it (checked
+    // 2026-11-09), so the button says "Open", not "Play".
+    open: (title: string) => `Open ${title} in Apple Music`,
+    openShort: "Open in Apple Music",
+    about:
+      "Search Apple Music's catalog and open a song or album in the Apple Music app on this PC, then press play there. To hear it on your speakers, send the PC's audio to them in Audio.",
+    credit: "Results, artwork and badge from Apple. Apple Music is a trademark of Apple Inc.",
+    searching: "Searching…",
+    noMatch: (text: string) => `Nothing in Apple Music matches "${text}".`,
+    unavailable: "Apple Music's catalog couldn't be reached. Check the internet connection and try again.",
+    busy: "Apple allows about 20 searches a minute. Wait a moment, then search again.",
+    noLibrary:
+      "Your own Apple Music library and playlists aren't available: that needs an Apple developer membership.",
+  },
+  spotify: {
+    source: "Spotify",
+    connections: "Connections",
+    connectionsDetail: "Music services Tandem can browse and control. Their apps play the music.",
+    name: "Spotify",
+    status: {
+      not_set_up: "Not set up",
+      signed_out: "Set up, not signed in",
+      signing_in: "Signing in…",
+      signed_in: "Connected",
+    },
+    setUp: "Set up…",
+    manage: "Manage…",
+    sheetTitle: "Connect Spotify",
+    sheetSubtitle:
+      "Tandem controls Spotify through Spotify's Web API with a free developer key of your own. The Spotify app plays the music; Tandem never streams it.",
+    premiumNote: "Spotify lets an app's owner use their own key only with Spotify Premium.",
+    step1: "Open Spotify's developer dashboard and sign in with your Spotify account.",
+    openDashboard: "Open the dashboard",
+    step2: "Choose Create app. Give it any name and description, for example Tandem.",
+    step3: "Under Redirect URIs, add this address exactly, then press Add:",
+    step4: "Under the APIs you plan to use, tick Web API. Accept Spotify's terms and save.",
+    step5: "Open the app's settings, copy its Client ID and paste it here:",
+    copy: "Copy",
+    copied: "Copied",
+    clientId: "Client ID",
+    clientIdPlaceholder: "32 letters and numbers",
+    saveClientId: "Save",
+    savedClientId: "Client ID saved.",
+    step6: "Sign in. Your browser opens Spotify's page; agree there, then come back here.",
+    signIn: "Sign in with Spotify",
+    waiting: "Waiting for you to agree in the browser…",
+    cancel: "Cancel",
+    connected: "Spotify is connected. Find your playlists and devices in the Music tab.",
+    signOut: "Sign out",
+    forget: "Remove Spotify",
+    forgetDetail:
+      "Signing out keeps your Client ID. To stop the key working too, delete the app in Spotify's developer dashboard.",
+    privacy:
+      "Your sign-in is kept on this PC, encrypted for your Windows account. Only Spotify sees your searches.",
+    notConnected: "Connect Spotify to see your playlists and devices here.",
+    connect: "Connect Spotify…",
+    signedOut: "Sign in to Spotify again to see your playlists and devices.",
+    playlists: "Your playlists",
+    noPlaylists: "No playlists yet.",
+    devices: "Devices",
+    noDevices: "No Spotify devices found. Open Spotify on this PC, a phone or a speaker, then refresh.",
+    playsOn: (name: string) => `Plays on ${name}`,
+    playHere: "Play here",
+    playingHere: "Playing",
+    cantControl: "Spotify doesn't allow control",
+    useDevice: (name: string) => `Play on ${name}`,
+    refresh: "Refresh",
+    search: "Search Spotify",
+    searching: "Searching…",
+    noMatch: (text: string) => `Nothing on Spotify matches "${text}".`,
+    play: (title: string) => `Play ${title}`,
+    openOnSpotify: (title: string) => `Open ${title} in Spotify`,
+    openShort: "Open in Spotify",
+    tracks: (n: number) => (n === 1 ? "1 track" : `${n} tracks`),
+    kind: { track: "Song", album: "Album", playlist: "Playlist" },
+    credit: "Playlists, results and artwork from Spotify. Spotify is a trademark of Spotify AB.",
+    hearIt: "If Spotify plays on this PC, send the PC's audio to your speakers in Audio.",
   },
   dismiss: "Dismiss",
 
@@ -203,10 +345,15 @@ export const strings = {
       unreachable: "No answer. Check it's on and on the same Wi-Fi as this PC, then try again.",
       access:
         "It turned Tandem away. In the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+      password: "This speaker has a password. Type it below; Tandem remembers it.",
+      stereoPair:
+        "This HomePod is half of a stereo pair, and the pair only plays from Apple devices. Tandem can play on it after you ungroup the pair in the Home app.",
       failed: "Couldn't play here. Turn it on to try again.",
-      network: "Windows doesn't trust this network yet, so speakers can't reach Tandem.",
     } as Record<string, string>,
-    trustNetwork: "Trust this network…",
+    password: "Speaker password",
+    passwordFor: (name: string) => `Password for ${name}`,
+    savePassword: "Save",
+    findSpeaker: "Can't find a speaker?",
     pairFirst: "Pair first",
     turnOn: (name: string) => `Play on ${name}`,
     allOff: "Turn all off",
@@ -247,12 +394,41 @@ export const strings = {
     open: "Get the update",
     later: "Later",
   },
-  network: {
-    title: "Is this your network?",
-    body: "Windows treats this network as Public, so Tandem keeps your speakers and TV out. If it's your own network, mark it as trusted (Private) in Windows. Windows remembers your choice for each network.",
-    trust: "Trust this network…",
-    steps: "In Windows Settings, open this network's Properties and choose Private network.",
-    later: "Not now",
+  findSpeaker: {
+    open: "Can't find a speaker?",
+    title: "Can't find a speaker?",
+    subtitle:
+      "Tandem looks for speakers on your network by itself. If one doesn't show up, add it by its address, or let Tandem check this PC for the usual reasons.",
+    addTitle: "Add a speaker by its address",
+    addDetail:
+      "Find the address in your router's list of devices, or in the speaker's own app: four numbers with dots between them. Tandem asks it directly on every search.",
+    addressLabel: "Speaker address",
+    addressPlaceholder: "Address from your router",
+    add: "Add",
+    adding: "Asking…",
+    saved: "Asked on every search",
+    remove: (address: string) => `Remove ${address}`,
+    checkTitle: "Check this PC",
+    checkDetail: "Looks at this PC's network, VPN and firewall, and at what the last searches found.",
+    check: "Check my network",
+    checking: "Checking…",
+    seen: (count: number) =>
+      count === 1 ? "Tandem can see 1 device right now." : `Tandem can see ${count} devices right now.`,
+    nothingFound:
+      "Tandem didn't find a problem on this PC. If a speaker still doesn't show, check it's on, then add it by its address above.",
+    finding: {
+      offline: "This PC isn't connected to a network. Connect to your home Wi-Fi.",
+      noFirewallRule:
+        "Tandem's firewall rule is missing, so Windows Firewall may keep speakers out. Run Tandem's setup again to add it back.",
+      noAnswers:
+        "Nothing answered Tandem's search for a while. Some routers block it: look for a setting called client isolation, AP isolation or multicast filtering and turn it off, or add your speakers by address above.",
+      otherSubnet:
+        "A speaker is on a different part of the network than this PC, such as guest Wi-Fi or a second router. Put them on the same Wi-Fi.",
+      vpn: "A VPN is on and can hide your home network. Turn it off, or allow local network access in the VPN's settings.",
+      homeAccess:
+        "A speaker turned Tandem away. In the Home app, open Home Settings, then Speakers & TV, and set Allow Speaker & TV Access to Everyone on this network.",
+    } as Record<string, string>,
+    close: "Done",
   },
   onboarding: {
     title: "Getting started",
@@ -325,8 +501,6 @@ export const strings = {
     ended: "Casting stopped.",
     elsewhere: (name: string) => `The screen is cast to ${name}. Starting here stops that.`,
     noScreens: "This PC has no screen Tandem can cast.",
-    network: "Windows doesn't trust this network yet, so the TV can't reach this PC.",
-    trustNetwork: "Trust this network…",
   },
 
   commands: {
@@ -456,6 +630,38 @@ export const strings = {
   },
 };
 
+/** Words for a Spotify error code. */
+export function spotifyErrorText(code: SpotifyError, redirectUri: string): string {
+  switch (code) {
+    case "invalid_client_id":
+      return "That isn't a Client ID. Copy the 32 letters and numbers shown as Client ID in your Spotify app's settings.";
+    case "port_busy":
+      return "Tandem couldn't wait for Spotify's answer on this PC. Try again.";
+    case "sign_in_timeout":
+      return `Spotify didn't send the browser back. Check that the app's Redirect URI is exactly ${redirectUri}, then try again.`;
+    case "sign_in_denied":
+      return "You didn't agree on Spotify's page, so Tandem isn't connected.";
+    case "sign_in_failed":
+      return `Spotify didn't accept the sign-in. Check the Client ID and that the Redirect URI is exactly ${redirectUri}.`;
+    case "expired":
+      return "Spotify no longer accepts the saved sign-in. Sign in again.";
+    case "no_device":
+      return "No Spotify device is ready. Open Spotify on a device, then try again.";
+    case "premium_required":
+      return "Spotify only allows this with Spotify Premium.";
+    case "not_allowed":
+      return "Spotify didn't allow that. If someone else made the Spotify app, ask them to add your account under User Management.";
+    case "rate_limited":
+      return "Spotify asked Tandem to slow down. Wait a moment, then try again.";
+    case "unavailable":
+      return "Spotify couldn't be reached. Check the internet connection and try again.";
+    case "gone":
+      return "That isn't in the list any more. Refresh and try again.";
+    case "vault":
+      return "Tandem couldn't read the saved Spotify sign-in (it belongs to another Windows account or PC). Set Spotify up again.";
+  }
+}
+
 /** Words for every problem code Python sends (`tandem.ui.backend.Problem` and the controller's
  * own). A contract test checks that every Python code has an entry here. */
 export const problems: Record<string, string> = {
@@ -487,6 +693,16 @@ export const problems: Record<string, string> = {
   badGroup: "A group needs a name and at least one speaker.",
   groupNonePlayed: "None of the speakers in that group could play.",
   groupGone: "That group is no longer available.",
+  badAddress: "That isn't an address Tandem can use. Type four numbers with dots between them, as your router shows it.",
+  notLocalAddress: "That address isn't on a home network. Speaker addresses usually start with 192.168, 10 or 172.",
+  tooManyAddresses: "Tandem keeps up to 20 addresses. Remove one first.",
+  noSpeakerThere: "No speaker answered at that address. Check the address and that the speaker is on.",
+  notPlayable:
+    "The TV can't play that file's video or sound format. Try an MP4 with H.264 video and AAC sound, or convert the file first.",
+  notInLibrary: "That isn't in your music library any more.",
+  stationGone: "That station isn't in the list any more. Search again.",
+  folderNotAdded: "Tandem couldn't add that folder.",
+  appleMusicDidntOpen: "The Apple Music app didn't open. Make sure it's installed.",
   noScreen: "Tandem couldn't capture that screen. Check it's switched on, or pick another.",
   castFailed: "This PC couldn't keep up with the screen cast. Try a lower quality.",
   castRefused: "The TV didn't play the screen cast. Check it's awake and on the same network, then try again.",

@@ -10,8 +10,13 @@ that Tandem runs. This page says exactly what leaves your PC, and how to stop it
 
 Tandem talks to the AirPlay devices on your home network (Apple TVs, HomePods, speakers and
 TVs). What your PC plays, your remote-control presses and your pairing codes go to those
-devices and nowhere else. Pairing credentials are stored on your PC, encrypted for your
-Windows account.
+devices and nowhere else. Pairing credentials and speaker passwords are stored on your PC,
+encrypted for your Windows account.
+
+So that your speakers' own buttons can reach it, Tandem announces a remote-control service on
+your local network (mDNS, the way iTunes did). The announcement carries a random identifier
+made for each run and nothing about you. **Check my network** reads this PC's network adapters
+and firewall rule, and leaves the PC with nothing.
 
 ## Two optional lookups on the internet
 
@@ -47,7 +52,8 @@ Microsoft under [Microsoft's privacy statement](https://privacy.microsoft.com/pr
 
 ## What Tandem keeps on your PC
 
-Settings, saved speakers and groups, your pairing credentials and short logs, all under
+Settings, saved speakers and groups, speaker addresses you added, your pairing credentials
+and short logs, all under
 `%LOCALAPPDATA%\Tandem`. Logs and diagnostics replace names, addresses and identifiers with
 placeholders, and never contain pairing credentials, what's playing or the commands you type.
 The recordings made by **Line up automatically** stay in memory and are thrown away as soon as

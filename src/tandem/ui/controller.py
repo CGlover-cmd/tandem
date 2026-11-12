@@ -38,6 +38,7 @@ from tandem.ui.backend import (
     BackendError,
     BackendEvent,
     CastChanged,
+    CatalogChanged,
     CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
@@ -48,24 +49,31 @@ from tandem.ui.backend import (
     DiscoveryChanged,
     HomeUpdated,
     KeyAction,
+    LibraryChanged,
     LinkState,
     MediaCommand,
     MusicArtwork,
     MusicChanged,
     MusicCommand,
     MusicSnapshot,
+    NetworkChanged,
+    NetworkSnapshot,
     OutputKind,
     OutputState,
     PairingError,
     PairingFlow,
+    PlayerChanged,
+    RadioChanged,
     RemoteKey,
     SendChanged,
+    SpotifyChanged,
     Theme,
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
 from tandem.ui.cast_panel import CastPanel
-from tandem.ui.network_trust import NetworkWatch
+from tandem.ui.library_panel import FolderPicker, LibraryPanel
+from tandem.ui.spotify_panel import SpotifyPanel
 from tandem.ui.updates import GetJson, Update
 from tandem.ui.updates import check as check_for_update
 from tandem.ui.window_commands import CommandTable, Fields
@@ -358,6 +366,22 @@ _APPEARANCE_FLAGS = {
 """The window's names for the on/off appearance and Advanced settings."""
 
 
+MAX_ADDRESS = 64
+MAX_PASSWORD = 128
+
+
+def _network_json(network: NetworkSnapshot) -> dict[str, Any]:
+    return {
+        "addresses": list(network.addresses),
+        "adding": network.adding,
+        "checking": network.checking,
+        "findings": None
+        if network.findings is None
+        else [finding.value for finding in network.findings],
+        "speakersSeen": network.speakers_seen,
+    }
+
+
 class AppController:
     """Everything the window and the tray menu show, and the commands they send."""
 
@@ -369,8 +393,8 @@ class AppController:
         reduce_motion: bool = False,
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
+        folder_picker: FolderPicker | None = None,
         photo: BackgroundPhoto | None = None,
-        network: NetworkWatch | None = None,
         get_json: GetJson | None = None,
         open_url: Callable[[str], object] = webbrowser.open,
         reveal: Callable[[Path], None] | None = None,
@@ -379,7 +403,6 @@ class AppController:
         self._backend = backend
         self._icons = icons
         self.photo = photo
-        self.network = network
         self._get_json = get_json
         """Fetches GitHub's releases list for the update check; None turns it off."""
         self._open_url = open_url
@@ -390,7 +413,6 @@ class AppController:
         """A diagnostics zip is being written for "Report a problem"."""
         self.commands_requested = 0
         """Bumped by the global hotkey: the window opens its command bar when it changes."""
-        """Watches whether Windows trusts this network (Private) or not (Public)."""
         """The user's background photo, if this window offers one."""
         self._clock = clock
         self.music: MusicSnapshot | None = None
@@ -415,7 +437,13 @@ class AppController:
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
         self.cast = CastPanel(backend, self.runner.run, on_change=self._changed)
+        self.library = LibraryPanel(
+            backend, self.runner.run, on_change=self._changed, picker=folder_picker
+        )
+        self.spotify = SpotifyPanel(backend, self.runner.run, on_change=self._changed)
         self.home = backend.home()
+        self.network: NetworkSnapshot = backend.network()
+        """Speakers added by address and the network check ("Can't find a speaker?")."""
         self._unsubscribe: Callable[[], None] | None = None
         self._table = self._commands_table()
 
@@ -448,6 +476,8 @@ class AppController:
             ],
             "audio": self.audio.snapshot(),
             "cast": self.cast.snapshot(),
+            **self.library.snapshot(),
+            **self.spotify.snapshot(),
             "home": {
                 "enabled": self.home.enabled,
                 "running": self.home.running,
@@ -473,7 +503,7 @@ class AppController:
                 "photoBlur": self.appearance.photo_blur,
                 "photo": None if self.photo is None else self.photo.version,
             },
-            "network": {"untrusted": self.network is not None and self.network.untrusted},
+            "network": _network_json(self.network),
             "update": None
             if self.update is None
             else {"version": self.update.version, "url": self.update.url},
@@ -496,11 +526,12 @@ class AppController:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
         self.cast.cast = self._backend.cast()
+        self.library.load()
+        self.spotify.load()
         self.home = self._backend.home()
+        self.network = self._backend.network()
         self._changed()
         self.cast.load_screens()
-        if self.network is not None:
-            self.network.start(self._changed)
         if self._get_json is not None and self.appearance.update_check:
             self.runner.run(self._check_for_update(self._get_json))
         await self._backend.start()
@@ -510,8 +541,7 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
-        if self.network is not None:
-            await self.network.stop()
+        await self.spotify.close()
         await self.runner.drain()
         if self._icons is not None:
             await self._icons.close()
@@ -606,6 +636,21 @@ class AppController:
 
     def music_seek(self, position: float) -> None:
         self.runner.run(self._backend.music_seek(position))
+
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        """A catalog result's artwork (fetched from Apple), for the window only."""
+        return await self._backend.catalog_art(item_id)
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        return await self._backend.apple_music_badge()
+
+    async def spotify_art(self, item_id: str) -> MusicArtwork | None:
+        """A Spotify item's artwork (fetched from Spotify), for the window only."""
+        return await self._backend.spotify_art(item_id)
+
+    def library_art(self, album_id: str) -> MusicArtwork | None:
+        """An album's artwork from the music library, for the window only."""
+        return self._backend.library_art(album_id)
 
     def save_photo(self, data: bytes) -> bool:
         """Use `data` (a JPEG the window made) as the background. False if it was refused."""
@@ -731,6 +776,8 @@ class AppController:
         self._window_commands(table)
         self.audio.register(table)
         self.cast.register(table)
+        self.library.register(table)
+        self.spotify.register(table)
         return table
 
     def _device_commands(self, table: CommandTable) -> None:
@@ -824,14 +871,32 @@ class AppController:
             if self.update is not None:
                 self._open_url(self.update.url)
 
-        def open_network_settings(_f: Fields) -> None:
-            if self.network is not None:
-                self.network.open_settings()
+        def add_address(f: Fields) -> None:
+            address = f.text("address", limit=MAX_ADDRESS)
+            if address is not None and address.strip() and not self.network.adding:
+                self.runner.run(self._backend.add_speaker_address(address.strip()))
+
+        def remove_address(f: Fields) -> None:
+            address = f.text("address", limit=MAX_ADDRESS)
+            if address is not None:
+                self.runner.run(self._backend.remove_speaker_address(address))
+
+        def check_network(_f: Fields) -> None:
+            if not self.network.checking:
+                self.runner.run(self._backend.check_network())
+
+        def set_password(f: Fields) -> None:
+            device_id, password = f.text("id"), f.text("password", limit=MAX_PASSWORD)
+            if device_id is not None and password:
+                self.runner.run(self._backend.set_speaker_password(device_id, password))
 
         table.on("dismissMessage", lambda _f: self.dismiss_message())
         table.on("openUpdate", open_update)
         table.on("reportProblem", lambda _f: self.report_problem())
-        table.on("openNetworkSettings", open_network_settings)
+        table.on("addSpeakerAddress", add_address)
+        table.on("removeSpeakerAddress", remove_address)
+        table.on("checkNetwork", check_network)
+        table.on("setSpeakerPassword", set_password)
         table.on("previewCommand", text_command(self.commands.preview))
         table.on("runCommand", text_command(self.commands.run))
         table.on("clearCommand", lambda _f: self.commands.clear())
@@ -862,6 +927,16 @@ class AppController:
                     self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
+            case LibraryChanged(library=library):
+                self.library.library_changed(library)
+            case RadioChanged(radio=radio):
+                self.library.radio = radio
+            case PlayerChanged(player=player):
+                self.library.player = player
+            case CatalogChanged(catalog=catalog):
+                self.library.catalog = catalog
+            case SpotifyChanged(spotify=spotify):
+                self.spotify.changed(spotify)
             case MusicChanged(music=music):
                 self.music = music
             case AppearanceChanged(appearance=appearance):
@@ -873,6 +948,8 @@ class AppController:
                 self.home = home
             case CastChanged(cast=cast):
                 self.cast.cast = cast
+            case NetworkChanged(network=network):
+                self.network = network
             case SendChanged(device_id=device_id, send=send):
                 if send is None:
                     self.audio.sends.pop(device_id, None)

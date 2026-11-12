@@ -271,6 +271,81 @@ export const demoSnapshot: AppState = {
       "problem": null
     }
   },
+  "library": {
+    "folders": [
+      "Demo Library"
+    ],
+    "scanning": false,
+    "scanned": 11,
+    "songCount": 11,
+    "albums": [
+      {
+        "id": "abdc6ec10153f7e7",
+        "title": "City Hours",
+        "artist": "Imaginary Orchestra",
+        "year": 2019,
+        "trackCount": 3,
+        "hasArt": true
+      },
+      {
+        "id": "a4785da517681af1",
+        "title": "Quiet Rooms",
+        "artist": "Placeholder Trio",
+        "year": 2023,
+        "trackCount": 4,
+        "hasArt": true
+      },
+      {
+        "id": "a431c154aac165c0",
+        "title": "Daybreak",
+        "artist": "The Example Band",
+        "year": 2021,
+        "trackCount": 4,
+        "hasArt": true
+      }
+    ],
+    "openAlbum": null,
+    "search": {
+      "text": "",
+      "songs": []
+    },
+    "canPickFolders": false,
+    "picking": false
+  },
+  "radio": {
+    "query": "",
+    "searching": false,
+    "results": [],
+    "saved": [],
+    "error": null
+  },
+  "catalog": {
+    "query": "",
+    "searching": false,
+    "error": null,
+    "songs": [],
+    "albums": []
+  },
+  "player": {
+    "state": "stopped",
+    "index": null,
+    "position": 0.0,
+    "duration": null,
+    "error": false,
+    "queue": []
+  },
+  "spotify": {
+    "state": "not_set_up",
+    "loading": false,
+    "redirectUri": "http://127.0.0.1/callback",
+    "error": null,
+    "playlists": [],
+    "devices": [],
+    "target": null,
+    "query": "",
+    "searching": false,
+    "results": []
+  },
   "home": {
     "enabled": false,
     "running": false,
@@ -326,7 +401,11 @@ export const demoSnapshot: AppState = {
     "photo": null
   },
   "network": {
-    "untrusted": false
+    "addresses": [],
+    "adding": false,
+    "checking": false,
+    "findings": null,
+    "speakersSeen": 0
   },
   "update": null,
   "reporting": false,
@@ -354,10 +433,15 @@ export const demoSnapshot: AppState = {
 /** Every command AppController.handle accepts. */
 export const commandTypes = [
   "activate",
+  "addMusicFolder",
+  "addSpeakerAddress",
   "allOutputsOff",
   "cancelPairing",
   "castScreen",
+  "checkNetwork",
   "clearCommand",
+  "clearQueue",
+  "closeAlbum",
   "closePairing",
   "connect",
   "deleteGroup",
@@ -371,16 +455,35 @@ export const commandTypes = [
   "media",
   "music",
   "musicSeek",
+  "openAlbum",
   "openDevice",
-  "openNetworkSettings",
+  "openInAppleMusic",
+  "openInSpotify",
+  "openSpotifyDashboard",
   "openUpdate",
   "pair",
   "pickMedia",
+  "playAlbum",
+  "playQueueItem",
+  "playSong",
+  "playStation",
+  "player",
   "press",
   "previewCommand",
+  "queueAlbum",
+  "queueSong",
+  "removeMusicFolder",
+  "removeQueueItem",
+  "removeSpeakerAddress",
+  "removeStation",
   "reportProblem",
+  "rescanLibrary",
   "runCommand",
   "saveGroup",
+  "saveStation",
+  "searchCatalog",
+  "searchLibrary",
+  "searchRadio",
   "sendMedia",
   "setAppearance",
   "setAudioSource",
@@ -390,8 +493,19 @@ export const commandTypes = [
   "setOutputDelay",
   "setOutputVolume",
   "setPower",
+  "setSpeakerPassword",
+  "setSpotifyClientId",
   "setText",
   "setVolume",
+  "spotifyCancelSignIn",
+  "spotifyChooseDevice",
+  "spotifyDismissError",
+  "spotifyPlay",
+  "spotifyRefresh",
+  "spotifySearch",
+  "spotifySignIn",
+  "spotifySignOut",
+  "spotifyTransfer",
   "stopCast",
   "stopMedia",
   "submitPin",
@@ -405,6 +519,8 @@ export const everyCommandIsHandled: [Unhandled] extends [never] ? true : never =
 export const problemCodes = [
   "appCant",
   "appDidntRespond",
+  "appleMusicDidntOpen",
+  "badAddress",
   "badGroup",
   "cantDoThat",
   "castFailed",
@@ -412,6 +528,7 @@ export const problemCodes = [
   "connectFirst",
   "couldNotPair",
   "fileGone",
+  "folderNotAdded",
   "groupGone",
   "groupNonePlayed",
   "homeFailed",
@@ -422,16 +539,22 @@ export const problemCodes = [
   "noResponse",
   "noScreen",
   "noSend",
+  "noSpeakerThere",
   "noTextField",
   "notATv",
   "notAvailable",
   "notConnected",
+  "notInLibrary",
+  "notLocalAddress",
+  "notPlayable",
   "nothingPlaying",
   "pairFirst",
   "pairingFailed",
   "pinExpired",
   "pinFormat",
   "speakerGone",
+  "stationGone",
   "taskFailed",
+  "tooManyAddresses",
   "wrongPin",
 ] as const;

@@ -36,6 +36,7 @@ _PROBLEM = {
 _MEDIA_PROBLEM = {
     EngineMediaError.NOT_A_TV: Problem.NOT_A_TV,
     EngineMediaError.FILE_GONE: Problem.FILE_GONE,
+    EngineMediaError.NOT_PLAYABLE: Problem.NOT_PLAYABLE,
 }
 _SEND = {
     EngineSendState.STARTING: ui.SendState.STARTING,

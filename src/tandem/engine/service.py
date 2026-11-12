@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import logging
 import time
 from collections.abc import Callable, Sequence
 from contextlib import suppress
@@ -16,8 +17,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from tandem.engine import diagnostics, lineup, pairing
-from tandem.engine.audio import AudioError, AudioSink, AudioStats, PcmCapture, StreamState
+from tandem.engine import diagnostics, lineup, net_check, pairing
+from tandem.engine.addresses import AddressError, AddressStore, normalize
+from tandem.engine.audio import (
+    AudioError,
+    AudioSink,
+    AudioStats,
+    AudioStreamChanged,
+    PcmCapture,
+    StreamState,
+)
 from tandem.engine.audio_hub import AudioHub, is_local
 from tandem.engine.control import Controller, DeviceControls
 from tandem.engine.control_hub import ControlHub
@@ -28,16 +37,18 @@ from tandem.engine.media_send import (
     MediaSender,
     MediaSends,
     MediaServer,
+    check_playable,
     is_link,
     local_address_towards,
     title_for,
 )
 from tandem.engine.models import Device, LocalOutput, Service
+from tandem.engine.network import NetworkWatch
 from tandem.engine.output_groups import GroupStore
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.outputs import Outputs
 from tandem.engine.pairing import PairingError, PairingFactory, PinProvider
-from tandem.engine.pc_media import MediaSessions, PcMediaWatcher
+from tandem.engine.pc_media import MediaSessions, PcMediaCommand, PcMediaWatcher
 from tandem.engine.pc_mute import PcMute, SpeakerMute
 from tandem.engine.player import DecodedStream, Player, Track
 from tandem.engine.redact import Redactor
@@ -51,6 +62,9 @@ from tandem.engine.screen_cast import (
     settings_for,
 )
 from tandem.engine.session import ConnectionSession, Connector, Link
+from tandem.engine.speaker_buttons import ButtonCommand, ButtonPress, SpeakerButtons
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Backend(Protocol):
@@ -61,6 +75,14 @@ class Backend(Protocol):
         """Persist credentials changed by pairing or forgetting."""
 
     async def scan(self, timeout: float) -> Sequence[Device]: ...
+
+    async def scan_hosts(self, hosts: Sequence[str], timeout: float) -> Sequence[Device]:
+        """Ask these addresses directly (unicast) instead of the whole network."""
+        ...
+
+    async def set_password(self, device_id: str, password: str) -> None:
+        """Save a speaker's password with its credentials."""
+        ...
 
     async def describe(self, device_id: str) -> Device | None:
         """The device as last scanned, with current pairing state; None if not scanned."""
@@ -126,6 +148,17 @@ AUDIO_CONNECT_TIMEOUT = 15.0
 """Seconds to wait for a speaker before saying it couldn't play (it normally takes one)."""
 
 
+VOLUME_STEP = 5.0
+"""How far a speaker's volume key moves its volume in Tandem (0 to 100)."""
+
+_VOLUME_BUTTONS = {ButtonCommand.VOLUME_UP, ButtonCommand.VOLUME_DOWN, ButtonCommand.VOLUME}
+_PC_BUTTONS = {
+    ButtonCommand.PLAY_PAUSE: PcMediaCommand.PLAY_PAUSE,
+    ButtonCommand.NEXT: PcMediaCommand.NEXT,
+    ButtonCommand.PREVIOUS: PcMediaCommand.PREVIOUS,
+}
+
+
 class AudioSource(Enum):
     SYSTEM = "system"
     """The PC's own audio (loopback of the default output)."""
@@ -154,15 +187,31 @@ class Engine:
         output_prefs: OutputPrefsStore | None = None,
         output_groups: GroupStore | None = None,
         pc_mute_record: Path | None = None,
+        addresses: AddressStore | None = None,
+        network_watch: NetworkWatch | None = None,
+        network_probe: net_check.Probe | None = None,
+        speaker_buttons: SpeakerButtons | None = None,
     ) -> None:
         self.bus = bus or EventBus()
         self.redactor = redactor or Redactor()
         self.registry = DeviceRegistry(self.bus, self.redactor, clock)
         self._backend = backend
         self._sleep = sleep
+        self._clock = clock
+        self.addresses = addresses or AddressStore(None)
+        """Speakers the user added by address (for networks that hide them)."""
+        for address in self.addresses.addresses():
+            self.redactor.add(address, "address")
+        self.scans = net_check.ScanHistory()
+        """What recent discovery scans found, for the network check."""
+        self.network_watch = network_watch
+        """Notices network changes; None leaves it to the next scan."""
+        self._network_probe = network_probe
+        self.speaker_buttons = speaker_buttons
+        """Receives a speaker's own play, pause, skip and volume buttons; None turns it off."""
         self.discovery = Discovery(
             self.registry,
-            backend.scan,
+            self._scan,
             interval=discovery_interval,
             scan_timeout=scan_timeout,
             sleep=sleep,
@@ -188,6 +237,15 @@ class Engine:
             self, output_prefs, output_groups, PcMute(backend.speaker_mute(), pc_mute_record)
         )
         """Outputs as the user sees them: switch them here, not with `start_output`."""
+        self.bus.subscribe(AudioStreamChanged, self._on_stream)
+
+    def _on_stream(self, event: AudioStreamChanged) -> None:
+        # A stalled stream usually means a dead connection that hasn't noticed: reconnect,
+        # and the stream resumes on the fresh connection.
+        if event.reason == "Stalled" and not is_local(event.device_id):
+            session = self._sessions.get(event.device_id)
+            if session is not None:
+                session.reconnect()
 
     def _live_link(self, device_id: str) -> Link | None:
         session = self._sessions.get(device_id)
@@ -204,6 +262,10 @@ class Engine:
 
     async def close(self) -> None:
         """Stop discovery and disconnect everything."""
+        if self.network_watch is not None:
+            await self.network_watch.stop()
+        if self.speaker_buttons is not None:
+            await self.speaker_buttons.stop()
         await self.outputs.close()
         await self.discovery.stop()
         await self._sends.close()
@@ -216,6 +278,26 @@ class Engine:
         for device_id in list(self._sessions):
             await self.disconnect(device_id)
         await self._controls.close()
+
+    async def _scan(self, timeout: float) -> list[Device]:
+        """One discovery scan: the whole network, plus the saved addresses asked directly."""
+        hosts = self.addresses.addresses()
+        if not hosts:
+            found = list(await self._backend.scan(timeout))
+            self.scans.record(len(found), 0)
+            return found
+        multicast, unicast = await asyncio.gather(
+            self._backend.scan(timeout),
+            self._backend.scan_hosts(hosts, timeout),
+            return_exceptions=True,
+        )
+        if isinstance(multicast, BaseException):
+            raise multicast
+        found = list(multicast)
+        extra: list[Device] = [] if isinstance(unicast, BaseException) else list(unicast)
+        self.scans.record(len(found), len(extra))
+        known = {d.id for d in found}
+        return found + [d for d in extra if d.id not in known]
 
     async def scan(self) -> list[Device]:
         """Scan once and return every visible device."""
@@ -283,6 +365,114 @@ class Engine:
                     )
                 )
         return removed
+
+    # --- Speakers by address, passwords, the network (lessons from AirParrot) ----------
+
+    async def add_address(self, text: str, *, timeout: float = 4.0) -> list[Device]:
+        """Ask one address directly; if a speaker answers, remember the address so every scan
+        asks it again. Returns what answered. Raises `AddressError` (INVALID, NOT_LOCAL,
+        TOO_MANY, or NO_ANSWER when nothing there speaks AirPlay)."""
+        address = normalize(text)
+        self.redactor.add(address, "address")
+        found = list(await self._backend.scan_hosts([address], timeout))
+        if not found:
+            raise AddressError(AddressError.NO_ANSWER)
+        self.addresses.add(address)
+        for device in found:
+            self.registry.upsert(device)
+        return found
+
+    def remove_address(self, address: str) -> bool:
+        """Stop asking an address. Its speakers stay until discovery stops seeing them."""
+        return self.addresses.remove(address)
+
+    async def set_password(self, device_id: str, password: str) -> None:
+        """Save a speaker's password (Home app "Require Password") and use it from now on."""
+        device = self.device(device_id)
+        self.redactor.add(password, "password")
+        await self._backend.set_password(device_id, password)
+        refreshed = await self._backend.describe(device_id)
+        if refreshed is None:
+            refreshed = dataclasses.replace(device, password_set=True)
+        self.registry.upsert(dataclasses.replace(refreshed, stereo_pair=device.stereo_pair))
+        session = self._sessions.get(device_id)
+        if session is not None:
+            session.retry_now()
+
+    def start_network_watch(self) -> None:
+        """React to network changes at once (rescan, reconnect). Needs a running loop."""
+        if self.network_watch is not None:
+            self.network_watch.start(self.network_changed)
+
+    async def network_changed(self) -> None:
+        """The PC moved networks or woke up: look again now instead of waiting.
+
+        Discovery scans at once; connections waiting out a backoff retry at once (with the
+        backoff reset); speakers the user had on that failed for want of an answer try again.
+        """
+        if self.discovery.running:
+            await self.discovery.rescan()
+        for session in list(self._sessions.values()):
+            session.retry_now()
+        self.outputs.retry_unreachable()
+        buttons = self.speaker_buttons
+        if buttons is not None and buttons.running:
+            await buttons.stop()  # announce again on the new addresses
+            await buttons.start(self.speaker_button)
+
+    async def start_speaker_buttons(self) -> None:
+        """Listen for speakers' own buttons (see `speaker_buttons`)."""
+        if self.speaker_buttons is not None and not self.speaker_buttons.running:
+            try:
+                await self.speaker_buttons.start(self.speaker_button)
+            except OSError as exc:
+                _LOGGER.info("Speaker buttons are off (%s)", type(exc).__name__)
+
+    async def speaker_button(self, address: str, press: ButtonPress) -> None:
+        """A speaker's button: play, pause and skip go to what's playing (the PC's app, or
+        Tandem's player); volume keys change that speaker's volume in Tandem."""
+        command = press.command
+        if command in _VOLUME_BUTTONS:
+            device = next((d for d in self.registry.devices() if d.address == address), None)
+            if device is None or not self._audio.streaming(device.id):
+                return
+            if command is ButtonCommand.VOLUME:
+                if press.level is not None:
+                    self.outputs.note_volume(device.id, press.level)
+                return
+            current = self.outputs.prefs.get(device.id).volume
+            step = VOLUME_STEP if command is ButtonCommand.VOLUME_UP else -VOLUME_STEP
+            await self.outputs.set_volume(device.id, (50.0 if current is None else current) + step)
+            return
+        if self.audio_source is AudioSource.PLAYER:
+            player = self.player
+            {
+                ButtonCommand.PLAY: player.resume,
+                ButtonCommand.PAUSE: player.pause,
+                ButtonCommand.PLAY_PAUSE: player.toggle,
+                ButtonCommand.NEXT: player.next,
+                ButtonCommand.PREVIOUS: player.previous,
+                ButtonCommand.STOP: player.pause,
+            }[command]()
+            return
+        playing = self.pc_media.now_playing
+        is_playing = playing is not None and playing.state == "playing"
+        if command in (ButtonCommand.PLAY, ButtonCommand.PAUSE, ButtonCommand.STOP):
+            if (command is ButtonCommand.PLAY) == is_playing:
+                return  # already where the button wants it
+            command = ButtonCommand.PLAY_PAUSE
+        await self.pc_media.command(_PC_BUTTONS[command])
+
+    async def check_network(self) -> net_check.Report:
+        """Look for the usual reasons speakers can't be found or reached, on this PC."""
+        probe = self._network_probe or net_check.Probe()
+        speakers = [d.address for d in self.registry.devices() if d.can_play_audio]
+        return await net_check.run(
+            probe,
+            self.scans,
+            speakers=speakers + self.addresses.addresses(),
+            refused=self.outputs.refused(),
+        )
 
     def session(self, device_id: str, *, max_attempts: int | None = None) -> ConnectionSession:
         """The device's connection session, created on first use."""
@@ -409,6 +599,10 @@ class Engine:
     async def set_output_volume(self, output_id: str, level: float) -> None:
         await self._audio.set_volume(output_id, level)
 
+    def note_output_volume(self, output_id: str, level: float) -> None:
+        """Record a volume the speaker set itself (nothing is sent to it)."""
+        self._audio.note_volume(output_id, level)
+
     async def measure_lag(self, output_id: str) -> lineup.Measurement:
         """How far behind one playing output is, heard through the microphone (milliseconds
         from sending to hearing, less what was already queued for it)."""
@@ -463,6 +657,7 @@ class Engine:
             path = Path(location)
             if not await asyncio.to_thread(path.is_file):
                 raise MediaError("That file isn't there any more.", MediaError.FILE_GONE)
+            await asyncio.to_thread(check_playable, path)
             server = await self._served()
             host = local_address_towards(device.address)
             url = f"http://{host}:{server.port}{server.share(path)}"

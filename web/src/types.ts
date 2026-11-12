@@ -119,7 +119,7 @@ export interface AudioOutput {
   deviceKind: DeviceKind | null;
   needsPairing: boolean;
   /** Why it couldn't play, while `state` is "failed". */
-  problem: "unreachable" | "access" | "failed" | null;
+  problem: "unreachable" | "access" | "password" | "stereoPair" | "failed" | null;
 }
 
 /** A saved set of outputs turned on together. `name` is the user's own: never log it. */
@@ -260,6 +260,172 @@ export interface HomeBridge {
   switches: { id: string; name: string; on: boolean }[];
 }
 
+/** One thing the network check found (worst first). The words are in strings.ts. */
+export type NetworkFinding = "offline" | "noFirewallRule" | "noAnswers" | "otherSubnet" | "vpn" | "homeAccess";
+
+export interface NetworkState {
+  /** Speakers added by address (private network addresses), asked on every scan. */
+  addresses: string[];
+  adding: boolean;
+  checking: boolean;
+  /** The last check's findings; null until a check has run. */
+  findings: NetworkFinding[] | null;
+  /** Devices the last scan found. */
+  speakersSeen: number;
+}
+
+/** An album in the music library. Titles and artists are shown on screen only. */
+export interface LibraryAlbum {
+  id: string;
+  title: string;
+  artist: string | null;
+  year: number | null;
+  trackCount: number;
+  hasArt: boolean;
+}
+
+export interface LibrarySong {
+  id: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  albumId: string | null;
+  number: number | null;
+  duration: number | null;
+}
+
+export interface Library {
+  folders: string[];
+  scanning: boolean;
+  scanned: number;
+  songCount: number;
+  albums: LibraryAlbum[];
+  /** The album the page asked to open, with its songs. */
+  openAlbum: { id: string; songs: LibrarySong[] } | null;
+  search: { text: string; songs: LibrarySong[] };
+  canPickFolders: boolean;
+  picking: boolean;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  codec: string;
+  bitrate: number;
+  country: string;
+  tags: string;
+}
+
+export interface Radio {
+  query: string;
+  searching: boolean;
+  results: Station[];
+  saved: Station[];
+  error: "unavailable" | null;
+}
+
+export interface QueueItem {
+  id: string;
+  title: string;
+  kind: "file" | "radio";
+  artist: string | null;
+  album: string | null;
+  /** The library album whose artwork goes with it. */
+  art: string | null;
+}
+
+export type PlayerCommand = "play_pause" | "next" | "previous" | "stop";
+
+/** Tandem's own player: local files and radio, sent to the outputs in the Audio panel. */
+export interface Player {
+  state: "stopped" | "loading" | "playing" | "paused";
+  index: number | null;
+  position: number;
+  duration: number | null;
+  error: boolean;
+  queue: QueueItem[];
+}
+
+/** A result from Apple Music's catalog (Apple's public search; no account). */
+export interface CatalogSong {
+  id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  hasArt: boolean;
+}
+
+export interface CatalogAlbum {
+  id: string;
+  title: string;
+  artist: string;
+  year: number | null;
+  hasArt: boolean;
+}
+
+export interface Catalog {
+  query: string;
+  searching: boolean;
+  error: "unavailable" | "busy" | null;
+  songs: CatalogSong[];
+  albums: CatalogAlbum[];
+}
+
+/** Spotify, as a remote through its Web API (Settings → Connections; Music tab). */
+export type SpotifyState = "not_set_up" | "signed_out" | "signing_in" | "signed_in";
+
+export type SpotifyError =
+  | "invalid_client_id"
+  | "port_busy"
+  | "sign_in_timeout"
+  | "sign_in_denied"
+  | "sign_in_failed"
+  | "expired"
+  | "no_device"
+  | "premium_required"
+  | "not_allowed"
+  | "rate_limited"
+  | "unavailable"
+  | "gone"
+  | "vault";
+
+export interface SpotifyItem {
+  /** "t:…", "a:…" or "p:…" */
+  id: string;
+  kind: "track" | "album" | "playlist";
+  title: string;
+  subtitle: string;
+  duration: number | null;
+  hasArt: boolean;
+  count: number | null;
+}
+
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  /** Spotify's device type in lower case: "computer", "smartphone", "speaker", … */
+  kind: string;
+  active: boolean;
+  /** Spotify won't take commands for it. */
+  restricted: boolean;
+}
+
+export interface Spotify {
+  state: SpotifyState;
+  loading: boolean;
+  /** What to register in the Spotify app: a loopback address with no port. */
+  redirectUri: string;
+  error: SpotifyError | null;
+  playlists: SpotifyItem[];
+  devices: SpotifyDevice[];
+  /** The device "Play" uses. */
+  target: string | null;
+  query: string;
+  searching: boolean;
+  results: SpotifyItem[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -270,8 +436,8 @@ export interface AppState {
   home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
-  /** Windows treats every connected network as Public, so the firewall keeps speakers out. */
-  network: { untrusted: boolean };
+  /** "Can't find a speaker?": speakers added by address and the network check. */
+  network: NetworkState;
   /** A newer Tandem on GitHub, found by the update check. */
   update: { version: string; url: string } | null;
   /** A diagnostics zip is being written for "Report a problem". */
@@ -282,13 +448,20 @@ export interface AppState {
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
   music: Music | null;
+  library: Library;
+  radio: Radio;
+  player: Player;
+  catalog: Catalog;
+  spotify: Spotify;
 }
 
 export type Command =
   | { type: "activate" | "connect" | "disconnect" | "pair" | "openDevice"; id: string }
   | { type: "deviceAudio"; id: string; on: boolean }
   | { type: "submitPin"; pin: string }
-  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "openNetworkSettings" }
+  | { type: "cancelPairing" | "closePairing" | "dismissMessage" | "checkNetwork" }
+  | { type: "addSpeakerAddress" | "removeSpeakerAddress"; address: string }
+  | { type: "setSpeakerPassword"; id: string; password: string }
   | { type: "openUpdate" | "reportProblem" | "lineUp" }
   | { type: "saveGroup"; name: string; outputs: string[] }
   | { type: "deleteGroup"; id: string }
@@ -324,4 +497,20 @@ export type Command =
   | { type: "castScreen"; id: string; screen: number; quality: CastQuality; sound: boolean }
   | { type: "stopCast" | "loadScreens" }
   | { type: "music"; command: MusicCommand }
-  | { type: "musicSeek"; position: number };
+  | { type: "musicSeek"; position: number }
+  | { type: "addMusicFolder" | "rescanLibrary" | "closeAlbum" | "clearQueue" }
+  | { type: "removeMusicFolder"; folder: string }
+  | { type: "openAlbum"; id: string }
+  | { type: "searchLibrary" | "searchRadio" | "searchCatalog"; text: string }
+  | { type: "openInAppleMusic"; id: string }
+  | { type: "playAlbum"; id: string; songId?: string }
+  | { type: "queueAlbum" | "queueSong"; id: string; next: boolean }
+  | { type: "playSong" | "playStation" | "saveStation" | "removeStation"; id: string }
+  | { type: "player"; command: PlayerCommand }
+  | { type: "playQueueItem" | "removeQueueItem"; id: string }
+  | { type: "setSpotifyClientId"; clientId: string }
+  | { type: "spotifySignIn" | "spotifyCancelSignIn" | "openSpotifyDashboard" | "spotifyRefresh" }
+  | { type: "spotifySignOut"; forget?: boolean }
+  | { type: "spotifyDismissError" }
+  | { type: "spotifySearch"; text: string }
+  | { type: "spotifyPlay" | "spotifyChooseDevice" | "spotifyTransfer" | "openInSpotify"; id: string };

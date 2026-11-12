@@ -17,17 +17,27 @@ AUDIO_SUFFIXES = (".mp3", ".flac", ".wav", ".ogg", ".oga")
 
 
 class _MiniaudioStream:  # pragma: no cover - thin wrapper over miniaudio; checked by hand
-    def __init__(self, generator: Generator[Any, int, None], duration: float | None, close: Any):
+    def __init__(
+        self,
+        generator: Generator[Any, int, None],
+        duration: float | None,
+        close: Any,
+        first: bytes = b"",
+    ):
         self._generator = generator
         self._duration = duration
         self._close = close
         self._done = False
+        self._first = first  # the chunk miniaudio hands back when the stream is primed
 
     @property
     def duration(self) -> float | None:
         return self._duration
 
     def read(self, frames: int) -> bytes:
+        if self._first:
+            first, self._first = self._first, b""
+            return first
         if self._done:
             return b""
         try:
@@ -53,14 +63,14 @@ def open_track(track: Track) -> DecodedStream:  # pragma: no cover - needs real 
         generator: Any = miniaudio.stream_file(  # pyright: ignore[reportUnknownVariableType]
             str(path), output_format=fmt, nchannels=CHANNELS, sample_rate=SAMPLE_RATE
         )
-        next(generator)
-        return _MiniaudioStream(generator, float(info.duration), None)
+        first = bytes(next(generator).tobytes())  # priming returns the first chunk: keep it
+        return _MiniaudioStream(generator, float(info.duration), None, first)
     client: Any = miniaudio.IceCastClient(track.location)
     generator = miniaudio.stream_any(  # pyright: ignore[reportUnknownVariableType]
         client, output_format=fmt, nchannels=CHANNELS, sample_rate=SAMPLE_RATE
     )
-    next(generator)
-    return _MiniaudioStream(generator, None, client.close)
+    first = bytes(next(generator).tobytes())
+    return _MiniaudioStream(generator, None, client.close, first)
 
 
 def is_audio_file(path: str) -> bool:

@@ -6,7 +6,8 @@ import { CheckIcon, ChevronIcon } from "../icons";
 import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
-import type { Appearance, Command, ThemeChoice } from "../types";
+import type { Appearance, Command, Spotify, ThemeChoice } from "../types";
+import { ConnectionsSection } from "./Connections";
 import { LiveSlider } from "./LiveSlider";
 
 interface Props {
@@ -14,7 +15,10 @@ interface Props {
   onClose: () => void;
   onOpenGuide: () => void;
   onOpenAdvanced: () => void;
+  onFindSpeaker: () => void;
+  onOpenSpotify: () => void;
   appearance: Appearance;
+  spotify: Spotify;
   mode: Mode;
   send: (command: Command) => void;
 }
@@ -86,7 +90,18 @@ function PhotoPicker({ hasPhoto }: { hasPhoto: boolean }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, appearance, mode, send }: Props) {
+export function SettingsSheet({
+  isOpen,
+  onClose,
+  onOpenGuide,
+  onOpenAdvanced,
+  onFindSpeaker,
+  onOpenSpotify,
+  appearance,
+  spotify,
+  mode,
+  send,
+}: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
   const words = strings.settingsSheet;
@@ -179,9 +194,17 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, ap
 
             <Separator />
 
+            <ConnectionsSection spotify={spotify} onOpen={onOpenSpotify} />
+
+            <Separator />
+
             <nav className="flex flex-col gap-1" aria-label={words.more}>
               <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenGuide}>
                 <span>{strings.onboarding.reopen}</span>
+                <ChevronIcon direction="right" size={16} />
+              </Button>
+              <Button variant="tertiary" fullWidth className="settings-link" onPress={onFindSpeaker}>
+                <span>{strings.findSpeaker.open}</span>
                 <ChevronIcon direction="right" size={16} />
               </Button>
               <Button variant="tertiary" fullWidth className="settings-link" onPress={onOpenAdvanced}>

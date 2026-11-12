@@ -145,14 +145,28 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
   Bridge's `setup_message` is overridden (it is). Its state file is
   `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
-- Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
-  Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
-  the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
+- Firewall (ADR-0017 addendum, ADR-0023): one allow rule on every profile, `remoteip=localsubnet`
+  (maintainer's choice, 2026-11-10: no "mark it Private" step). The old Private/Public trust
+  list and `network_trust` are gone; "Can't find a speaker?" checks the rule exists instead.
+- Lessons from AirParrot (ADR-0023): speakers by address (`engine/addresses.py`), network watch
+  (`engine/network.py`), network check (`engine/net_check.py`, one PowerShell read, Windows
+  only), stall watchdog (`AudioHub.check_stalls`), speaker buttons (`engine/speaker_buttons.py`
+  + `adapters/pyatv_dacp.py`, which wraps `RtspSession.__init__`: re-check it when moving the
+  pyatv pin), passwords and stereo pairs on `Device`. An `AuthenticationError` ends a
+  connection attempt at once (`session.REFUSALS`). The demo's hidden speaker is only found by
+  address (192.0.2.60) and wants a password (anything but "wrong").
+- The privacy hook flags any private-range IP, even in the window's words: example addresses
+  in `strings.ts` must not look like real ones (no 192.168.x.x placeholder).
+- Never run plain `tsc` in `web/`: it writes `.js` copies beside the sources, and Vite resolves
+  `.js` before `.ts`, so tests silently run the stale copies (55 of them reached main with the
+  Spotify merge). `tsconfig.json` has `noEmit` and `.gitignore` drops `web/src/**/*.js`.
+- ADR numbers: open PRs can claim the next number (0021 is the Spotify PR's), so check open
+  branches' `docs/adr/` before numbering a new one.
 - PTP timing (ADR-0022): Tandem's PTP clock binds UDP 319/320 (no admin needed on Windows; the
   firewall rule is per program). Time everything audio with `time.perf_counter_ns`
   (`engine.timeline.now_ns`): `time.monotonic` is 15.6 ms coarse on Python 3.11 for Windows.
   `pyatv_ptp` wraps `AirPlayV2._setup_base` and `ControlClient._sync_task`; re-check both when
-  moving the pyatv pin. (Two open PRs both claim ADR-0020, so this one skipped to 0022.)
+  moving the pyatv pin.
 - Cast screen (Phase 8, ADR-0006 addendum): engine in `engine/screen_cast.py` (one cast at a
   time; tidies up once, from either the task or `stop`), capture and encode in
   `adapters/screen_capture.py` (dxcam + PyAV, in the `ui` extra), window side in
@@ -219,10 +233,13 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   the WebSocket and print kinds and states only.
 - The front-end build goes to `src/tandem/ui/static/` (git-ignored, shipped in the wheel).
 - Panels added after ADR-0008 keep their bridge code in their own modules, mixed into
-  `EngineBackend`: `tandem.bridge_audio` (Audio, Send) and `tandem.bridge_home` (Home bridge),
-  with the controller side in `ui/audio_panel.py`. Audio outputs are owned by the engine
-  (`engine/outputs.py`, `engine.outputs`: saved settings, states, groups, restore, line-up);
-  switch outputs there, never with `Engine.start_output` directly (ADR-0019).
+  `EngineBackend`: `tandem.bridge_audio` (Audio, Send), `tandem.bridge_home` (Home bridge) and
+  `tandem.bridge_library` (music library, radio, queue, Apple catalog), with the controller
+  side in `ui/audio_panel.py` and `ui/library_panel.py`. The demo's invented music is
+  `engine/adapters/demo_music.py`, fed to the real library, radio and catalog (ADR-0019).
+  Audio outputs are owned by the engine (`engine/outputs.py`, `engine.outputs`: saved
+  settings, states, groups, restore, line-up); switch outputs there, never with
+  `Engine.start_output` directly (ADR-0019).
 - Groups and line-up (ADR-0018): groups in `engine/output_groups.py` (switched by
   `engine.outputs`); line-up in `engine/lineup.py` + `AudioHub.probe` + `adapters/microphone.py`.
   The microphone on this PC refuses desktop apps right now (miniaudio init -6, access denied),
@@ -230,6 +247,28 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   Open the mic off the event loop (`asyncio.to_thread`): opening it can block.
 - `tools/update_constraints.py` rewrites `packaging/constraints.txt` from the installed set; the
   monthly `dependencies.yml` workflow runs it after the tests pass on the newest versions.
+- Music library and radio (Phase 6): `engine/library.py` (folders, tags cached in
+  `library.json`, albums) and `engine/radio.py` (Radio Browser search, saved stations in
+  `radio.json`), with file and HTTP access in `adapters/library_files.py` (tinytag) and
+  `adapters/radio_browser.py`. The state sends albums without their songs; an album's songs and
+  a song search go only while the page shows them, so state messages stay small. miniaudio's
+  stream generator returns the first chunk when primed: keep it (`adapters/decoders.py`), or
+  every track loses its first 23 ms.
+- Apple Music catalog search (ADR-0013, 2026-11-08 note): `engine/apple_catalog.py` with HTTP
+  and `music://` opening in `adapters/itunes_catalog.py`. Apple's artwork and badge pass
+  through Tandem's server (`/catalog-art`, `/apple-music-badge`, sandboxing CSP), are fetched
+  at run time and stay in memory: never commit or save them. No previews. Keep the 20-a-minute
+  limit. Don't open a real song link without the maintainer's OK (it plays from their account).
+  A song link opens its album page in the Apple Music app and doesn't start it (checked
+  2026-11-09): keep the button "Open", not "Play".
+- Spotify (ADR-0021): `engine/spotify.py` (PKCE, tokens, playlists, devices, search, play,
+  transfer) with HTTP, the 127.0.0.1 listener and the browser in `adapters/spotify_web.py`;
+  `tandem.bridge_spotify` and `ui/spotify_panel.py`; the demo's invented Spotify answers in
+  `engine/adapters/demo_spotify.py` (ADR-0019). The user registers
+  `http://127.0.0.1/callback` with no port; the port is picked at sign-in. Search is capped at
+  10 (Spotify's development-mode limit since February 2026); playlists report their size in
+  `items` (was `tracks`). Never play, transfer or sign in against the maintainer's account
+  without their OK. detect-secrets flags random-looking test ids: use values like `"a" * 32`.
 - Library versions: `packaging/constraints.txt` pins every runtime library; the app folder, the
   release workflow and CI install with `-c` it. Move a pin only on purpose, after the tests and
   a hardware check (1.0.0 shipped an unpinned srptools 2.0 that broke all Apple handshakes).

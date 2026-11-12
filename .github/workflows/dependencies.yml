@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
   update:
@@ -48,3 +49,29 @@ jobs:
           gh pr create --draft --base main --head "$branch" \
             --title "Update pinned library versions" \
             --body "The tests pass with these newer library versions. Before merging: close and reopen this pull request so CI and the installer build run, and check pairing and audio on the reference devices (CLAUDE.md, ADR-0017)."
+
+  firmware-watch:
+    # Apple's OS updates are what break AirPlay senders most (AirParrot shipped fixes for
+    # HomePod 15.4 and tvOS 27). pyatv usually follows within weeks, often in a new minor
+    # version that pyproject.toml's range (<0.19 and so on) keeps out. When pyatv has a newer
+    # minor than Tandem allows, open one issue so the pin is moved on purpose, with a
+    # hardware check.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare pyatv's newest release with Tandem's range
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          newest=$(curl -fsSL https://pypi.org/pypi/pyatv/json | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])")
+          allowed=$(grep -oE '"pyatv>=[0-9.]+,<[0-9.]+"' pyproject.toml | grep -oE '<[0-9.]+' | tr -d '<')
+          echo "pyatv newest: $newest; Tandem allows below $allowed" >> "$GITHUB_STEP_SUMMARY"
+          if python3 -c "import sys; a=[int(x) for x in sys.argv[1].split('.')[:2]]; b=[int(x) for x in sys.argv[2].split('.')[:2]]; sys.exit(0 if a>=b else 1)" "$newest" "$allowed"; then
+            title="pyatv $newest is out (Tandem allows below $allowed)"
+            if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -Fxq "$title"; then
+              echo "An issue is already open." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            gh issue create --title "$title" --body "pyatv has a newer minor version than pyproject.toml allows. New minors often carry fixes for new tvOS and HomePod software. Read https://github.com/postlund/pyatv/releases, move the range and packaging/constraints.txt on purpose, run the tests, and check pairing and audio on the reference devices (CLAUDE.md, ADR-0017). The diagnostics bundle lists each receiver's OS version (os_version) to match reports against."
+          fi

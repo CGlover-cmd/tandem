@@ -27,6 +27,22 @@ of logs with names, addresses and identifiers replaced.
   PC's switch on in the Audio panel to hear both (the PC plays a little ahead), or turn this off
   in Advanced settings. No virtual audio cable needed for that any more.
 
+- **Works on any network.** No more marking your Wi-Fi as Private in Windows: setup's firewall
+  rule now lets in devices on your local network whatever Windows calls it, and still nothing
+  from the internet.
+- **Can't find a speaker?** Add a speaker by its address when your router hides it, and let
+  Tandem check this PC for the usual causes, such as a VPN, guest Wi-Fi, a router that blocks
+  the search, or the Home app's speaker access setting.
+- **Back on its own after a network change.** Switching Wi-Fi, plugging in a cable or waking
+  the PC makes Tandem look for speakers and reconnect at once. A speaker whose sound stops
+  without an error is restarted after a few seconds.
+- **Speaker passwords.** A speaker that asks for a password (Home app, Require Password) shows a
+  password box in the Audio panel. Tandem keeps it, encrypted.
+- **Clearer reasons.** A HomePod that's half of a stereo pair says why it won't play from
+  Tandem. A video in a format the Apple TV can't play is caught before it's sent.
+- **Your speakers' buttons** (where a speaker sends them) control what the PC plays, and a
+  speaker's volume keys change its volume in Tandem.
+
 ## Fixed in 1.2.1
 
 - **The window opens again.** In 1.2.0 the window never appeared: a "Python" process ran in
@@ -122,13 +138,16 @@ Media keys need nothing from Tandem: Windows already sends them to the app that'
 8. **Line up automatically** with two speakers, then listen: do they play together?
 9. **A speaker group**, "send audio to <group>", and the tray's speaker switches.
 10. **Ctrl+Alt+K** from another app, and "Turn my speakers back on" after restarting Tandem.
+11. **On a Public network** (Windows' setting): speakers appear and play with no prompt.
+12. **Can't find a speaker?** Add a speaker by its address, then "Check my network".
+13. **Switch Wi-Fi or sleep the PC** while a speaker plays: it comes back on its own.
+14. **A HomePod's touch controls** while it plays the PC's sound: do play, pause and skip work?
 
 ## Known limits
 
 - **Not code-signed yet.** Windows SmartScreen warns about the installer (choose More info, then
   Run anyway). With **Smart App Control** on, Windows blocks it outright; install with Python
   instead (see the README).
-- On a Public network Tandem can't find or reach your speakers until you trust the network.
 - No screen mirroring (FairPlay; see ADR-0006). No Spotify or Apple Music browsing inside
   Tandem yet: use their apps, and Tandem sends their sound and shows what's playing.
 - Windows' volume and mute also affect what Tandem sends (it captures what Windows plays), and

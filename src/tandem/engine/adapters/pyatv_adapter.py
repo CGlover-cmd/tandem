@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from collections.abc import Sequence
+from dataclasses import replace
 
 import pyatv
 from pyatv.const import DeviceModel, FeatureName, FeatureState, PairingRequirement, Protocol
@@ -28,6 +29,9 @@ from tandem.engine.player import DecodedStream, Track
 from tandem.engine.screen_cast import Screen, ScreenEncoder
 from tandem.engine.service import UnknownDeviceError
 from tandem.engine.session import Connector, Link, LostCallback
+
+_AUDIO_PROTOCOLS = {Protocol.RAOP, Protocol.AirPlay}
+"""The services a speaker's password protects."""
 
 _SERVICES = {
     Protocol.AirPlay: Service.AIRPLAY,
@@ -77,6 +81,7 @@ def device_from_config(config: BaseConfig) -> Device | None:
         if s.pairing == PairingRequirement.Mandatory and not s.credentials
     )
     info = config.device_info
+    audio = [s for s in known if s.protocol in _AUDIO_PROTOCOLS]
     return Device(
         id=identifier,
         name=config.name,
@@ -86,7 +91,35 @@ def device_from_config(config: BaseConfig) -> Device | None:
         services=services,
         paired=paired,
         needs_pairing=needs_pairing,
+        os_version=info.version or "",
+        password_required=any(s.requires_password for s in audio),
+        password_set=any(bool(s.password) for s in audio),
     )
+
+
+def sync_group(config: BaseConfig) -> str | None:
+    """The tight-sync group a HomePod announces (`tsid`). Two HomePods sharing one are a stereo
+    pair. An identifier: compared only, never logged or shown."""
+    service = config.get_service(Protocol.AirPlay)
+    if service is None:
+        return None
+    return service.properties.get("tsid") or None
+
+
+def mark_stereo_pairs(devices: list[Device], configs: dict[str, BaseConfig]) -> list[Device]:
+    """Flag HomePods that share a sync group with another HomePod (a stereo pair).
+
+    Unverified on hardware: the reference HomePods aren't paired. A false flag only changes
+    the words shown when the speaker fails to play.
+    """
+    groups: dict[str, list[str]] = {}
+    for device in devices:
+        config = configs.get(device.id)
+        group = None if config is None else sync_group(config)
+        if device.kind is DeviceKind.HOMEPOD and group:
+            groups.setdefault(group, []).append(device.id)
+    paired = {i for members in groups.values() if len(members) > 1 for i in members}
+    return [replace(d, stereo_pair=True) if d.id in paired else d for d in devices]
 
 
 class _Listener(DeviceListener):
@@ -163,13 +196,39 @@ class PyatvBackend:
         configs = await pyatv.scan(
             asyncio.get_running_loop(), timeout=max(1, round(timeout)), storage=self._storage
         )
+        return self._found(configs)
+
+    async def scan_hosts(self, hosts: Sequence[str], timeout: float) -> Sequence[Device]:
+        """Ask these addresses directly (unicast), for networks that block discovery."""
+        if not hosts:
+            return []
+        configs = await pyatv.scan(
+            asyncio.get_running_loop(),
+            timeout=max(1, round(timeout)),
+            hosts=list(hosts),
+            storage=self._storage,
+        )
+        return self._found(configs)
+
+    def _found(self, configs: Sequence[BaseConfig]) -> list[Device]:
         devices: list[Device] = []
+        found: dict[str, BaseConfig] = {}
         for config in configs:
             device = device_from_config(config)
             if device is not None:
                 self._configs[device.id] = config
+                found[device.id] = config
                 devices.append(device)
-        return devices
+        return mark_stereo_pairs(devices, found)
+
+    async def set_password(self, device_id: str, password: str) -> None:
+        """Save the speaker's password (in the encrypted vault) for its audio services."""
+        config = await self._config(device_id)
+        for service in config.services:
+            if service.protocol in _AUDIO_PROTOCOLS:
+                service.password = password
+        await self._storage.update_settings(config)
+        await self._storage.save()
 
     async def describe(self, device_id: str) -> Device | None:
         config = self._configs.get(device_id)

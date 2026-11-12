@@ -191,6 +191,11 @@ class FakeBackend:
         """What the microphone "hears", one recording per line-up measurement."""
         self.mic_missing = False
         self.speakers: FakeSpeakerMute | None = FakeSpeakerMute()
+        self.hidden: list[Device] = []
+        """Devices only found by asking their address."""
+        self.host_scans: list[list[str]] = []
+        self.passwords: dict[str, str] = {}
+        self.scan_failure: BaseException | None = None
         self.screen_list: list[Screen] = [Screen(0, 1920, 1080, primary=True), Screen(1, 1280, 720)]
         self.cast_enabled = True
         self.encoders: list[FakeScreenEncoder] = []
@@ -203,7 +208,16 @@ class FakeBackend:
         self.saves += 1
 
     async def scan(self, timeout: float) -> Sequence[Device]:
+        if self.scan_failure is not None:
+            raise self.scan_failure
         return list(self.devices)
+
+    async def scan_hosts(self, hosts: Sequence[str], timeout: float) -> Sequence[Device]:
+        self.host_scans.append(list(hosts))
+        return [d for d in self.hidden if d.address in hosts]
+
+    async def set_password(self, device_id: str, password: str) -> None:
+        self.passwords[device_id] = password
 
     async def describe(self, device_id: str) -> Device | None:
         if not self.describe_enabled:
@@ -216,7 +230,10 @@ class FakeBackend:
                 if Service.AIRPLAY in paired:
                     paired |= {Service.MRP} & device.services
                 return dataclasses.replace(
-                    device, paired=paired, needs_pairing=device.needs_pairing - paired
+                    device,
+                    paired=paired,
+                    needs_pairing=device.needs_pairing - paired,
+                    password_set=device_id in self.passwords or device.password_set,
                 )
         return None
 

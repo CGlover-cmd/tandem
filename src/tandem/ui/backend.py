@@ -240,6 +240,8 @@ class OutputProblem(Enum):
 
     UNREACHABLE = "unreachable"  # no answer: off, asleep, or on another network
     ACCESS = "access"  # it answered and refused: the Home app's speaker access setting
+    PASSWORD = "password"  # it wants its password (Home app "Require Password")
+    STEREO_PAIR = "stereoPair"  # half of a stereo pair, which Tandem can't play to yet
     FAILED = "failed"  # anything else
 
 
@@ -461,8 +463,222 @@ class HomeUpdated:
     home: HomeSnapshot
 
 
+# --- The music library, radio and Tandem's player (Phase 6) -------------------------------
+# Titles, artists, albums, folders and station searches are personal: shown on screen only.
+
+
+@dataclass(frozen=True, slots=True)
+class LibraryAlbum:
+    id: str
+    title: str
+    artist: str | None = None
+    year: int | None = None
+    track_count: int = 0
+    has_art: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LibrarySong:
+    id: str
+    title: str
+    artist: str | None = None
+    album: str | None = None
+    album_id: str | None = None
+    number: int | None = None
+    duration: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LibrarySnapshot:
+    folders: tuple[str, ...] = ()
+    scanning: bool = False
+    scanned: int = 0
+    albums: tuple[LibraryAlbum, ...] = ()
+    song_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class LibraryChanged:
+    library: LibrarySnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class StationSnapshot:
+    id: str
+    name: str
+    codec: str = ""
+    bitrate: int = 0
+    country: str = ""
+    tags: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class RadioSnapshot:
+    query: str = ""
+    searching: bool = False
+    results: tuple[StationSnapshot, ...] = ()
+    saved: tuple[StationSnapshot, ...] = ()
+    error: str | None = None
+    """"unavailable" when the station directory couldn't be reached."""
+
+
+@dataclass(frozen=True, slots=True)
+class RadioChanged:
+    radio: RadioSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class QueueItem:
+    id: str
+    title: str
+    kind: str = "file"  # file or radio
+    artist: str | None = None
+    album: str | None = None
+    art: str | None = None
+    """The library album whose artwork goes with it, if any."""
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerSnapshot:
+    state: str = "stopped"  # stopped, loading, playing, paused
+    queue: tuple[QueueItem, ...] = ()
+    index: int | None = None
+    position: float = 0.0
+    duration: float | None = None
+    error: bool = False
+    """The last track couldn't be played."""
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerChanged:
+    player: PlayerSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogSong:
+    """A song in Apple Music's catalog (Apple's public search). Shown on screen only."""
+
+    id: str
+    title: str
+    artist: str
+    album: str | None = None
+    duration: float | None = None
+    has_art: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogAlbum:
+    id: str
+    title: str
+    artist: str
+    year: int | None = None
+    has_art: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogSnapshot:
+    query: str = ""
+    searching: bool = False
+    songs: tuple[CatalogSong, ...] = ()
+    albums: tuple[CatalogAlbum, ...] = ()
+    error: str | None = None
+    """"unavailable" or "busy" (Apple allows about 20 searches a minute)."""
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogChanged:
+    catalog: CatalogSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyDeviceSnapshot:
+    """A Spotify Connect device. Its name is personal: shown on screen only."""
+
+    id: str
+    name: str
+    kind: str
+    """Spotify's device type in lower case: "computer", "smartphone", "speaker", ..."""
+    active: bool = False
+    restricted: bool = False
+    """Spotify won't take commands for it (some TVs and cars)."""
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyItemSnapshot:
+    """A playlist, album or track from Spotify. Shown on screen only."""
+
+    id: str
+    kind: str
+    """"track", "album" or "playlist"."""
+    title: str
+    subtitle: str = ""
+    duration: float | None = None
+    has_art: bool = False
+    count: int | None = None
+
+
+SPOTIFY_REDIRECT_URI = "http://127.0.0.1/callback"
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifySnapshot:
+    state: str = "not_set_up"
+    """"not_set_up", "signed_out", "signing_in" or "signed_in"."""
+    loading: bool = False
+    playlists: tuple[SpotifyItemSnapshot, ...] = ()
+    devices: tuple[SpotifyDeviceSnapshot, ...] = ()
+    query: str = ""
+    searching: bool = False
+    results: tuple[SpotifyItemSnapshot, ...] = ()
+    error: str | None = None
+    """A code the window turns into words (see `web/src/strings.ts`)."""
+    redirect_uri: str = SPOTIFY_REDIRECT_URI
+
+
+@dataclass(frozen=True, slots=True)
+class SpotifyChanged:
+    spotify: SpotifySnapshot
+
+
+class PlayerCommand(Enum):
+    PLAY_PAUSE = "play_pause"
+    NEXT = "next"
+    PREVIOUS = "previous"
+    STOP = "stop"
+
+
+class NetworkFinding(Enum):
+    """One thing the network check found (worst first). The window holds the words."""
+
+    OFFLINE = "offline"
+    NO_FIREWALL_RULE = "noFirewallRule"
+    NO_ANSWERS = "noAnswers"
+    OTHER_SUBNET = "otherSubnet"
+    VPN = "vpn"
+    HOME_ACCESS = "homeAccess"
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkSnapshot:
+    """The "Can't find a speaker?" sheet: speakers added by address and the network check."""
+
+    addresses: tuple[str, ...] = ()
+    """Speaker addresses the user added (private: shown, never logged)."""
+    adding: bool = False
+    checking: bool = False
+    findings: tuple[NetworkFinding, ...] | None = None
+    """The last check's findings; None until a check has run."""
+    speakers_seen: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkChanged:
+    network: NetworkSnapshot
+
+
 BackendEvent = (
-    HomeUpdated
+    NetworkChanged
+    | HomeUpdated
     | DeviceUpdated
     | DeviceRemoved
     | DiscoveryChanged
@@ -472,6 +688,11 @@ BackendEvent = (
     | SendChanged
     | CastChanged
     | MusicChanged
+    | LibraryChanged
+    | RadioChanged
+    | PlayerChanged
+    | CatalogChanged
+    | SpotifyChanged
 )
 Listener = Callable[[BackendEvent], None]
 Unsubscribe = Callable[[], None]
@@ -505,6 +726,15 @@ class Problem:
     BAD_GROUP = "badGroup"
     GROUP_NONE_PLAYED = "groupNonePlayed"
     GROUP_GONE = "groupGone"
+    BAD_ADDRESS = "badAddress"
+    NOT_LOCAL_ADDRESS = "notLocalAddress"
+    TOO_MANY_ADDRESSES = "tooManyAddresses"
+    NO_SPEAKER_THERE = "noSpeakerThere"
+    NOT_PLAYABLE = "notPlayable"
+    NOT_IN_LIBRARY = "notInLibrary"
+    STATION_GONE = "stationGone"
+    FOLDER_NOT_ADDED = "folderNotAdded"
+    APPLE_MUSIC_DIDNT_OPEN = "appleMusicDidntOpen"
     NO_SCREEN = "noScreen"
     CAST_FAILED = "castFailed"
     CAST_REFUSED = "castRefused"
@@ -527,6 +757,10 @@ class HomeError(BackendError):
 
 class MediaError(BackendError):
     """Sending media didn't work."""
+
+
+class LibraryError(BackendError):
+    """A library, radio or player command didn't work."""
 
 
 class AudioError(BackendError):
@@ -716,6 +950,26 @@ class Backend(Protocol):
         """Turn every member on or off. Raises AudioError only if none would play."""
         ...
 
+    # Can't find a speaker? (lessons from AirParrot)
+
+    def network(self) -> NetworkSnapshot: ...
+
+    async def add_speaker_address(self, address: str) -> None:
+        """Ask one address directly and keep it if a speaker answers. Raises `BackendError`
+        (BAD_ADDRESS, NOT_LOCAL_ADDRESS, TOO_MANY_ADDRESSES, NO_SPEAKER_THERE)."""
+        ...
+
+    async def remove_speaker_address(self, address: str) -> None: ...
+
+    async def check_network(self) -> None:
+        """Run the network check; findings arrive as `NetworkChanged`."""
+        ...
+
+    async def set_speaker_password(self, device_id: str, password: str) -> None:
+        """Save a speaker's password and try it again if it was on. The password is private:
+        never logged."""
+        ...
+
     # Housekeeping
 
     async def set_window_visible(self, visible: bool) -> None:
@@ -724,4 +978,109 @@ class Backend(Protocol):
 
     async def write_diagnostics(self) -> Path | None:
         """Write a redacted diagnostics zip for a bug report; None if there's nothing to write."""
+        ...
+
+    # The music library, radio and Tandem's player (Phase 6)
+
+    def library(self) -> LibrarySnapshot: ...
+
+    def album_songs(self, album_id: str) -> list[LibrarySong]: ...
+
+    def search_songs(self, text: str) -> list[LibrarySong]:
+        """Songs matching every word of `text` (at most 100)."""
+        ...
+
+    def library_art(self, album_id: str) -> MusicArtwork | None:
+        """An album's artwork, from memory or its files; for the window only."""
+        ...
+
+    async def add_music_folder(self, folder: str) -> None: ...
+
+    async def remove_music_folder(self, folder: str) -> None: ...
+
+    async def rescan_library(self) -> None: ...
+
+    async def play_album(self, album_id: str, song_id: str | None = None) -> None:
+        """Play an album through the chosen outputs (from `song_id`, or the start). Raises
+        `LibraryError`."""
+        ...
+
+    async def queue_album(self, album_id: str, play_next: bool) -> None: ...
+
+    async def play_song(self, song_id: str) -> None: ...
+
+    async def queue_song(self, song_id: str, play_next: bool) -> None: ...
+
+    def radio(self) -> RadioSnapshot: ...
+
+    async def search_radio(self, text: str) -> None: ...
+
+    async def play_station(self, station_id: str) -> None: ...
+
+    async def save_station(self, station_id: str) -> None: ...
+
+    async def remove_station(self, station_id: str) -> None: ...
+
+    def player(self) -> PlayerSnapshot: ...
+
+    async def player_command(self, command: PlayerCommand) -> None: ...
+
+    async def play_queue_item(self, item_id: str) -> None: ...
+
+    async def remove_queue_item(self, item_id: str) -> None: ...
+
+    async def clear_queue(self) -> None: ...
+
+    # Apple Music's catalog (Apple's public search; no account)
+
+    def catalog(self) -> CatalogSnapshot: ...
+
+    async def search_catalog(self, text: str) -> None: ...
+
+    async def open_in_apple_music(self, item_id: str) -> None:
+        """Hand a result to the Apple Music app. Raises `LibraryError` if it can't."""
+        ...
+
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        """A result's artwork, fetched from Apple and kept in memory."""
+        ...
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        """Apple's "Listen on Apple Music" badge, fetched from Apple; None when offline."""
+        ...
+
+    # Spotify (Web API remote only; ADR-0021)
+
+    def spotify(self) -> SpotifySnapshot: ...
+
+    async def set_spotify_client_id(self, text: str) -> None:
+        """Save the user's own Client ID; a bad one sets the snapshot's error."""
+        ...
+
+    async def spotify_sign_in(self) -> None:
+        """Sign in through the system browser; returns when it's done, refused or cancelled."""
+        ...
+
+    async def spotify_cancel_sign_in(self) -> None: ...
+
+    async def spotify_sign_out(self, forget_client_id: bool) -> None: ...
+
+    async def open_spotify_dashboard(self) -> None: ...
+
+    async def spotify_refresh(self) -> None:
+        """Fetch playlists and devices again."""
+        ...
+
+    async def spotify_search(self, text: str) -> None: ...
+
+    async def spotify_play(self, item_id: str, device_id: str | None) -> None: ...
+
+    async def spotify_transfer(self, device_id: str) -> None: ...
+
+    async def open_in_spotify(self, item_id: str) -> None: ...
+
+    async def spotify_dismiss_error(self) -> None: ...
+
+    async def spotify_art(self, item_id: str) -> MusicArtwork | None:
+        """An item's artwork, fetched from Spotify and kept in memory."""
         ...

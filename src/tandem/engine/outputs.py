@@ -25,7 +25,7 @@ from tandem.engine.audio import AudioError as EngineAudioError
 from tandem.engine.audio import AudioStreamChanged, StreamState
 from tandem.engine.audio_hub import is_local
 from tandem.engine.events import Event
-from tandem.engine.models import DeviceKind
+from tandem.engine.models import Device, DeviceKind
 from tandem.engine.output_groups import GroupStore, OutputGroup
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_mute import PcMute
@@ -64,6 +64,8 @@ class OutputProblem(Enum):
 
     UNREACHABLE = "unreachable"  # no answer: off, asleep, or on another network
     ACCESS = "access"  # it answered and refused: the Home app's speaker access setting
+    PASSWORD = "password"  # it wants a password (Home app "Require Password"), or another one
+    STEREO_PAIR = "stereoPair"  # one half of a stereo pair, which Tandem can't play to yet
     FAILED = "failed"  # anything else
 
 
@@ -165,11 +167,22 @@ _UNREACHABLE = {
 _REFUSED = {"AuthenticationError", "NotPairedError", "PairingError", "AccessDeniedError"}
 
 
-def classify(reason: str | None, error: BaseException | None) -> OutputProblem:
-    """Why an output couldn't play, from the last connection failure or the error itself."""
+def classify(
+    reason: str | None, error: BaseException | None, device: Device | None = None
+) -> OutputProblem:
+    """Why an output couldn't play, from the last connection failure or the error itself, and
+    what the device announces (a password, a stereo pair)."""
     names = {reason, None if error is None else type(error).__name__} - {None}
+    if (
+        device is not None
+        and device.password_required
+        and (not device.password_set or names & _REFUSED)
+    ):
+        return OutputProblem.PASSWORD
     if names & _REFUSED:
         return OutputProblem.ACCESS
+    if device is not None and device.stereo_pair:
+        return OutputProblem.STEREO_PAIR
     if names & _UNREACHABLE or not names:
         return OutputProblem.UNREACHABLE
     return OutputProblem.FAILED
@@ -200,6 +213,8 @@ class Outputs:
         self._last_reason: dict[str, str] = {}
         """Why each device's last connection attempt failed (an exception type name)."""
         self._restoring: set[str] = set()
+        self._wanted: set[str] = set()
+        """Outputs the user turned on (and not off) this run, whether or not they started."""
         self._tasks: set[asyncio.Task[None]] = set()
         bus = engine.bus
         self._unsubscribe = [
@@ -294,6 +309,7 @@ class Outputs:
             if engine_pairing.services_to_pair(device):
                 raise OutputError(OutputError.PAIR_FIRST)
         prefs = self.prefs.get(output_id)
+        self._wanted.add(output_id)
         self._failed.pop(output_id, None)
         self._last_reason.pop(output_id, None)
         self._starting.add(output_id)
@@ -302,7 +318,10 @@ class Outputs:
             await engine.start_output(output_id, volume=prefs.volume, delay_ms=prefs.delay_ms)
         except (EngineAudioError, ConnectionFailedError, OSError, TimeoutError, ValueError) as exc:
             _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
-            self._failed[output_id] = classify(self._last_reason.get(output_id), exc)
+            self._starting.discard(output_id)  # before the change: "starting" outranks "failed"
+            self._failed[output_id] = classify(
+                self._last_reason.get(output_id), exc, engine.registry.get(output_id)
+            )
             self._changed()
             raise OutputError(OutputError.NO_AUDIO) from None
         finally:
@@ -316,6 +335,7 @@ class Outputs:
             self._keep_pc(False)
             return
         self._failed.pop(output_id, None)
+        self._wanted.discard(output_id)
         self._starting.discard(output_id)
         self.prefs.update(output_id, on=False)
         await self._engine.stop_output(output_id)
@@ -334,6 +354,14 @@ class Outputs:
             except (EngineAudioError, OSError, TimeoutError) as exc:
                 _LOGGER.info("Setting an output's volume failed (%s)", type(exc).__name__)
                 raise OutputError(OutputError.NO_AUDIO) from None
+        self._changed()
+
+    def note_volume(self, output_id: str, level: float) -> None:
+        """The speaker changed its own volume (its buttons, or the Home app): show and keep
+        it, without sending it back."""
+        level = max(0.0, min(100.0, float(level)))
+        self.prefs.update(output_id, volume=level)
+        self._engine.note_output_volume(output_id, level)
         self._changed()
 
     async def set_delay(self, output_id: str, delay_ms: int) -> None:
@@ -433,6 +461,21 @@ class Outputs:
         if on and all(isinstance(r, BaseException) for r in results):
             raise OutputError(OutputError.GROUP_NONE_PLAYED)
 
+    def failed(self) -> set[str]:
+        """Outputs that failed to play and haven't been switched since."""
+        return set(self._failed)
+
+    def refused(self) -> int:
+        """How many speakers last failed because they turned Tandem away."""
+        return sum(p is OutputProblem.ACCESS for p in self._failed.values())
+
+    def retry_unreachable(self) -> None:
+        """The network changed: try again the speakers the user wanted on that didn't answer."""
+        for output_id, problem in list(self._failed.items()):
+            if problem is OutputProblem.UNREACHABLE and output_id in self._wanted:
+                self._restoring.add(output_id)
+                self._restore(output_id)
+
     # Turn my speakers back on
 
     def restore(self) -> None:
@@ -495,7 +538,8 @@ class Outputs:
 
     def _on_stream(self, event: AudioStreamChanged) -> None:
         if event.state is StreamState.FAILED:
-            self._failed[event.device_id] = classify(event.reason, None)
+            device = self._engine.registry.get(event.device_id)
+            self._failed[event.device_id] = classify(event.reason, None, device)
         self._changed()
 
     def _on_device(self, event: DeviceEvent) -> None:
