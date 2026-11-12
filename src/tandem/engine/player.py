@@ -5,6 +5,10 @@ audio hub's outputs (AirPlay devices and the PC's speakers) play what it decodes
 done by a `Decoder` from the backend (miniaudio, in `adapters`); this module keeps the queue
 and the real-time pacing, so it's tested with fakes.
 
+Tracks follow each other gaplessly: one worker thread opens the next track as the current one
+ends and keeps the same real-time clock, so the outputs get one unbroken stream (the player
+runs a little ahead of real time, which covers the time to open the next file).
+
 Track titles and file names are personal: they're shown in the window, never logged.
 """
 
@@ -44,6 +48,22 @@ class Track:
     location: str
     """A file path or a stream URL. Personal: never logged."""
     title: str
+    artist: str | None = None
+    album: str | None = None
+    art: str | None = None
+    """Where the window gets artwork for it (a library album id), if anywhere."""
+
+
+@dataclass(frozen=True, slots=True)
+class NewTrack:
+    """A track to queue; the player gives it an id."""
+
+    kind: TrackKind
+    location: str
+    title: str
+    artist: str | None = None
+    album: str | None = None
+    art: str | None = None
 
 
 class PlayerState(Enum):
@@ -90,6 +110,14 @@ class DecodedStream(Protocol):
 
 Decoder = Callable[[Track], DecodedStream]
 PcmSink = Callable[[bytes], None]
+
+
+@dataclass(slots=True)
+class _Pacing:
+    """The worker's real-time clock, kept across tracks so they join without a gap."""
+
+    started: float
+    sent: int = 0  # frames
 
 
 class PlayerCapture:
@@ -146,14 +174,31 @@ class Player:
 
     def add(self, items: Sequence[tuple[TrackKind, str, str]]) -> list[Track]:
         """Append (kind, location, title) tracks. Returns those added (the queue is capped)."""
-        room = MAX_QUEUE - len(self._status.queue)
-        tracks = [
-            Track(f"t{next(self._ids)}", kind, location, title)
-            for kind, location, title in list(items)[: max(0, room)]
-        ]
+        return self.add_tracks([NewTrack(kind, location, title) for kind, location, title in items])
+
+    def add_tracks(self, items: Sequence[NewTrack], *, play_next: bool = False) -> list[Track]:
+        """Append tracks, or put them right after the current one. Returns those added (the
+        queue is capped at `MAX_QUEUE`)."""
+        status = self._status
+        room = MAX_QUEUE - len(status.queue)
+        tracks = tuple(
+            Track(f"t{next(self._ids)}", i.kind, i.location, i.title, i.artist, i.album, i.art)
+            for i in list(items)[: max(0, room)]
+        )
+        if not tracks:
+            return []
+        at = len(status.queue)
+        if play_next and status.index is not None:
+            at = status.index + 1
+        self._set(replace(status, queue=status.queue[:at] + tracks + status.queue[at:]))
+        return list(tracks)
+
+    def play_tracks(self, items: Sequence[NewTrack], start: int = 0) -> None:
+        """Replace the queue with `items` and play from `start` (playing an album)."""
+        self.clear()
+        tracks = self.add_tracks(items)
         if tracks:
-            self._set(replace(self._status, queue=self._status.queue + tuple(tracks)))
-        return tracks
+            self.play(tracks[min(max(0, start), len(tracks) - 1)].id)
 
     def remove(self, track_id: str) -> None:
         status = self._status
@@ -267,34 +312,58 @@ class Player:
                 worker.join(timeout=0.5)
 
     def _run(self, track: Track, stop: threading.Event, resume: threading.Event) -> None:
-        try:
-            stream = self._decoder(track)
-        except Exception as exc:
-            _LOGGER.info("A track couldn't be opened (%s)", type(exc).__name__)
-            self._from_thread(stop, self._failed, type(exc).__name__)
-            return
-        try:
-            self._from_thread(stop, self._playing, stream.duration)
-            self._pump(stream, stop, resume)
-        except Exception as exc:
-            _LOGGER.info("A track stopped playing (%s)", type(exc).__name__)
-            self._from_thread(stop, self._failed, type(exc).__name__)
-            return
-        finally:
-            stream.close()
+        pacing = _Pacing(self._clock())
+        first = True
+        current: Track | None = track
+        while current is not None and not stop.is_set():
+            try:
+                stream = self._decoder(current)
+            except Exception as exc:
+                _LOGGER.info("A track couldn't be opened (%s)", type(exc).__name__)
+                self._from_thread(stop, self._failed, type(exc).__name__)
+                return
+            try:
+                if first:
+                    self._from_thread(stop, self._playing, stream.duration)
+                else:
+                    self._from_thread(stop, self._advanced, current.id, stream.duration)
+                first = False
+                self._pump(stream, stop, resume, pacing)
+            except Exception as exc:
+                _LOGGER.info("A track stopped playing (%s)", type(exc).__name__)
+                self._from_thread(stop, self._failed, type(exc).__name__)
+                return
+            finally:
+                stream.close()
+            if stop.is_set():
+                return
+            current = self._after(current.id)
         self._from_thread(stop, self._ended)
 
-    def _pump(self, stream: DecodedStream, stop: threading.Event, resume: threading.Event) -> None:
-        sent = 0  # frames
-        started = self._clock()
-        reported = started
+    def _after(self, track_id: str) -> Track | None:
+        """The track queued after `track_id` (read from the newest status), if any."""
+        queue = self._status.queue
+        index = next((i for i, t in enumerate(queue) if t.id == track_id), None)
+        if index is None or index + 1 >= len(queue):
+            return None
+        return queue[index + 1]
+
+    def _pump(
+        self,
+        stream: DecodedStream,
+        stop: threading.Event,
+        resume: threading.Event,
+        pacing: _Pacing,
+    ) -> None:
+        track_start = pacing.sent  # frames sent before this track
+        reported = self._clock()
         while not stop.is_set():
             if not resume.is_set():
                 paused_at = self._clock()
                 resume.wait()
-                started += self._clock() - paused_at
+                pacing.started += self._clock() - paused_at
                 continue
-            ahead = sent / SAMPLE_RATE - (self._clock() - started)
+            ahead = pacing.sent / SAMPLE_RATE - (self._clock() - pacing.started)
             if ahead > AHEAD_SECONDS:
                 self._sleep(ahead - AHEAD_SECONDS)
                 continue
@@ -302,7 +371,7 @@ class Player:
             if not data:
                 return
             data = data[: len(data) - len(data) % FRAME_BYTES]
-            sent += len(data) // FRAME_BYTES
+            pacing.sent += len(data) // FRAME_BYTES
             with self._lock:
                 sink = self._sink
             if sink is not None:
@@ -310,7 +379,7 @@ class Player:
             now = self._clock()
             if now - reported >= self._status_interval:
                 reported = now
-                self._from_thread(stop, self._position, sent / SAMPLE_RATE)
+                self._from_thread(stop, self._position, (pacing.sent - track_start) / SAMPLE_RATE)
 
     def _from_thread(self, stop: threading.Event, fn: Callable[..., None], *args: object) -> None:
         def call() -> None:
@@ -327,6 +396,16 @@ class Player:
         state = PlayerState.PLAYING if self._resume.is_set() else PlayerState.PAUSED
         self._set(replace(self._status, state=state, duration=duration))
 
+    def _advanced(self, track_id: str, duration: float | None) -> None:
+        """The worker moved on to the next track without a gap."""
+        index = next((i for i, t in enumerate(self._status.queue) if t.id == track_id), None)
+        state = PlayerState.PLAYING if self._resume.is_set() else PlayerState.PAUSED
+        self._set(
+            replace(
+                self._status, state=state, index=index, position=0.0, duration=duration, error=None
+            )
+        )
+
     def _position(self, seconds: float) -> None:
         self._set(replace(self._status, position=seconds))
 
@@ -336,11 +415,7 @@ class Player:
 
     def _ended(self) -> None:
         self._worker = None
-        index = self._status.index
-        if index is not None and index + 1 < len(self._status.queue):
-            self._start(index + 1)
-        else:
-            self._set(replace(self._status, state=PlayerState.STOPPED, position=0.0))
+        self._set(replace(self._status, state=PlayerState.STOPPED, position=0.0))
 
     def _set(self, status: PlayerStatus) -> None:
         self._status = status

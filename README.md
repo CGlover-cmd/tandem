@@ -35,6 +35,10 @@ your home Wi-Fi: no extra box, no account, no sign-up, and nothing collected abo
 - **Send a video to the TV.** Play a video file from your PC, or a link to one, on the Apple TV.
 - **Control your music.** See and control what any app on your PC is playing (Spotify, Apple
   Music, a browser tab), from Tandem's window or the system tray.
+- **Play your own music and the radio.** Tandem plays the albums in your music folders (MP3,
+  FLAC, WAV, Ogg) and thousands of free internet radio stations straight to your speakers, with
+  a queue. Search Apple Music's catalog and open what you find in the Apple Music app, and use
+  Tandem as a remote for Spotify on any of your devices.
 - **Just type what you want.** Press Ctrl+K and type "pause", "volume 30 on the loft",
   "send audio to the patio" or "open Music on the TV". Ctrl+Alt+K does it from anywhere in
   Windows.
@@ -91,6 +95,17 @@ When Tandem opens, it finds the AirPlay devices on your network by itself, and a
   play, pause, skip and (where the app allows) seek. A small now-playing bar does the same on
   the other tabs. Tandem is the remote here: Spotify or Apple Music still plays the music, and
   Tandem sends the sound to your speakers.
+  Tandem also plays music itself: **This PC** lists the albums in folders you add, **Radio**
+  searches the free [Radio Browser](https://www.radio-browser.info) directory and keeps the
+  stations you save, and **Queue** shows what plays next. **Apple Music** searches Apple's
+  catalog (no account needed) and opens a song or album in the Apple Music app, where you press
+  play. Only your search words go to the radio directory or to Apple.
+  **Spotify** shows your playlists and Spotify devices, searches Spotify, plays on the device
+  you pick and moves playback between devices ("Play here"); the Spotify app plays the music.
+  Set it up once under **Settings → Connections → Spotify**: Spotify asks each app to use its
+  own free developer key, so the walkthrough has you create one in Spotify's developer
+  dashboard, paste its Client ID and sign in in your browser. Spotify allows this only with
+  Spotify Premium. Your sign-in stays on this PC, encrypted for your Windows account.
 - **Commands:** press **Ctrl+K** and type. The line under the box says what Enter will do.
   Names can be partial ("loft", "liv") and forgive small typos; if a command could mean more
   than one device, Tandem asks which.

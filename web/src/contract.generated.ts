@@ -250,6 +250,81 @@ export const demoSnapshot: AppState = {
     "canPickFiles": false,
     "picking": false
   },
+  "library": {
+    "folders": [
+      "Demo Library"
+    ],
+    "scanning": false,
+    "scanned": 11,
+    "songCount": 11,
+    "albums": [
+      {
+        "id": "abdc6ec10153f7e7",
+        "title": "City Hours",
+        "artist": "Imaginary Orchestra",
+        "year": 2019,
+        "trackCount": 3,
+        "hasArt": true
+      },
+      {
+        "id": "a4785da517681af1",
+        "title": "Quiet Rooms",
+        "artist": "Placeholder Trio",
+        "year": 2023,
+        "trackCount": 4,
+        "hasArt": true
+      },
+      {
+        "id": "a431c154aac165c0",
+        "title": "Daybreak",
+        "artist": "The Example Band",
+        "year": 2021,
+        "trackCount": 4,
+        "hasArt": true
+      }
+    ],
+    "openAlbum": null,
+    "search": {
+      "text": "",
+      "songs": []
+    },
+    "canPickFolders": false,
+    "picking": false
+  },
+  "radio": {
+    "query": "",
+    "searching": false,
+    "results": [],
+    "saved": [],
+    "error": null
+  },
+  "catalog": {
+    "query": "",
+    "searching": false,
+    "error": null,
+    "songs": [],
+    "albums": []
+  },
+  "player": {
+    "state": "stopped",
+    "index": null,
+    "position": 0.0,
+    "duration": null,
+    "error": false,
+    "queue": []
+  },
+  "spotify": {
+    "state": "not_set_up",
+    "loading": false,
+    "redirectUri": "http://127.0.0.1/callback",
+    "error": null,
+    "playlists": [],
+    "devices": [],
+    "target": null,
+    "query": "",
+    "searching": false,
+    "results": []
+  },
   "home": {
     "enabled": false,
     "running": false,
@@ -333,9 +408,12 @@ export const demoSnapshot: AppState = {
 /** Every command AppController.handle accepts. */
 export const commandTypes = [
   "activate",
+  "addMusicFolder",
   "allOutputsOff",
   "cancelPairing",
   "clearCommand",
+  "clearQueue",
+  "closeAlbum",
   "closePairing",
   "connect",
   "deleteGroup",
@@ -348,16 +426,35 @@ export const commandTypes = [
   "media",
   "music",
   "musicSeek",
+  "openAlbum",
   "openDevice",
+  "openInAppleMusic",
+  "openInSpotify",
   "openNetworkSettings",
+  "openSpotifyDashboard",
   "openUpdate",
   "pair",
   "pickMedia",
+  "playAlbum",
+  "playQueueItem",
+  "playSong",
+  "playStation",
+  "player",
   "press",
   "previewCommand",
+  "queueAlbum",
+  "queueSong",
+  "removeMusicFolder",
+  "removeQueueItem",
+  "removeStation",
   "reportProblem",
+  "rescanLibrary",
   "runCommand",
   "saveGroup",
+  "saveStation",
+  "searchCatalog",
+  "searchLibrary",
+  "searchRadio",
   "sendMedia",
   "setAppearance",
   "setAudioSource",
@@ -367,8 +464,18 @@ export const commandTypes = [
   "setOutputDelay",
   "setOutputVolume",
   "setPower",
+  "setSpotifyClientId",
   "setText",
   "setVolume",
+  "spotifyCancelSignIn",
+  "spotifyChooseDevice",
+  "spotifyDismissError",
+  "spotifyPlay",
+  "spotifyRefresh",
+  "spotifySearch",
+  "spotifySignIn",
+  "spotifySignOut",
+  "spotifyTransfer",
   "stopMedia",
   "submitPin",
 ] as const satisfies readonly Command["type"][];
@@ -381,11 +488,13 @@ export const everyCommandIsHandled: [Unhandled] extends [never] ? true : never =
 export const problemCodes = [
   "appCant",
   "appDidntRespond",
+  "appleMusicDidntOpen",
   "badGroup",
   "cantDoThat",
   "connectFirst",
   "couldNotPair",
   "fileGone",
+  "folderNotAdded",
   "groupGone",
   "groupNonePlayed",
   "homeFailed",
@@ -399,12 +508,14 @@ export const problemCodes = [
   "notATv",
   "notAvailable",
   "notConnected",
+  "notInLibrary",
   "nothingPlaying",
   "pairFirst",
   "pairingFailed",
   "pinExpired",
   "pinFormat",
   "speakerGone",
+  "stationGone",
   "taskFailed",
   "wrongPin",
 ] as const;

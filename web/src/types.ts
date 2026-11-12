@@ -241,6 +241,158 @@ export interface HomeBridge {
   switches: { id: string; name: string; on: boolean }[];
 }
 
+/** An album in the music library. Titles and artists are shown on screen only. */
+export interface LibraryAlbum {
+  id: string;
+  title: string;
+  artist: string | null;
+  year: number | null;
+  trackCount: number;
+  hasArt: boolean;
+}
+
+export interface LibrarySong {
+  id: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  albumId: string | null;
+  number: number | null;
+  duration: number | null;
+}
+
+export interface Library {
+  folders: string[];
+  scanning: boolean;
+  scanned: number;
+  songCount: number;
+  albums: LibraryAlbum[];
+  /** The album the page asked to open, with its songs. */
+  openAlbum: { id: string; songs: LibrarySong[] } | null;
+  search: { text: string; songs: LibrarySong[] };
+  canPickFolders: boolean;
+  picking: boolean;
+}
+
+export interface Station {
+  id: string;
+  name: string;
+  codec: string;
+  bitrate: number;
+  country: string;
+  tags: string;
+}
+
+export interface Radio {
+  query: string;
+  searching: boolean;
+  results: Station[];
+  saved: Station[];
+  error: "unavailable" | null;
+}
+
+export interface QueueItem {
+  id: string;
+  title: string;
+  kind: "file" | "radio";
+  artist: string | null;
+  album: string | null;
+  /** The library album whose artwork goes with it. */
+  art: string | null;
+}
+
+export type PlayerCommand = "play_pause" | "next" | "previous" | "stop";
+
+/** Tandem's own player: local files and radio, sent to the outputs in the Audio panel. */
+export interface Player {
+  state: "stopped" | "loading" | "playing" | "paused";
+  index: number | null;
+  position: number;
+  duration: number | null;
+  error: boolean;
+  queue: QueueItem[];
+}
+
+/** A result from Apple Music's catalog (Apple's public search; no account). */
+export interface CatalogSong {
+  id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  hasArt: boolean;
+}
+
+export interface CatalogAlbum {
+  id: string;
+  title: string;
+  artist: string;
+  year: number | null;
+  hasArt: boolean;
+}
+
+export interface Catalog {
+  query: string;
+  searching: boolean;
+  error: "unavailable" | "busy" | null;
+  songs: CatalogSong[];
+  albums: CatalogAlbum[];
+}
+
+/** Spotify, as a remote through its Web API (Settings → Connections; Music tab). */
+export type SpotifyState = "not_set_up" | "signed_out" | "signing_in" | "signed_in";
+
+export type SpotifyError =
+  | "invalid_client_id"
+  | "port_busy"
+  | "sign_in_timeout"
+  | "sign_in_denied"
+  | "sign_in_failed"
+  | "expired"
+  | "no_device"
+  | "premium_required"
+  | "not_allowed"
+  | "rate_limited"
+  | "unavailable"
+  | "gone"
+  | "vault";
+
+export interface SpotifyItem {
+  /** "t:…", "a:…" or "p:…" */
+  id: string;
+  kind: "track" | "album" | "playlist";
+  title: string;
+  subtitle: string;
+  duration: number | null;
+  hasArt: boolean;
+  count: number | null;
+}
+
+export interface SpotifyDevice {
+  id: string;
+  name: string;
+  /** Spotify's device type in lower case: "computer", "smartphone", "speaker", … */
+  kind: string;
+  active: boolean;
+  /** Spotify won't take commands for it. */
+  restricted: boolean;
+}
+
+export interface Spotify {
+  state: SpotifyState;
+  loading: boolean;
+  /** What to register in the Spotify app: a loopback address with no port. */
+  redirectUri: string;
+  error: SpotifyError | null;
+  playlists: SpotifyItem[];
+  devices: SpotifyDevice[];
+  /** The device "Play" uses. */
+  target: string | null;
+  query: string;
+  searching: boolean;
+  results: SpotifyItem[];
+}
+
 export interface AppState {
   devices: Device[];
   discovering: boolean;
@@ -262,6 +414,11 @@ export interface AppState {
   reduceMotion: boolean;
   /** What the PC is playing; null when nothing is. */
   music: Music | null;
+  library: Library;
+  radio: Radio;
+  player: Player;
+  catalog: Catalog;
+  spotify: Spotify;
 }
 
 export type Command =
@@ -302,4 +459,20 @@ export type Command =
   | { type: "sendMedia"; id: string; location: string }
   | { type: "pickMedia" | "stopMedia"; id: string }
   | { type: "music"; command: MusicCommand }
-  | { type: "musicSeek"; position: number };
+  | { type: "musicSeek"; position: number }
+  | { type: "addMusicFolder" | "rescanLibrary" | "closeAlbum" | "clearQueue" }
+  | { type: "removeMusicFolder"; folder: string }
+  | { type: "openAlbum"; id: string }
+  | { type: "searchLibrary" | "searchRadio" | "searchCatalog"; text: string }
+  | { type: "openInAppleMusic"; id: string }
+  | { type: "playAlbum"; id: string; songId?: string }
+  | { type: "queueAlbum" | "queueSong"; id: string; next: boolean }
+  | { type: "playSong" | "playStation" | "saveStation" | "removeStation"; id: string }
+  | { type: "player"; command: PlayerCommand }
+  | { type: "playQueueItem" | "removeQueueItem"; id: string }
+  | { type: "setSpotifyClientId"; clientId: string }
+  | { type: "spotifySignIn" | "spotifyCancelSignIn" | "openSpotifyDashboard" | "spotifyRefresh" }
+  | { type: "spotifySignOut"; forget?: boolean }
+  | { type: "spotifyDismissError" }
+  | { type: "spotifySearch"; text: string }
+  | { type: "spotifyPlay" | "spotifyChooseDevice" | "spotifyTransfer" | "openInSpotify"; id: string };

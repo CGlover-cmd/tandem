@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from tandem.engine import lineup
+from tandem.engine.adapters.demo_music import DemoMusic
 from tandem.engine.audio import PcmBuffer
 from tandem.engine.audio_hub import LOCAL_PREFIX
 from tandem.engine.control import (
@@ -185,6 +186,7 @@ class DemoDevices:
         self._flaky = {FLAKY}
         self._states: dict[str, _DeviceState] = {}
         self.sessions = DemoSessions(clock)
+        self.music = DemoMusic()
         self.presses: list[tuple[str, RemoteKey, KeyAction]] = []
         self.launched: list[tuple[str, str]] = []
         self.texts: list[tuple[str, str]] = []
@@ -273,7 +275,7 @@ class DemoDevices:
         return _DemoSender(self, link.device_id)
 
     def open_track(self, track: Track) -> Any:
-        raise FileNotFoundError("the demo has no files to play")
+        return self.music.open_track(track)
 
     def media_sessions(self) -> DemoSessions:
         return self.sessions

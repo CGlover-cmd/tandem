@@ -22,6 +22,8 @@ dependencies = [
     "srptools>=1,<2",
     # The Home bridge (Phase 10b, ADR-0016). Apache-2.0.
     "HAP-python>=5.0,<6",
+    # Tags and artwork for the music library (Phase 6). Pure Python, MIT.
+    "tinytag>=2.0,<3",
     # What the PC is playing, from Windows' media controls (Phase 6, ADR-0013).
     "winrt-Windows.Media.Control>=3.2,<4; sys_platform == 'win32'",
     "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",

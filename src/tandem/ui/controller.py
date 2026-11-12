@@ -37,6 +37,7 @@ from tandem.ui.backend import (
     Backend,
     BackendError,
     BackendEvent,
+    CatalogChanged,
     CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
@@ -47,6 +48,7 @@ from tandem.ui.backend import (
     DiscoveryChanged,
     HomeUpdated,
     KeyAction,
+    LibraryChanged,
     LinkState,
     MediaCommand,
     MusicArtwork,
@@ -57,13 +59,18 @@ from tandem.ui.backend import (
     OutputState,
     PairingError,
     PairingFlow,
+    PlayerChanged,
+    RadioChanged,
     RemoteKey,
     SendChanged,
+    SpotifyChanged,
     Theme,
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
+from tandem.ui.library_panel import FolderPicker, LibraryPanel
 from tandem.ui.network_trust import NetworkWatch
+from tandem.ui.spotify_panel import SpotifyPanel
 from tandem.ui.updates import GetJson, Update
 from tandem.ui.updates import check as check_for_update
 from tandem.ui.window_commands import CommandTable, Fields
@@ -367,6 +374,7 @@ class AppController:
         reduce_motion: bool = False,
         icons: IconSource | None = None,
         picker: FilePicker | None = None,
+        folder_picker: FolderPicker | None = None,
         photo: BackgroundPhoto | None = None,
         network: NetworkWatch | None = None,
         get_json: GetJson | None = None,
@@ -412,6 +420,10 @@ class AppController:
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.library = LibraryPanel(
+            backend, self.runner.run, on_change=self._changed, picker=folder_picker
+        )
+        self.spotify = SpotifyPanel(backend, self.runner.run, on_change=self._changed)
         self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
         self._table = self._commands_table()
@@ -444,6 +456,8 @@ class AppController:
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
+            **self.library.snapshot(),
+            **self.spotify.snapshot(),
             "home": {
                 "enabled": self.home.enabled,
                 "running": self.home.running,
@@ -491,6 +505,8 @@ class AppController:
             if controls is not None:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
+        self.library.load()
+        self.spotify.load()
         self.home = self._backend.home()
         self._changed()
         if self.network is not None:
@@ -504,6 +520,7 @@ class AppController:
             self._unsubscribe()
             self._unsubscribe = None
         self.pairing.close()
+        await self.spotify.close()
         if self.network is not None:
             await self.network.stop()
         await self.runner.drain()
@@ -600,6 +617,21 @@ class AppController:
 
     def music_seek(self, position: float) -> None:
         self.runner.run(self._backend.music_seek(position))
+
+    async def catalog_art(self, item_id: str) -> MusicArtwork | None:
+        """A catalog result's artwork (fetched from Apple), for the window only."""
+        return await self._backend.catalog_art(item_id)
+
+    async def apple_music_badge(self) -> MusicArtwork | None:
+        return await self._backend.apple_music_badge()
+
+    async def spotify_art(self, item_id: str) -> MusicArtwork | None:
+        """A Spotify item's artwork (fetched from Spotify), for the window only."""
+        return await self._backend.spotify_art(item_id)
+
+    def library_art(self, album_id: str) -> MusicArtwork | None:
+        """An album's artwork from the music library, for the window only."""
+        return self._backend.library_art(album_id)
 
     def save_photo(self, data: bytes) -> bool:
         """Use `data` (a JPEG the window made) as the background. False if it was refused."""
@@ -724,6 +756,8 @@ class AppController:
         self._device_commands(table)
         self._window_commands(table)
         self.audio.register(table)
+        self.library.register(table)
+        self.spotify.register(table)
         return table
 
     def _device_commands(self, table: CommandTable) -> None:
@@ -855,6 +889,16 @@ class AppController:
                     self._apps.pop(device_id, None)  # fetch afresh after a reconnect
                 else:
                     self._controls[device_id] = controls
+            case LibraryChanged(library=library):
+                self.library.library_changed(library)
+            case RadioChanged(radio=radio):
+                self.library.radio = radio
+            case PlayerChanged(player=player):
+                self.library.player = player
+            case CatalogChanged(catalog=catalog):
+                self.library.catalog = catalog
+            case SpotifyChanged(spotify=spotify):
+                self.spotify.changed(spotify)
             case MusicChanged(music=music):
                 self.music = music
             case AppearanceChanged(appearance=appearance):

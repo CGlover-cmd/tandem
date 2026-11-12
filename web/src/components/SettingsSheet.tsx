@@ -6,7 +6,8 @@ import { CheckIcon, ChevronIcon } from "../icons";
 import { uploadPhoto } from "../photo";
 import { strings } from "../strings";
 import { backgroundCss, backgrounds, PHOTO_BACKGROUND, windowBackground, type Background, type Mode } from "../theme";
-import type { Appearance, Command, ThemeChoice } from "../types";
+import type { Appearance, Command, Spotify, ThemeChoice } from "../types";
+import { ConnectionsSection } from "./Connections";
 import { LiveSlider } from "./LiveSlider";
 
 interface Props {
@@ -14,7 +15,9 @@ interface Props {
   onClose: () => void;
   onOpenGuide: () => void;
   onOpenAdvanced: () => void;
+  onOpenSpotify: () => void;
   appearance: Appearance;
+  spotify: Spotify;
   mode: Mode;
   send: (command: Command) => void;
 }
@@ -86,7 +89,7 @@ function PhotoPicker({ hasPhoto }: { hasPhoto: boolean }) {
   );
 }
 
-export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, appearance, mode, send }: Props) {
+export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, onOpenSpotify, appearance, spotify, mode, send }: Props) {
   const neutral = backgrounds.filter((b) => b.group === "neutral");
   const gradients = backgrounds.filter((b) => b.group === "gradient");
   const words = strings.settingsSheet;
@@ -176,6 +179,10 @@ export function SettingsSheet({ isOpen, onClose, onOpenGuide, onOpenAdvanced, ap
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            <ConnectionsSection spotify={spotify} onOpen={onOpenSpotify} />
 
             <Separator />
 

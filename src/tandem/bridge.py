@@ -18,9 +18,12 @@ from typing import TypeVar
 
 from tandem.bridge_audio import EngineAudio
 from tandem.bridge_home import EngineHome
+from tandem.bridge_library import EngineLibrary
+from tandem.bridge_spotify import EngineSpotify
 from tandem.engine import control as ec
 from tandem.engine import pairing as engine_pairing
 from tandem.engine import paths
+from tandem.engine.apple_catalog import AppleCatalog
 from tandem.engine.command_dispatch import (
     CommandDispatcher,
     CommandResult,
@@ -28,15 +31,18 @@ from tandem.engine.command_dispatch import (
 )
 from tandem.engine.events import EventBus
 from tandem.engine.home_bridge import BridgeServer
+from tandem.engine.library import MusicLibrary
 from tandem.engine.models import Device, Service
 from tandem.engine.output_groups import GroupStore
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_media import PcMediaCommand, PcNowPlaying, PcNowPlayingChanged
+from tandem.engine.radio import Radio
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.service import Engine, UnknownDeviceError
 from tandem.engine.session import ConnectionState, ConnectionStateChanged
 from tandem.engine.settings import SettingsChanged, SettingsStore
 from tandem.engine.settings import Theme as EngineTheme
+from tandem.engine.spotify import Spotify
 from tandem.ui import backend as ui
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,7 +97,7 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend(EngineAudio, EngineHome):
+class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome):
     def __init__(
         self,
         engine: Engine,
@@ -100,6 +106,10 @@ class EngineBackend(EngineAudio, EngineHome):
         max_attempts: int = MAX_ATTEMPTS,
         pin_timeout: float = engine_pairing.DEFAULT_PIN_TIMEOUT,
         home_server: Callable[[], BridgeServer] | None = None,
+        library: MusicLibrary | None = None,
+        radio: Radio | None = None,
+        catalog: AppleCatalog | None = None,
+        spotify: Spotify | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -118,6 +128,8 @@ class EngineBackend(EngineAudio, EngineHome):
         ]
         self._unsubscribe += self._init_audio()
         self._unsubscribe += self._init_home(home_server)
+        self._unsubscribe += self._init_library(library, radio, catalog)
+        self._unsubscribe += self._init_spotify(spotify)
         engine.outputs.pc_mute.enabled = settings.settings.mute_pc
         self._commands = CommandDispatcher(EngineCommandServices(engine, home=self.home_bridge))
 
@@ -178,9 +190,13 @@ class EngineBackend(EngineAudio, EngineHome):
         if self._settings.settings.restore_outputs:
             self.restore_outputs()
         await self._start_home()
+        await self._start_library()
+        await self._start_spotify()
 
     async def stop(self) -> None:
         await self._stop_home()
+        await self._stop_library()
+        await self._stop_spotify()
         for unsubscribe in self._unsubscribe:
             unsubscribe()
         self._unsubscribe = []
@@ -552,7 +568,43 @@ class DemoBackend(EngineBackend):
         engine = Engine(
             self.demo, bus=bus, sleep=engine_sleep, clock=clock, discovery_interval=30.0
         )
-        super().__init__(engine, store, home_server=DemoBridgeServer)
+        music = self.demo.music
+        library = MusicLibrary(
+            bus,
+            store=None,
+            list_files=music.list_files,
+            read_tags=music.read_tags,
+            read_art=music.read_art,
+        )
+        catalog = AppleCatalog(
+            bus,
+            music.search_catalog,
+            music.fetch_image,
+            music.open_link,
+            fetch_badge=music.fetch_badge,
+            clock=clock,
+        )
+        from tandem.engine.adapters.demo_spotify import DemoSpotifyWeb
+
+        self.spotify_web = DemoSpotifyWeb(sleep=sleep, delay=delay)
+        web = self.spotify_web
+        super().__init__(
+            engine,
+            store,
+            home_server=DemoBridgeServer,
+            library=library,
+            radio=Radio(bus, music.search_stations, store=None),
+            catalog=catalog,
+            spotify=Spotify(bus, web, web, web.open_url, web.listen, clock=clock),
+        )
+
+    async def start(self) -> None:
+        await super().start()
+        if self._library is not None:
+            from tandem.engine.adapters.demo_music import DEMO_FOLDER
+
+            await self._library.add_folder(DEMO_FOLDER)  # the invented albums
+            await self._library.wait_idle()  # so the demo starts in a settled state
 
     async def write_diagnostics(self) -> Path | None:
         return None  # invented devices: nothing worth reporting, and no real logs to read
@@ -598,4 +650,55 @@ def create_engine_backend() -> EngineBackend:  # pragma: no cover - needs the ne
 
         return HapBridgeServer(paths.data_dir() / "home-bridge.state")
 
-    return EngineBackend(engine, store, home_server=home_server)
+    from tandem.engine.adapters.library_files import list_files, read_art, read_tags
+    from tandem.engine.adapters.radio_browser import search_stations
+
+    library = MusicLibrary(
+        bus,
+        store=paths.data_dir() / "library.json",
+        list_files=list_files,
+        read_tags=read_tags,
+        read_art=read_art,
+    )
+    radio = Radio(bus, search_stations, store=paths.data_dir() / "radio.json")
+    from tandem.engine.adapters.itunes_catalog import (
+        badge_fetcher,
+        fetch_image,
+        open_in_apple_music,
+        search_catalog,
+    )
+    from tandem.ui.platform import store_country
+
+    country = store_country()
+    catalog = AppleCatalog(
+        bus,
+        search_catalog,
+        fetch_image,
+        open_in_apple_music,
+        fetch_badge=badge_fetcher(country),
+        country=country,
+    )
+    return EngineBackend(
+        engine,
+        store,
+        home_server=home_server,
+        library=library,
+        radio=radio,
+        catalog=catalog,
+        spotify=create_spotify(bus),
+    )
+
+
+def create_spotify(bus: EventBus) -> Spotify:  # pragma: no cover - needs the network
+    """Spotify as the app runs it: aiohttp, the system browser, a DPAPI-encrypted file."""
+    from tandem.engine import paths
+    from tandem.engine.adapters.spotify_web import AiohttpSpotifyHttp, listen, open_in_browser
+    from tandem.engine.vault import EncryptedJsonFile
+
+    return Spotify(
+        bus,
+        AiohttpSpotifyHttp(),
+        EncryptedJsonFile(paths.data_dir() / "spotify.bin"),
+        open_in_browser,
+        listen,
+    )

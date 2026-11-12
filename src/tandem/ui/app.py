@@ -88,6 +88,7 @@ def build(
         reduce_motion=reduce_motion(),
         icons=icons,
         picker=picker,
+        folder_picker=picker,
         photo=photo,
         network=None if args.demo else NetworkWatch(),
         get_json=None if http is None else http.get_json,

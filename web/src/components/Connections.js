@@ -1,0 +1,34 @@
+import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Button, Chip, Input, Label, Modal, Separator, Spinner, TextField } from "@heroui/react";
+import { useState } from "react";
+import { CheckIcon } from "../icons";
+import { looksLikeClientId, setupStep } from "../spotify";
+import { spotifyErrorText, strings } from "../strings";
+const words = strings.spotify;
+/** Settings' Connections section: one row per music service. */
+export function ConnectionsSection({ spotify, onOpen }) {
+    return (_jsxs("section", { className: "flex flex-col gap-2", "aria-labelledby": "connections-label", children: [_jsx("h3", { id: "connections-label", className: "section-title", children: words.connections }), _jsx("p", { className: "text-[12px] text-[var(--muted)]", children: words.connectionsDetail }), _jsxs("div", { className: "flex items-center gap-3", children: [_jsxs("span", { className: "flex min-w-0 flex-1 flex-col", children: [_jsx("span", { className: "font-medium", children: words.name }), _jsx("span", { className: "text-[12px] text-[var(--muted)]", children: words.status[spotify.state] })] }), _jsx(Button, { size: "sm", variant: "secondary", onPress: onOpen, children: spotify.state === "not_set_up" ? words.setUp : words.manage })] })] }));
+}
+function Step({ n, done, children }) {
+    return (_jsxs("li", { className: "setup-step", "data-done": done || undefined, children: [_jsx("span", { className: "setup-step-number", "aria-hidden": "true", children: done ? _jsx(CheckIcon, { size: 14 }) : n }), _jsx("div", { className: "flex min-w-0 flex-1 flex-col gap-2", children: children })] }));
+}
+function CopyField({ value }) {
+    const [copied, setCopied] = useState(false);
+    return (_jsxs("div", { className: "flex items-center gap-2", children: [_jsx("code", { className: "setup-code", children: value }), _jsx(Button, { size: "sm", variant: "secondary", onPress: () => {
+                    void navigator.clipboard?.writeText(value).then(() => setCopied(true), () => setCopied(false));
+                }, children: copied ? words.copied : words.copy })] }));
+}
+/** The walkthrough: make a Spotify developer app, paste its Client ID, sign in. */
+export function SpotifySheet({ isOpen, onClose, onBack, spotify, send, }) {
+    const [clientId, setClientId] = useState("");
+    const step = setupStep(spotify);
+    const hasClientId = spotify.state !== "not_set_up";
+    const save = () => {
+        if (clientId.trim())
+            send({ type: "setSpotifyClientId", clientId });
+    };
+    return (_jsx(Modal.Backdrop, { isOpen: isOpen, onOpenChange: (open) => {
+            if (!open)
+                onClose();
+        }, variant: "blur", children: _jsx(Modal.Container, { placement: "center", size: "md", scroll: "inside", children: _jsxs(Modal.Dialog, { className: "sheet", children: [_jsx(Modal.CloseTrigger, {}), _jsxs(Modal.Header, { className: "flex flex-col items-start gap-1", children: [_jsx(Modal.Heading, { className: "text-[20px] font-semibold", children: words.sheetTitle }), _jsx("p", { className: "text-[13px] text-[var(--muted)]", children: words.sheetSubtitle })] }), _jsxs(Modal.Body, { className: "flex flex-col gap-4", children: [spotify.error && (_jsxs("div", { className: "flex items-start gap-2 rounded-xl bg-[var(--field-background)] p-3", role: "alert", children: [_jsx("p", { className: "flex-1 text-[13px] text-[var(--danger)]", children: spotifyErrorText(spotify.error, spotify.redirectUri) }), _jsx(Button, { size: "sm", variant: "ghost", onPress: () => send({ type: "spotifyDismissError" }), children: strings.dismiss })] })), step === "done" ? (_jsx("div", { className: "flex flex-col gap-3", children: _jsxs("p", { className: "flex items-center gap-2", children: [_jsx(Chip, { size: "sm", variant: "soft", color: "success", children: words.status.signed_in }), _jsx("span", { className: "text-[13px]", children: words.connected })] }) })) : (_jsxs("ol", { className: "setup-steps", children: [_jsxs(Step, { n: 1, done: hasClientId, children: [_jsx("p", { className: "text-[13px]", children: words.step1 }), _jsx("p", { className: "text-[12px] text-[var(--muted)]", children: words.premiumNote }), _jsx("div", { children: _jsx(Button, { size: "sm", variant: "secondary", onPress: () => send({ type: "openSpotifyDashboard" }), children: words.openDashboard }) })] }), _jsx(Step, { n: 2, done: hasClientId, children: _jsx("p", { className: "text-[13px]", children: words.step2 }) }), _jsxs(Step, { n: 3, done: hasClientId, children: [_jsx("p", { className: "text-[13px]", children: words.step3 }), _jsx(CopyField, { value: spotify.redirectUri })] }), _jsx(Step, { n: 4, done: hasClientId, children: _jsx("p", { className: "text-[13px]", children: words.step4 }) }), _jsx(Step, { n: 5, done: hasClientId, children: _jsxs(TextField, { value: clientId, onChange: setClientId, onKeyDown: (e) => e.key === "Enter" && save(), fullWidth: true, children: [_jsx(Label, { className: "text-[13px]", children: words.step5 }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Input, { className: "flex-1 font-mono", placeholder: hasClientId ? words.savedClientId : words.clientIdPlaceholder, autoComplete: "off", spellCheck: false, "aria-label": words.clientId }), _jsx(Button, { variant: "secondary", isDisabled: !looksLikeClientId(clientId), onPress: save, children: words.saveClientId })] })] }) }), _jsxs(Step, { n: 6, done: false, children: [_jsx("p", { className: "text-[13px]", children: words.step6 }), spotify.state === "signing_in" ? (_jsxs("div", { className: "flex items-center gap-3", "aria-live": "polite", children: [_jsx(Spinner, { size: "sm" }), _jsx("span", { className: "text-[13px] text-[var(--muted)]", children: words.waiting }), _jsx(Button, { size: "sm", variant: "ghost", onPress: () => send({ type: "spotifyCancelSignIn" }), children: words.cancel })] })) : (_jsx("div", { children: _jsx(Button, { variant: "primary", isDisabled: step !== "signIn", onPress: () => send({ type: "spotifySignIn" }), children: words.signIn }) }))] })] })), hasClientId && (_jsxs(_Fragment, { children: [_jsx(Separator, {}), _jsxs("div", { className: "flex flex-col gap-2", children: [_jsx("p", { className: "text-[12px] text-[var(--muted)]", children: words.forgetDetail }), _jsxs("div", { className: "flex flex-wrap gap-2", children: [spotify.state === "signed_in" && (_jsx(Button, { size: "sm", variant: "secondary", onPress: () => send({ type: "spotifySignOut" }), children: words.signOut })), _jsx(Button, { size: "sm", variant: "danger-soft", onPress: () => send({ type: "spotifySignOut", forget: true }), children: words.forget })] })] })] })), _jsx("p", { className: "text-[11px] text-[var(--muted)]", children: words.privacy })] }), _jsx(Modal.Footer, { children: _jsx(Button, { variant: "secondary", onPress: onBack, children: strings.settingsSheet.back }) })] }) }) }));
+}
