@@ -8,9 +8,14 @@ export function outputLive(output: AudioOutput): boolean {
   return output.state === "starting" || output.state === "streaming" || output.state === "waiting";
 }
 
-/** The PC's default output: Windows plays there itself, so its switch stays on. */
+/** The PC's default output: Windows plays there itself, Tandem never sends to it. */
 export function outputDirect(output: AudioOutput): boolean {
-  return output.state === "direct";
+  return output.state === "direct" || output.state === "muted" || output.state === "ahead";
+}
+
+/** The default output's switch: on unless Tandem muted it, and only usable while AirPlay plays. */
+export function directSwitch(output: AudioOutput): { on: boolean; enabled: boolean } {
+  return { on: output.state !== "muted", enabled: output.state !== "direct" };
 }
 
 /** Outputs whose delay can be set (Advanced settings): everything Tandem sends to. */

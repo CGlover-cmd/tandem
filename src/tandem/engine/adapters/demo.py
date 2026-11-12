@@ -192,6 +192,7 @@ class DemoDevices:
         self.texts: list[tuple[str, str]] = []
         self.sent: list[tuple[str, str]] = []
         self._lags = itertools.cycle((180, 320, 90, 240))
+        self.speakers = DemoSpeakerMute()
 
     # Storage and discovery
 
@@ -262,6 +263,9 @@ class DemoDevices:
 
     def microphone(self) -> _DemoMicrophone:
         return _DemoMicrophone(next(self._lags))
+
+    def speaker_mute(self) -> DemoSpeakerMute:
+        return self.speakers
 
     # Media
 
@@ -447,6 +451,25 @@ class _DemoCapture:
 
     def stop(self) -> None:
         return None
+
+
+class DemoSpeakerMute:
+    """The demo PC's speakers: a mute switch in memory, so the window shows "Muted"."""
+
+    def __init__(self) -> None:
+        self.mutes: dict[str, bool] = {}
+
+    def available(self) -> bool:
+        return True
+
+    def default_output(self) -> str | None:
+        return next((o.id for o in DEMO_PC_OUTPUTS if o.default), None)
+
+    def muted(self, endpoint: str) -> bool:
+        return self.mutes.get(endpoint, False)
+
+    def set_muted(self, endpoint: str, on: bool) -> None:
+        self.mutes[endpoint] = on
 
 
 class _DemoMicrophone:

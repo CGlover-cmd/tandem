@@ -28,6 +28,7 @@ from tandem.engine.events import Event
 from tandem.engine.models import DeviceKind
 from tandem.engine.output_groups import GroupStore, OutputGroup
 from tandem.engine.output_prefs import OutputPrefsStore
+from tandem.engine.pc_mute import PcMute
 from tandem.engine.registry import DeviceEvent, DeviceLost
 from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 
@@ -53,6 +54,8 @@ class OutputState(Enum):
     WAITING = "waiting"  # the connection dropped; it resumes on reconnect
     FAILED = "failed"
     DIRECT = "direct"  # the PC's default output: Windows plays there itself, not Tandem
+    MUTED = "muted"  # the PC's default output, muted by Tandem while AirPlay plays (ADR-0020)
+    AHEAD = "ahead"  # the PC's default output, kept on while AirPlay plays: it plays ahead
 
 
 class OutputProblem(Enum):
@@ -177,10 +180,16 @@ class Outputs:
         engine: Engine,
         prefs: OutputPrefsStore | None = None,
         groups: GroupStore | None = None,
+        pc_mute: PcMute | None = None,
     ) -> None:
         self._engine = engine
         self.prefs = prefs or OutputPrefsStore(None)
         self.groups = groups or GroupStore(None)
+        self.pc_mute = pc_mute or PcMute(None)
+        """Mutes the PC's speakers while AirPlay plays (ADR-0020)."""
+        self._pc_kept = False
+        """The user turned the PC's speakers back on while AirPlay plays (until it stops)."""
+        self._pc_wanted = False
         self.recent: list[str] = []
         """Outputs turned on most recently, newest first."""
         self.lineup = LineUpStatus()
@@ -206,6 +215,7 @@ class Outputs:
             task.cancel()
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
+        await self.pc_mute.apply(False)  # never leave the PC muted behind
 
     # Reading
 
@@ -230,9 +240,13 @@ class Outputs:
         direct = engine.direct_output()
         if direct is not None:
             delay = self.prefs.get(direct.id).delay_ms
-            found.append(
-                OutputStatus(direct.id, direct.name, OutputKind.PC, OutputState.DIRECT, None, delay)
-            )
+            if self.pc_mute.holding:
+                state = OutputState.MUTED
+            elif self._pc_kept:
+                state = OutputState.AHEAD
+            else:
+                state = OutputState.DIRECT
+            found.append(OutputStatus(direct.id, direct.name, OutputKind.PC, state, None, delay))
         for local in engine.local_outputs():
             found.append(self._status(local.id, local.name, OutputKind.PC, on))
         return found
@@ -268,6 +282,9 @@ class Outputs:
         """Turn an output on with its saved volume and delay (connecting a speaker first).
         Raises `OutputError`."""
         engine = self._engine
+        if self._is_direct(output_id):
+            self._keep_pc(True)
+            return
         if not is_local(output_id):
             device = engine.registry.get(output_id)
             if device is None:
@@ -293,6 +310,9 @@ class Outputs:
         self._changed()
 
     async def stop(self, output_id: str) -> None:
+        if self._is_direct(output_id):
+            self._keep_pc(False)
+            return
         self._failed.pop(output_id, None)
         self._starting.discard(output_id)
         self.prefs.update(output_id, on=False)
@@ -320,6 +340,62 @@ class Outputs:
         if output_id in self._engine.outputs_on():
             self._engine.set_output_delay(output_id, delay_ms)
         self._changed()
+
+    # The PC's own speakers while AirPlay plays (ADR-0020)
+
+    def _is_direct(self, output_id: str) -> bool:
+        if not is_local(output_id):
+            return False
+        direct = self._engine.direct_output()
+        return direct is not None and direct.id == output_id
+
+    def _keep_pc(self, on: bool) -> None:
+        """The default output's switch: on plays the PC too (ahead of AirPlay), off mutes it.
+        It only means something while AirPlay plays; otherwise Windows just plays there, and
+        turning it on is refused (Tandem sending there too would echo)."""
+        if on and not self._pc_kept and not (self.pc_mute.holding or self._airplay_playing()):
+            raise OutputError(OutputError.NO_AUDIO)  # Windows plays there: Tandem would echo
+        self._pc_kept = on
+        self._changed()
+
+    def _airplay_playing(self) -> bool:
+        return any(
+            not is_local(output_id) and state in (StreamState.STREAMING, StreamState.WAITING)
+            for output_id, (state, _volume, _delay) in self._engine.outputs_on().items()
+        )
+
+    def _sync_pc(self) -> None:
+        """Mute the PC's default output while AirPlay plays the PC's own sound, unless the user
+        kept it on or turned the setting off; unmute it when AirPlay stops."""
+        playing = self._engine.audio_source.value == "system" and self._airplay_playing()
+        if not playing:
+            self._pc_kept = False
+        want = playing and not self._pc_kept and self.pc_mute.enabled
+        if not want and not self._pc_wanted and not self.pc_mute.holding:
+            return  # nothing to do: don't touch Windows on every change
+        self._pc_wanted = want
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        async def apply() -> None:
+            if await self.pc_mute.apply(want):
+                self._engine.bus.publish(OutputsChanged())
+
+        task = loop.create_task(apply())
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    def refresh(self) -> None:
+        """Something outside changed what the outputs are (the audio source): announce it."""
+        self._changed()
+
+    def set_pc_mute(self, enabled: bool) -> None:
+        """The setting changed: mute or unmute now if AirPlay is playing."""
+        if enabled != self.pc_mute.enabled:
+            self.pc_mute.enabled = enabled
+            self._changed()
 
     # Groups
 
@@ -428,6 +504,7 @@ class Outputs:
 
     def _changed(self) -> None:
         self._engine.bus.publish(OutputsChanged())
+        self._sync_pc()
 
     def _status(
         self,
