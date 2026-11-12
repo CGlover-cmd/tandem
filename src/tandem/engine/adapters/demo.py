@@ -565,16 +565,6 @@ class _DemoSender:
 DEMO_SCREENS = (Screen(0, 1920, 1080, primary=True), Screen(1, 2560, 1440))
 
 
-class DemoNetworkProbe(net_check.Probe):
-    """An invented home network with nothing wrong, so the demo never reads (or shows) this
-    PC's real adapters."""
-
-    async def read(self) -> net_check.PcNetwork:
-        return net_check.PcNetwork(
-            (net_check.Adapter("Wi-Fi"),), (ipaddress.IPv4Network("192.0.2.0/24"),)
-        )
-
-
 class _DemoScreenEncoder:
     """'Encodes' a screen: writes a playlist that lists three segments, so a cast starts."""
 

@@ -14,6 +14,11 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **1.3.0 prepared (2026-11-12), not published yet:** version bumped and release notes written
+  for everything merged since 1.2.1 (PTP timing, Cast screen, the Music tab with Spotify and
+  Apple Music, the AirParrot lessons and the firewall rule on every network, device cards, PC
+  mute). Also fixes main's CI (a duplicated `DemoNetworkProbe` from the merges, one import
+  line). Publishing waits for the maintainer's "publish 1.3.0" (push the `v1.3.0` tag).
 - **Lessons from AirParrot (2026-11-12, not released):** research into how AirParrot talks
   to devices led to nine changes ([ADR-0023](adr/0023-lessons-from-airparrot.md)):
   - speakers added by address
