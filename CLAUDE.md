@@ -153,6 +153,15 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   (`engine.timeline.now_ns`): `time.monotonic` is 15.6 ms coarse on Python 3.11 for Windows.
   `pyatv_ptp` wraps `AirPlayV2._setup_base` and `ControlClient._sync_task`; re-check both when
   moving the pyatv pin. (Two open PRs both claim ADR-0020, so this one skipped to 0022.)
+- Cast screen (Phase 8, ADR-0006 addendum): engine in `engine/screen_cast.py` (one cast at a
+  time; tidies up once, from either the task or `stop`), capture and encode in
+  `adapters/screen_capture.py` (dxcam + PyAV, in the `ui` extra), window side in
+  `tandem.bridge_cast` + `ui/cast_panel.py`. Users see "Cast screen" / "Screen" and "works
+  with Apple TV": never "AirPlay" or "mirroring" in its names. The media server serves home
+  network peers only (`is_local_peer`). Spike J (the pyatv mirroring fork) needs the
+  maintainer's go-ahead before anything installs or runs it.
+- `tools/update_constraints.py` takes no arguments: any run (even `--help`) rewrites
+  `packaging/constraints.txt` from the current venv. Check `git diff` afterwards.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 

@@ -114,6 +114,13 @@ def smoke(out: Path) -> None:
     # The window's own back end (WinForms + WebView2 through pythonnet). The demo check below
     # runs without a window, so only this catches a missing piece of it (1.2.0 shipped one).
     subprocess.run([str(python), "-c", "import webview.platforms.winforms"], check=True)
+    # Cast screen's capture and encoder (ADR-0006 addendum): x264 is always there, so this
+    # finds an H.264 encoder even on a PC (or CI runner) without a GPU encoder.
+    cast = (
+        "from tandem.engine.adapters import screen_capture as s; import av, dxcam; "
+        "print('cast encoder:', s.pick_encoder(1280, 720, 30))"
+    )
+    subprocess.run([str(python), "-c", cast], check=True)
     # The Apple handshake with the libraries as shipped: 1.0.0's broke here (ADR-0017).
     subprocess.run([str(python), "-I", str(ROOT / "packaging" / "check_handshake.py")], check=True)
     subprocess.run([str(python), "-m", "tandem", "--help"], check=True, stdout=subprocess.DEVNULL)

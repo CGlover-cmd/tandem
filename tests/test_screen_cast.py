@@ -12,7 +12,7 @@ import pytest
 from conftest import FakeBackend, FakeScreenEncoder, FakeSender, make_device
 from tandem.engine.adapters import screen_capture
 from tandem.engine.events import Event
-from tandem.engine.media_send import MediaSendChanged, MediaServer, SendState
+from tandem.engine.media_send import MediaSendChanged, MediaServer, SendState, is_local_peer
 from tandem.engine.models import DeviceKind, Service
 from tandem.engine.screen_cast import (
     PLAYLIST,
@@ -66,6 +66,17 @@ def test_presets_and_file_names() -> None:
     for name in ("index.ts", "../index1.ts", "index1.ts.bak", "other.m3u8", "notes.txt"):
         assert not is_cast_file(name)
     assert segments_listed("#EXTM3U\n#EXTINF:1.0,\nindex0.ts\n#EXTINF:1.0,\nindex1.ts\n") == 2
+
+
+def test_only_the_home_network_is_served() -> None:
+    # Invented addresses (docs/PRIVACY.md): the documentation range counts as private here.
+    for local in ("127.0.0.1", "192.0.2.20", "198.51.100.7"):
+        assert is_local_peer(local)
+    assert is_local_peer("fe80::1%12")  # link-local IPv6, with its interface
+    assert is_local_peer("::ffff:192.0.2.20")  # IPv4 through an IPv6 socket
+    assert is_local_peer("fd00::5")
+    for outside in ("8.8.8.8", "2001:4860:4860::8888", "", None, "not an address"):
+        assert not is_local_peer(outside)
 
 
 def test_cast_folder_is_temporary(tmp_path: Path) -> None:

@@ -9,6 +9,12 @@ of logs with names, addresses and identifiers replaced.
 
 ## Coming next (not released yet)
 
+- **Cast your screen to the Apple TV.** Press **Screen** on the TV's card, pick which screen
+  and a quality, and your PC's screen and sound appear on the TV. It runs a few seconds behind,
+  so it suits slides, photos and videos better than games. Stop it from the card or the tray
+  menu. This isn't AirPlay screen mirroring, which needs Apple's copy protection; it sends your
+  screen as a video stream, only to devices on your home network. It makes the download bigger:
+  it brings its own video encoder.
 - **Audio and Video buttons on every card.** Press **Audio** to play your PC's sound on that
   device, or press it again to stop. You don't need to visit the Audio panel. Apple TVs also get
   **Video**, which sends a video file or link. An unpaired device pairs first, then carries on.

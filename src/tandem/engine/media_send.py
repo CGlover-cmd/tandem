@@ -11,6 +11,7 @@ File paths and links are personal: never logged.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import secrets
 import socket
@@ -82,6 +83,21 @@ def local_address_towards(address: str) -> str:
         return str(probe.getsockname()[0])
 
 
+def is_local_peer(remote: str | None) -> bool:
+    """A request from this PC or the home network (private, link-local or loopback address).
+    The firewall rule already keeps others out on trusted networks (ADR-0017); this also holds
+    when the firewall is off or opened wider."""
+    if not remote:
+        return False
+    try:
+        address = ipaddress.ip_address(remote.split("%", 1)[0])
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_private or address.is_link_local or address.is_loopback
+
+
 _FOLDER_TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t"}
 """Set explicitly: Windows' own file types call .ts something else."""
 
@@ -147,6 +163,8 @@ class MediaServer:
     async def _serve(self, request: Any) -> Any:
         from aiohttp import web
 
+        if not is_local_peer(request.remote):
+            raise web.HTTPForbidden()
         token, name = request.match_info["token"], request.match_info["name"]
         shared = self._folders.get(token)
         if shared is not None:
