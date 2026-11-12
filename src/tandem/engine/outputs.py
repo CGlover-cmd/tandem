@@ -316,6 +316,7 @@ class Outputs:
             await engine.start_output(output_id, volume=prefs.volume, delay_ms=prefs.delay_ms)
         except (EngineAudioError, ConnectionFailedError, OSError, TimeoutError, ValueError) as exc:
             _LOGGER.info("An output didn't start (%s)", type(exc).__name__)
+            self._starting.discard(output_id)  # before the change: "starting" outranks "failed"
             self._failed[output_id] = classify(
                 self._last_reason.get(output_id), exc, engine.registry.get(output_id)
             )

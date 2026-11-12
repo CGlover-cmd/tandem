@@ -145,9 +145,20 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - HAP-python (Home bridge) uses TCP 51827 and prints the setup code to stdout unless the
   Bridge's `setup_message` is overridden (it is). Its state file is
   `%LOCALAPPDATA%\Tandem\home-bridge.state`, DPAPI-encrypted.
-- Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
-  Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
-  the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
+- Firewall (ADR-0017 addendum, ADR-0023): one allow rule on every profile, `remoteip=localsubnet`
+  (maintainer's choice, 2026-11-10: no "mark it Private" step). The old Private/Public trust
+  list and `network_trust` are gone; "Can't find a speaker?" checks the rule exists instead.
+- Lessons from AirParrot (ADR-0023): speakers by address (`engine/addresses.py`), network watch
+  (`engine/network.py`), network check (`engine/net_check.py`, one PowerShell read, Windows
+  only), stall watchdog (`AudioHub.check_stalls`), speaker buttons (`engine/speaker_buttons.py`
+  + `adapters/pyatv_dacp.py`, which wraps `RtspSession.__init__`: re-check it when moving the
+  pyatv pin), passwords and stereo pairs on `Device`. An `AuthenticationError` ends a
+  connection attempt at once (`session.REFUSALS`). The demo's hidden speaker is only found by
+  address (192.0.2.60) and wants a password (anything but "wrong").
+- The privacy hook flags any private-range IP, even in the window's words: example addresses
+  in `strings.ts` must not look like real ones (no 192.168.x.x placeholder).
+- ADR numbers: open PRs can claim the next number (0021 is the Spotify PR's), so check open
+  branches' `docs/adr/` before numbering a new one.
 - PTP timing (ADR-0022): Tandem's PTP clock binds UDP 319/320 (no admin needed on Windows; the
   firewall rule is per program). Time everything audio with `time.perf_counter_ns`
   (`engine.timeline.now_ns`): `time.monotonic` is 15.6 ms coarse on Python 3.11 for Windows.

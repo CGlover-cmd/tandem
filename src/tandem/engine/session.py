@@ -65,6 +65,12 @@ Connector = Callable[[LostCallback], Awaitable[Link]]
 Sleep = Callable[[float], Awaitable[None]]
 
 
+REFUSALS = frozenset({"AuthenticationError"})
+"""Failures that retrying can't fix: the device turned the password down (or wants one).
+The session gives up at once, so the window can ask for the password instead of waiting out
+the connect timeout, and a wrong password isn't sent again and again."""
+
+
 class ConnectionFailedError(Exception):
     """The session gave up, or was closed, before it connected."""
 
@@ -226,7 +232,8 @@ class ConnectionSession:
                 failures += 1
                 reason = type(exc).__name__
                 _LOGGER.info("Connecting to %s failed (%s)", self.device_id, reason)
-                if self._max_attempts is not None and failures >= self._max_attempts:
+                gave_up = self._max_attempts is not None and failures >= self._max_attempts
+                if gave_up or reason in REFUSALS:
                     self._set(ConnectionState.FAILED, attempt=failures, reason=reason)
                     return
                 delay = self._backoff.delay(failures - 1, self._rng)

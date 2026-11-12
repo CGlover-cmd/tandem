@@ -1,5 +1,5 @@
 """The "Can't find a speaker?" sheet and speaker passwords on the real engine (lessons from
-AirParrot; ADR-0021). Part of `tandem.bridge`, mixed into `EngineBackend`; it needs the engine
+AirParrot; ADR-0023). Part of `tandem.bridge`, mixed into `EngineBackend`; it needs the engine
 and the backend's publisher.
 
 Addresses and passwords are private: shown in the window (addresses only), never logged.

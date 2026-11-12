@@ -14,6 +14,25 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **Lessons from AirParrot (2026-11-12, not released):** research into how AirParrot talks
+  to devices led to nine changes ([ADR-0023](adr/0023-lessons-from-airparrot.md)):
+  - speakers added by address
+  - an instant rescan and reconnect when the network changes or the PC wakes
+  - a "Can't find a speaker?" check
+  - a watchdog for streams that stall silently
+  - speaker buttons (DACP)
+  - speaker passwords
+  - a stereo-pair message
+  - a monthly pyatv release watch
+  - a codec check before sending a video
+  
+  The installer's firewall rule now covers every network (local subnet only), so the "mark
+  this network Private" step is gone. Needs a hardware check:
+  - speakers appear and play on a Public network with no prompt
+  - a speaker added by address plays
+  - unplugging or switching Wi-Fi recovers on its own
+  - a HomePod's touch controls pause and skip what the PC plays (unverified that HomePods send them)
+  - the network check reads correctly on the maintainer's PC
 - **PTP timing (2026-11-10, not released):** Tandem now runs an AirPlay 2 PTP clock and the
   speakers follow it, so every PTP speaker plays the same moment together
   ([ADR-0022](adr/0022-ptp-timing-for-airplay-2.md)). Spike H passed on the soundbar and a

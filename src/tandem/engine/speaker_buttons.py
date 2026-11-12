@@ -154,7 +154,11 @@ class SpeakerButtons:
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, self._host, self._port)
-        await site.start()
+        try:
+            await site.start()
+        except BaseException:
+            await runner.cleanup()
+            raise
         address: Any = runner.addresses[0]
         self.port = int(address[1])
         self._runner = runner

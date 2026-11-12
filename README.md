@@ -33,6 +33,9 @@ your home Wi-Fi: no extra box, no account, no sign-up, and nothing collected abo
 - **Control your Apple TV.** A touch pad, Back and Home, play and pause, what's playing,
   volume, power, your TV's apps, and a keyboard that pops up when the TV asks for text.
 - **Send a video to the TV.** Play a video file from your PC, or a link to one, on the Apple TV.
+  Tandem tells you before sending if the TV can't play the file's format.
+- **Use your speakers' own buttons.** Where a speaker sends them, its play, pause, skip and
+  volume buttons control what your PC is playing.
 - **Control your music.** See and control what any app on your PC is playing (Spotify, Apple
   Music, a browser tab), from Tandem's window or the system tray.
 - **Just type what you want.** Press Ctrl+K and type "pause", "volume 30 on the loft",
@@ -163,23 +166,39 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 ## Network and security
 
-Windows marks each network you join as **Private** (trusted) or **Public**, and remembers it.
-Tandem uses that as its trust list. On a Private network, the installer's firewall rule lets
-devices on your local network reach Tandem; nothing from the internet can. On a Public network
-(a café, a hotel), Tandem is blocked, and its window says so: if the network is yours, choose
-**Trust this network** and mark it Private in Windows. On a trusted network, devices can reach:
+Tandem works on any network, Private or Public, with nothing to change in Windows. The
+installer adds one firewall rule for Tandem itself: devices on your **local network** (the same
+Wi-Fi or router as your PC) may reach it, and nothing from the internet can. Devices on the
+same network can reach:
 
 - **Tandem's window** never: it listens on this PC only (127.0.0.1) and needs a per-launch key.
 - **While audio is streaming:** the AirPlay timing and control ports pyatv opens. A device on the
   same Wi-Fi could at most disturb that stream.
+- **Your speakers' own buttons:** a small server that takes play, pause, skip and volume from
+  your speakers. It only accepts requests that carry the secret Tandem gave the speaker.
 - **Once you've sent a video to the TV:** a small file server, until Tandem quits. It hands out
   only the files you sent, each at an address with a random secret in it.
 - **The Home app bridge** (off unless you turn it on): Apple's HomeKit protocol, encrypted, and
   it pairs only with the 8-digit code shown in Tandem's window.
 
 The remaining risk is the usual one for any app that listens on a network: a bug in Tandem or a
-library it uses could be found by someone on the same Wi-Fi. That's why Public networks stay
-closed.
+library it uses could be found by someone on the same Wi-Fi. On a shared network (a café, a
+hotel), quit Tandem when you're not using it
+([details](docs/adr/0023-lessons-from-airparrot.md)).
+
+**Can't find a speaker?** Open it from the device list, the Audio panel or Settings.
+- **Add a speaker by its address:** some routers and guest networks hide speakers from the
+  search. Find the speaker's address in your router's list of devices, type it in, and Tandem
+  asks it directly from then on.
+- **Check my network:** looks at this PC for the usual causes and says what to change:
+  - a VPN that's on
+  - a speaker on guest Wi-Fi
+  - a router that blocks the search
+  - a missing firewall rule
+  - the Home app's speaker access setting
+
+Tandem also notices when your PC changes networks or wakes from sleep, and looks for your
+speakers again at once.
 
 ## Help and bug reports
 

@@ -102,7 +102,7 @@ jobs:
           python packaging/build_bundle.py --smoke "$env:ProgramFiles\Tandem"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # One rule: allowed from the local subnet on every network type, Public included
-          # (ADR-0017, ADR-0021). An update from an older Tandem removes its Public block rule.
+          # (ADR-0017, ADR-0023). An update from an older Tandem removes its Public block rule.
           $rules = @(Get-NetFirewallRule -DisplayName "Tandem" -ErrorAction SilentlyContinue)
           if ($rules.Count -ne 1 -or $rules[0].Action -ne "Allow") { $rules | Format-List; Write-Error "Expected one allow rule"; exit 1 }
           $remote = ($rules[0] | Get-NetFirewallAddressFilter).RemoteAddress

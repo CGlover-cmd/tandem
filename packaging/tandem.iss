@@ -63,7 +63,7 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 ; Home app reaching the bridge, a speaker's own buttons). One rule on every network type,
 ; Public included, so speakers work on any network with nothing to change in Windows, and
 ; Windows never asks "allow Python?". It lets in devices on the PC's own local subnet only:
-; nothing from beyond the router, and only Tandem's program (ADR-0017, ADR-0021).
+; nothing from beyond the router, and only Tandem's program (ADR-0017, ADR-0023).
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Tandem"""; Flags: runhidden waituntilterminated
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Tandem"" description=""Lets AirPlay speakers and TVs on your local network reach Tandem"" dir=in action=allow program=""{app}\python\pythonw.exe"" enable=yes profile=any remoteip=localsubnet"; StatusMsg: "Letting speakers on your network reach Tandem..."; Flags: runhidden waituntilterminated
 ; Compile Tandem's libraries once, here: under Program Files Python can't write its cache, so
