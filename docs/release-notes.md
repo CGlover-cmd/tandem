@@ -1,4 +1,4 @@
-# Tandem 1.2.1 (pre-release)
+# Tandem 1.3.0 (pre-release)
 
 A Windows app that sends sound and video to Apple TV, HomePod and AirPlay 2 speakers, and
 controls them from your PC. It's still
@@ -7,14 +7,30 @@ Please [report what you find](https://github.com/CGlover-cmd/tandem/issues). To 
 details, run `"C:\Program Files\Tandem\python\python.exe" -m tandem diagnose`: it writes a zip
 of logs with names, addresses and identifiers replaced.
 
-## Coming next (not released yet)
+**The installer is still unsigned.** Windows SmartScreen warns about it (choose More info, then
+Run anyway), and with Smart App Control on, Windows blocks it: see Known limits below.
 
+## New in 1.3.0
+
+- **Works on any network.** No more marking your Wi-Fi as Private in Windows. Setup's firewall
+  rule now covers every network, Private or Public, but only lets in devices on your local
+  network, and still nothing from the internet. This replaces 1.1.1's trusted networks and the
+  "Is this your network?" note. Install over your current Tandem and setup updates the rule.
+- **HomePods play in time.** Tandem now keeps the clock that AirPlay 2 speakers follow (PTP),
+  so a HomePod mini no longer runs about 5 seconds behind the other speakers. They play the
+  same moment together. Speakers that don't use that clock carry on as before.
 - **Cast your screen to the Apple TV.** Press **Screen** on the TV's card, pick which screen
   and a quality, and your PC's screen and sound appear on the TV. It runs a few seconds behind,
   so it suits slides, photos and videos better than games. Stop it from the card or the tray
   menu. This isn't AirPlay screen mirroring, which needs Apple's copy protection; it sends your
   screen as a video stream, only to devices on your home network. It makes the download bigger:
   it brings its own video encoder.
+- **Music tab.** Play your own music files (pick the folders, Tandem groups them into albums)
+  and internet radio, on any mix of speakers, with no gap between tracks. **Spotify**: see
+  your playlists and Spotify devices, search, play on the device you pick and move playback
+  between them (Settings, Connections, Spotify; needs Spotify Premium and a free developer key,
+  and the walkthrough shows how). **Apple Music**: search the catalogue and open a song or
+  album in the Apple Music app.
 - **Audio and Video buttons on every card.** Press **Audio** to play your PC's sound on that
   device, or press it again to stop. You don't need to visit the Audio panel. Apple TVs also get
   **Video**, which sends a video file or link. An unpaired device pairs first, then carries on.
@@ -26,10 +42,6 @@ of logs with names, addresses and identifiers replaced.
   speakers play the PC's sound, so there's no echo, and unmutes it when they stop. Turn the
   PC's switch on in the Audio panel to hear both (the PC plays a little ahead), or turn this off
   in Advanced settings. No virtual audio cable needed for that any more.
-
-- **Works on any network.** No more marking your Wi-Fi as Private in Windows: setup's firewall
-  rule now lets in devices on your local network whatever Windows calls it, and still nothing
-  from the internet.
 - **Can't find a speaker?** Add a speaker by its address when your router hides it, and let
   Tandem check this PC for the usual causes, such as a VPN, guest Wi-Fi, a router that blocks
   the search, or the Home app's speaker access setting.
@@ -127,8 +139,8 @@ Media keys need nothing from Tandem: Windows already sends them to the app that'
 
 1. **Apple TV pairing** with both PINs, and a wrong PIN (it should show a new PIN to try).
 2. **Audio to both HomePod minis and the soundbar** from the Audio panel: sound arrives,
-   volume works, it survives switching Wi-Fi off and on. A HomePod mini was measured about 5
-   seconds behind; use its delay in Advanced settings (or delay the others) to line them up.
+   volume works, it survives switching Wi-Fi off and on, and they play together with no delay
+   set (a HomePod mini and the soundbar beeped in time in testing).
 3. **Several speakers at once** staying together for a while.
 4. **Send to TV:** an MP4 from the PC, and a direct video link.
 5. **Home app:** Advanced settings, then "Show Tandem in the Home app", add it in the Home app
@@ -142,17 +154,22 @@ Media keys need nothing from Tandem: Windows already sends them to the app that'
 12. **Can't find a speaker?** Add a speaker by its address, then "Check my network".
 13. **Switch Wi-Fi or sleep the PC** while a speaker plays: it comes back on its own.
 14. **A HomePod's touch controls** while it plays the PC's sound: do play, pause and skip work?
+15. **Cast screen** to the Apple TV: picture and sound arrive, how far behind it runs, and Stop
+    from the card and the tray.
+16. **Music tab:** a folder of your own music, a radio station, and Spotify sign-in, playlists
+    and "Play here".
+17. **PC muted while AirPlay plays:** the speakers keep playing (system sounds too), and the PC
+    unmutes when they stop.
 
 ## Known limits
 
 - **Not code-signed yet.** Windows SmartScreen warns about the installer (choose More info, then
   Run anyway). With **Smart App Control** on, Windows blocks it outright; install with Python
   instead (see the README).
-- No screen mirroring (FairPlay; see ADR-0006). No Spotify or Apple Music browsing inside
-  Tandem yet: use their apps, and Tandem sends their sound and shows what's playing.
-- Windows' volume and mute also affect what Tandem sends (it captures what Windows plays), and
-  Windows keeps playing on its own output too. To hear only your speakers, set a virtual audio
-  cable as Windows' default output.
+- No AirPlay screen mirroring (FairPlay; see ADR-0006): Cast screen runs a few seconds behind
+  and works with the Apple TV only. Apple Music has search and links, not playback inside
+  Tandem; the Apple Music app plays it. Spotify needs Premium and plays in Spotify's own apps.
+- Windows' volume affects what Tandem sends (it captures what Windows plays).
 - The Home app gets three switches, not all of Tandem: choosing speakers, volume and the remote
   stay in Tandem's window.
 - Automatic line-up needs a microphone and a quiet room, and leaves the PC's own speakers as

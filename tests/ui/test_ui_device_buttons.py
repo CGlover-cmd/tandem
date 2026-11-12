@@ -9,7 +9,10 @@ from demo_harness import settle
 from tandem.bridge import DemoBackend
 from tandem.engine.adapters.demo import PATIO, TV
 from tandem.ui.backend import ControlsSnapshot, DeviceKind, LinkState, MediaCommand
-from tandem.ui.controller import AppController, _controls_json  # pyright: ignore[reportPrivateUsage]
+from tandem.ui.controller import (
+    AppController,
+    _controls_json,  # pyright: ignore[reportPrivateUsage]
+)
 
 TV_PINS = ("4821", "1357")  # the demo TV asks for two PINs: remote control, then AirPlay
 
