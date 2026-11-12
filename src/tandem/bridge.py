@@ -562,7 +562,7 @@ class DemoBackend(EngineBackend):
         delay: float = 0.6,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        from tandem.engine.adapters.demo import DemoBridgeServer, DemoDevices
+        from tandem.engine.adapters.demo import DemoBridgeServer, DemoDevices, DemoNetworkProbe
 
         self.demo = DemoDevices(sleep=sleep, delay=delay, clock=clock)
         bus = EventBus()
@@ -570,7 +570,12 @@ class DemoBackend(EngineBackend):
         if settings_file is not None:
             store.load()
         engine = Engine(
-            self.demo, bus=bus, sleep=engine_sleep, clock=clock, discovery_interval=30.0
+            self.demo,
+            bus=bus,
+            sleep=engine_sleep,
+            clock=clock,
+            discovery_interval=30.0,
+            network_probe=DemoNetworkProbe(),
         )
         music = self.demo.music
         library = MusicLibrary(

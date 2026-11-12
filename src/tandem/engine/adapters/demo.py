@@ -19,6 +19,7 @@ from __future__ import annotations
 import array
 import asyncio
 import dataclasses
+import ipaddress
 import itertools
 import math
 import time
@@ -26,7 +27,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from tandem.engine import lineup
+from tandem.engine import lineup, net_check
 from tandem.engine.adapters.demo_music import DemoMusic
 from tandem.engine.audio import PcmBuffer
 from tandem.engine.audio_hub import LOCAL_PREFIX
@@ -181,6 +182,16 @@ def _initial_state(device_id: str) -> _DeviceState:
             total_time=214.0,
         ),
     )
+
+
+class DemoNetworkProbe(net_check.Probe):
+    """The demo's PC, on the same invented network as its speakers: "Check my network" then
+    reports what the demo shows, not the real PC's adapters."""
+
+    async def read(self) -> net_check.PcNetwork:
+        return net_check.PcNetwork(
+            (net_check.Adapter("Wi-Fi"),), (ipaddress.IPv4Network("192.0.2.0/24"),)
+        )
 
 
 class DemoDevices:
