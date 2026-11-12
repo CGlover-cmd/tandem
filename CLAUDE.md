@@ -154,7 +154,8 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   + `adapters/pyatv_dacp.py`, which wraps `RtspSession.__init__`: re-check it when moving the
   pyatv pin), passwords and stereo pairs on `Device`. An `AuthenticationError` ends a
   connection attempt at once (`session.REFUSALS`). The demo's hidden speaker is only found by
-  address (192.0.2.60) and wants a password (anything but "wrong").
+  address (192.0.2.60) and wants a password (anything but "wrong"). The demo checks the network
+  against an invented one (`DemoNetworkProbe`), never the real PC's adapters.
 - The privacy hook flags any private-range IP, even in the window's words: example addresses
   in `strings.ts` must not look like real ones (no 192.168.x.x placeholder).
 - Never run plain `tsc` in `web/`: it writes `.js` copies beside the sources, and Vite resolves
