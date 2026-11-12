@@ -28,6 +28,7 @@ from tandem.engine.control import (
 from tandem.engine.models import Device, DeviceKind, LocalOutput, Service
 from tandem.engine.pc_media import ChangeKind, PcArtwork, PcMediaCommand, PcNowPlaying
 from tandem.engine.player import Track
+from tandem.engine.screen_cast import CastSettings, Screen
 
 
 def make_device(**overrides: Any) -> Device:
@@ -195,6 +196,10 @@ class FakeBackend:
         self.host_scans: list[list[str]] = []
         self.passwords: dict[str, str] = {}
         self.scan_failure: BaseException | None = None
+        self.screen_list: list[Screen] = [Screen(0, 1920, 1080, primary=True), Screen(1, 1280, 720)]
+        self.cast_enabled = True
+        self.encoders: list[FakeScreenEncoder] = []
+        self.encoder_options: dict[str, Any] = {}
 
     async def load(self) -> None:
         self.loaded = True
@@ -312,10 +317,44 @@ class FakeBackend:
     def speaker_mute(self) -> FakeSpeakerMute | None:
         return self.speakers
 
+    def screens(self) -> Sequence[Screen]:
+        return list(self.screen_list)
+
+    def screen_encoder(self) -> FakeScreenEncoder | None:
+        if not self.cast_enabled:
+            return None
+        encoder = FakeScreenEncoder(**self.encoder_options)
+        self.encoders.append(encoder)
+        return encoder
+
     def microphone(self) -> FakeMicrophone:
         if self.mic_missing:
             raise AudioError("no microphone")
         return FakeMicrophone(self.mic_recordings.pop(0) if self.mic_recordings else b"")
+
+
+class FakeScreenEncoder:
+    """Writes a playlist with `segments` entries when started (zero: it never gets ready)."""
+
+    def __init__(self, segments: int = 3, fail_start: BaseException | None = None) -> None:
+        self.segments = segments
+        self.fail_start = fail_start
+        self.failed = False
+        self.started: list[tuple[Path, CastSettings, Any]] = []
+        self.stops = 0
+
+    def start(self, folder: Path, settings: CastSettings, sound: Any) -> None:
+        if self.fail_start is not None:
+            raise self.fail_start
+        self.started.append((folder, settings, sound))
+        if self.segments:
+            entries = "".join(f"#EXTINF:1.0,\nindex{i}.ts\n" for i in range(self.segments))
+            (folder / "index.m3u8").write_text("#EXTM3U\n" + entries, encoding="utf-8")
+            for i in range(self.segments):
+                (folder / f"index{i}.ts").write_bytes(bytes([i]) * 8)
+
+    def stop(self) -> None:
+        self.stops += 1
 
 
 class FakeSender:

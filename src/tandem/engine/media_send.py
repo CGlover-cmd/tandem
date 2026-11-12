@@ -11,9 +11,11 @@ File paths and links are personal: never logged.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import secrets
 import socket
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
@@ -166,13 +168,34 @@ def local_address_towards(address: str) -> str:
         return str(probe.getsockname()[0])
 
 
+def is_local_peer(remote: str | None) -> bool:
+    """A request from this PC or the home network (private, link-local or loopback address).
+    The firewall rule already keeps others out on trusted networks (ADR-0017); this also holds
+    when the firewall is off or opened wider."""
+    if not remote:
+        return False
+    try:
+        address = ipaddress.ip_address(remote.split("%", 1)[0])
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_private or address.is_link_local or address.is_loopback
+
+
+_FOLDER_TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t"}
+"""Set explicitly: Windows' own file types call .ts something else."""
+
+
 class MediaServer:
-    """Serves shared files over HTTP, one random path per file."""
+    """Serves shared files over HTTP, one random path per file, and shared folders (a screen
+    cast's live playlist and segments), one random path per folder."""
 
     def __init__(self, *, host: str = "0.0.0.0", port: int = 0) -> None:
         self._host = host
         self._port = port
         self._files: dict[str, Path] = {}
+        self._folders: dict[str, tuple[Path, Callable[[str], bool]]] = {}
         self._runner: Any = None
         self.port = 0
 
@@ -200,6 +223,7 @@ class MediaServer:
         if runner is not None:
             await runner.cleanup()
         self._files.clear()
+        self._folders.clear()
 
     def share(self, path: Path) -> str:
         """The URL path for one file. Earlier files stay shared until the server stops."""
@@ -207,10 +231,40 @@ class MediaServer:
         self._files[token] = path
         return f"/media/{token}/{quote(path.name)}"
 
+    def share_folder(self, folder: Path, allow: Callable[[str], bool], entry: str) -> str:
+        """The URL path of `entry` in a folder. Only file names `allow` accepts are served,
+        and never cached: a live playlist changes every second."""
+        token = secrets.token_urlsafe(18)
+        self._folders[token] = (folder, allow)
+        return f"/media/{token}/{quote(entry)}"
+
+    def unshare(self, path: str) -> None:
+        """Stop serving what `share` or `share_folder` returned."""
+        parts = path.split("/")
+        if len(parts) > 2 and parts[1] == "media":
+            self._files.pop(parts[2], None)
+            self._folders.pop(parts[2], None)
+
     async def _serve(self, request: Any) -> Any:
         from aiohttp import web
 
-        path = self._files.get(request.match_info["token"])
+        if not is_local_peer(request.remote):
+            raise web.HTTPForbidden()
+        token, name = request.match_info["token"], request.match_info["name"]
+        shared = self._folders.get(token)
+        if shared is not None:
+            folder, allow = shared
+            if not allow(name):
+                raise web.HTTPNotFound()
+            # Read it whole rather than streaming it: the encoder replaces the playlist every
+            # second, and on Windows a file held open can't be replaced.
+            try:
+                body = await asyncio.to_thread((folder / name).read_bytes)
+            except OSError:
+                raise web.HTTPNotFound() from None
+            kind = _FOLDER_TYPES.get(Path(name).suffix, "application/octet-stream")
+            return web.Response(body=body, content_type=kind, headers={"Cache-Control": "no-cache"})
+        path = self._files.get(token)
         if path is None or not path.is_file():
             raise web.HTTPNotFound()
         return web.FileResponse(path)
@@ -221,25 +275,30 @@ class MediaSends:
 
     def __init__(self, publish: Any) -> None:
         self._publish = publish
-        self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._tasks: dict[str, tuple[asyncio.Task[None], str]] = {}
 
     def playing(self, device_id: str) -> bool:
-        task = self._tasks.get(device_id)
-        return task is not None and not task.done()
+        entry = self._tasks.get(device_id)
+        return entry is not None and not entry[0].done()
 
     async def start(self, device_id: str, sender: MediaSender, url: str, title: str) -> None:
         await self.stop(device_id)
         self._publish(MediaSendChanged(device_id, SendState.STARTING, title))
-        self._tasks[device_id] = asyncio.get_running_loop().create_task(
+        task = asyncio.get_running_loop().create_task(
             self._run(device_id, sender, url, title), name="media-send"
         )
+        self._tasks[device_id] = (task, title)
 
     async def stop(self, device_id: str) -> None:
-        task = self._tasks.pop(device_id, None)
-        if task is not None and not task.done():
-            task.cancel()
-            with suppress(asyncio.CancelledError, Exception):
-                await task
+        entry = self._tasks.pop(device_id, None)
+        if entry is None or entry[0].done():
+            return
+        task, title = entry
+        task.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+        # Said here, not in `_run`: a task cancelled before it first ran never says anything.
+        self._publish(MediaSendChanged(device_id, SendState.ENDED, title))
 
     async def close(self) -> None:
         for device_id in list(self._tasks):

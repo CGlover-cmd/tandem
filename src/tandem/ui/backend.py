@@ -358,6 +358,47 @@ class SendChanged:
     send: SendSnapshot | None
 
 
+# --- Cast the screen to an Apple TV (Phase 8, ADR-0006 addendum) ---------------------------
+
+
+class CastQuality(Enum):
+    LOW = "low"  # 720p: for a busy Wi-Fi network
+    STANDARD = "standard"  # 1080p
+    HIGH = "high"  # 1080p at a higher bit rate: sharper text and motion
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenInfo:
+    """One of the PC's displays: its place and size only (a monitor's name can identify it)."""
+
+    index: int
+    width: int
+    height: int
+    primary: bool = False
+
+
+class CastState(Enum):
+    STARTING = "starting"
+    PLAYING = "playing"
+    ENDED = "ended"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class CastSnapshot:
+    """The screen cast: one at a time, to one TV."""
+
+    device_id: str
+    state: CastState
+    problem: str | None = None
+    """A `Problem` code while `state` is FAILED."""
+
+
+@dataclass(frozen=True, slots=True)
+class CastChanged:
+    cast: CastSnapshot | None
+
+
 # --- What the PC is playing (Phase 6) -------------------------------------------------------
 
 
@@ -645,6 +686,7 @@ BackendEvent = (
     | ControlsChanged
     | AudioChanged
     | SendChanged
+    | CastChanged
     | MusicChanged
     | LibraryChanged
     | RadioChanged
@@ -693,6 +735,9 @@ class Problem:
     STATION_GONE = "stationGone"
     FOLDER_NOT_ADDED = "folderNotAdded"
     APPLE_MUSIC_DIDNT_OPEN = "appleMusicDidntOpen"
+    NO_SCREEN = "noScreen"
+    CAST_FAILED = "castFailed"
+    CAST_REFUSED = "castRefused"
 
 
 class BackendError(Exception):
@@ -860,6 +905,25 @@ class Backend(Protocol):
         ...
 
     async def stop_media(self, device_id: str) -> None: ...
+
+    # Casting the screen
+
+    async def screens(self) -> list[ScreenInfo]:
+        """The PC's displays that can be cast, the main one first; empty if it can't cast."""
+        ...
+
+    def cast(self) -> CastSnapshot | None:
+        """The screen cast, while it starts or plays, or how the last one ended."""
+        ...
+
+    async def cast_screen(
+        self, device_id: str, screen: int, quality: CastQuality, sound: bool
+    ) -> None:
+        """Show a screen of this PC (and its sound) on an Apple TV, a few seconds behind.
+        Replaces any other cast. Problems show in `cast()`, never raised."""
+        ...
+
+    async def stop_cast(self) -> None: ...
 
     # Tandem in the Home app
 

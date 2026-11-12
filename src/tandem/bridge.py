@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from tandem.bridge_audio import EngineAudio
+from tandem.bridge_cast import EngineCast
 from tandem.bridge_home import EngineHome
 from tandem.bridge_library import EngineLibrary
 from tandem.bridge_network import EngineNetwork
@@ -98,7 +99,9 @@ class _Link:
     retry_in: float | None = None
 
 
-class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome, EngineNetwork):
+class EngineBackend(
+    EngineAudio, EngineLibrary, EngineSpotify, EngineHome, EngineNetwork, EngineCast
+):
     def __init__(
         self,
         engine: Engine,
@@ -128,6 +131,7 @@ class EngineBackend(EngineAudio, EngineLibrary, EngineSpotify, EngineHome, Engin
             bus.subscribe(PcNowPlayingChanged, self._on_pc_media),
         ]
         self._unsubscribe += self._init_audio()
+        self._unsubscribe += self._init_cast()
         self._unsubscribe += self._init_home(home_server)
         self._init_network()
         self._unsubscribe += self._init_library(library, radio, catalog)

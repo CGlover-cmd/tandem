@@ -53,6 +53,11 @@ ui = [
     "winrt-Windows.Foundation>=3.2,<4; sys_platform == 'win32'",
     "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
     "winrt-Windows.Storage.Streams>=3.2,<4; sys_platform == 'win32'",
+    # Cast screen (Phase 8, ADR-0006 addendum): dxcam captures the screen (Windows' desktop
+    # duplication), PyAV's bundled FFmpeg encodes H.264 and AAC into a live HLS stream.
+    "av>=18,<19",
+    "dxcam>=0.3,<0.4; sys_platform == 'win32'",
+    "numpy>=2,<3",
 ]
 
 [tool.hatch.build.targets.wheel]

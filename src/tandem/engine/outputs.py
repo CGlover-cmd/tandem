@@ -30,6 +30,7 @@ from tandem.engine.output_groups import GroupStore, OutputGroup
 from tandem.engine.output_prefs import OutputPrefsStore
 from tandem.engine.pc_mute import PcMute
 from tandem.engine.registry import DeviceEvent, DeviceLost
+from tandem.engine.screen_cast import ScreenCastChanged
 from tandem.engine.session import ConnectionFailedError, ConnectionStateChanged
 
 if TYPE_CHECKING:
@@ -220,6 +221,7 @@ class Outputs:
             bus.subscribe(AudioStreamChanged, self._on_stream),
             bus.subscribe(DeviceEvent, self._on_device),
             bus.subscribe(ConnectionStateChanged, self._on_connection),
+            bus.subscribe(ScreenCastChanged, lambda _event: self._sync_pc()),
         ]
 
     async def close(self) -> None:
@@ -387,6 +389,9 @@ class Outputs:
         self._changed()
 
     def _airplay_playing(self) -> bool:
+        """An AirPlay device plays the PC's sound: a speaker, or a TV the screen is cast to."""
+        if self._engine.casting() is not None:
+            return True
         return any(
             not is_local(output_id) and state in (StreamState.STREAMING, StreamState.WAITING)
             for output_id, (state, _volume, _delay) in self._engine.outputs_on().items()

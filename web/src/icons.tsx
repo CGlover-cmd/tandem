@@ -299,6 +299,17 @@ export function SendIcon(props: IconProps) {
   );
 }
 
+/** A screen with waves in its corner: this PC's screen, cast to a TV. */
+export function CastIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3 9V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6" />
+      <path d="M3 13a7 7 0 0 1 7 7M3 16.5a3.5 3.5 0 0 1 3.5 3.5" />
+      <path d="M3 20h.01" />
+    </Svg>
+  );
+}
+
 export function HeadphonesIcon(props: IconProps) {
   return (
     <Svg {...props}>

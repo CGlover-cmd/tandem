@@ -250,6 +250,27 @@ export const demoSnapshot: AppState = {
     "canPickFiles": false,
     "picking": false
   },
+  "cast": {
+    "screens": [
+      {
+        "index": 0,
+        "width": 1920,
+        "height": 1080,
+        "primary": true
+      },
+      {
+        "index": 1,
+        "width": 2560,
+        "height": 1440,
+        "primary": false
+      }
+    ],
+    "active": {
+      "deviceId": "demo-tv",
+      "state": "playing",
+      "problem": null
+    }
+  },
   "library": {
     "folders": [
       "Demo Library"
@@ -416,6 +437,7 @@ export const commandTypes = [
   "addSpeakerAddress",
   "allOutputsOff",
   "cancelPairing",
+  "castScreen",
   "checkNetwork",
   "clearCommand",
   "clearQueue",
@@ -429,6 +451,7 @@ export const commandTypes = [
   "launchApp",
   "lineUp",
   "loadApps",
+  "loadScreens",
   "media",
   "music",
   "musicSeek",
@@ -483,6 +506,7 @@ export const commandTypes = [
   "spotifySignIn",
   "spotifySignOut",
   "spotifyTransfer",
+  "stopCast",
   "stopMedia",
   "submitPin",
 ] as const satisfies readonly Command["type"][];
@@ -499,6 +523,8 @@ export const problemCodes = [
   "badAddress",
   "badGroup",
   "cantDoThat",
+  "castFailed",
+  "castRefused",
   "connectFirst",
   "couldNotPair",
   "fileGone",
@@ -511,6 +537,7 @@ export const problemCodes = [
   "noLocation",
   "noPairingNeeded",
   "noResponse",
+  "noScreen",
   "noSend",
   "noSpeakerThere",
   "noTextField",

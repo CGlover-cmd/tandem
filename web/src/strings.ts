@@ -205,6 +205,8 @@ export const strings = {
     playingAudio: "Playing this PC's audio",
     startingAudio: "Starting audio…",
     audioFailed: "Audio didn't start",
+    casting: "Showing this PC's screen",
+    startingCast: "Starting the screen cast…",
   },
 
   action: {
@@ -213,6 +215,8 @@ export const strings = {
     audioOff: (name: string) => `Stop this PC's audio on ${name}`,
     video: "Video",
     videoOn: (name: string) => `Send a video to ${name}`,
+    cast: "Screen",
+    castOn: (name: string) => `Cast this PC's screen to ${name}`,
     pair: "Pair",
     connect: "Connect",
     disconnect: "Disconnect",
@@ -471,6 +475,34 @@ export const strings = {
     connectFirst: "Connect the TV first.",
   },
 
+  castSheet: {
+    title: (name: string) => `Cast screen to ${name}`,
+    subtitle:
+      "Shows this PC's screen, with its sound, on your TV. Works with Apple TV. The picture runs a few seconds behind, so it suits slides, photos and videos better than games.",
+    screen: "Screen",
+    screenName: (position: number, primary: boolean) =>
+      primary ? `Screen ${position} (main)` : `Screen ${position}`,
+    size: (width: number, height: number) => `${width} × ${height}`,
+    quality: "Quality",
+    qualities: { low: "Low", standard: "Standard", high: "High" },
+    qualityDetail: {
+      low: "720p. For a busy or distant Wi-Fi network.",
+      standard: "1080p. Good for most things.",
+      high: "1080p with more detail for text and fast motion. Needs strong Wi-Fi.",
+    },
+    sound: "Include this PC's sound",
+    soundDetail: "This PC's own speakers are muted while you cast, as when speakers play its sound.",
+    soundPlayer: "Tandem's player is the sound source right now, so the cast has no sound.",
+    start: "Start casting",
+    restart: "Cast with these settings",
+    stop: "Stop casting",
+    starting: "Getting the TV ready…",
+    playing: (name: string) => `Showing this PC's screen on ${name}`,
+    ended: "Casting stopped.",
+    elsewhere: (name: string) => `The screen is cast to ${name}. Starting here stops that.`,
+    noScreens: "This PC has no screen Tandem can cast.",
+  },
+
   commands: {
     open: "Commands",
     shortcut: "Ctrl+K",
@@ -671,6 +703,9 @@ export const problems: Record<string, string> = {
   stationGone: "That station isn't in the list any more. Search again.",
   folderNotAdded: "Tandem couldn't add that folder.",
   appleMusicDidntOpen: "The Apple Music app didn't open. Make sure it's installed.",
+  noScreen: "Tandem couldn't capture that screen. Check it's switched on, or pick another.",
+  castFailed: "This PC couldn't keep up with the screen cast. Try a lower quality.",
+  castRefused: "The TV didn't play the screen cast. Check it's awake and on the same network, then try again.",
 };
 
 export function problemText(problem: Problem): string {

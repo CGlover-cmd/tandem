@@ -38,6 +38,14 @@ _Update this section at the end of every working session._
   ([ADR-0022](adr/0022-ptp-timing-for-airplay-2.md)). Spike H passed on the soundbar and a
   HomePod mini: they beep together, through the engine too. This is the fix for the HomePod's
   ~5 s lag. Next: the Phase 5 exit check with the PC's speakers lined up to them.
+- **Cast screen (2026-11-11, not released):** the maintainer chose a FairPlay-free "Cast
+  screen" (live HLS from the PC, played with "play this URL") plus, maybe later, real mirroring
+  as a user-installed add-on (ADR-0006 addendum). Built: the engine, the window (Screen button,
+  Cast sheet, tray Stop), the video libraries in the app and installer, and a local-network-only
+  check on the media server. Next: Spike I's lag measurements on the Apple TV (needs an AirPlay
+  PIN from the maintainer), then the Phase 8 hardware check. Spike J (the pyatv fork) waits for
+  the maintainer's go-ahead.
+
 - **Device cards rework (2026-11-09, after 1.2.1 feedback):** cards offer Audio (every
   AirPlay device, the Audio panel's switch; pairs first if needed) and Video (Apple TV, opens
   Send to TV) instead of Pair/Connect/Send. Speakers get an audio-only remote; while they play
@@ -420,13 +428,21 @@ Local files via a built-in web server, or URLs; seek bar, queue.
 - [x] Send sheet on a connected Apple TV: file picker, link, what's playing, stop
 - [ ] Hardware check: an MP4 from the PC and a direct link on the Apple TV
 
-### Phase 8 · Screen mirroring — SHELVED (blocked by FairPlay; ADR-0006)
-Spike D found no legitimate open-source path to send AirPlay screen mirroring: the video is
-keyed by FairPlay, and we will not reverse-engineer or bypass it in a public project. Parked
-unless a legitimate path appears. If reopened: whole screen first, then a single window;
-resolution and frame-rate presets; encoder selection; audio and video in sync; targets 1080p30
-at <250 ms, stretching to 4K/60. (Sending video files and links to the Apple TV, Phase 7, is
-unaffected and needs no FairPlay.)
+### Phase 8 · Cast screen (FairPlay-free; ADR-0006 addendum)
+Real AirPlay screen mirroring stays out of Tandem: its video is keyed by FairPlay, and we will
+not ship FairPlay code (Spike D, ADR-0006). Instead, **Cast screen** encodes the PC's screen
+and sound as a live HLS stream (1 s segments) served from the PC and played on the Apple TV
+with the same "play this URL" request as Send to TV. It runs a few seconds behind, like any
+video. Real mirroring could only ever come as a separate add-on the user installs themselves
+([Spike J](spikes/spike-j-mirror-addon.md), not run without the maintainer's go-ahead).
+- [x] ADR-0006 addendum: Cast screen now; mirroring only as a user-installed add-on
+- [x] Engine: screen + PC sound to live HLS (dxcam, PyAV: NVENC, then Media Foundation, then
+  x264; AAC), shared by the media server to the home network only, PC muted while casting
+- [x] Window: Screen button on Apple TV cards (pairs first), Cast sheet (screen by place and
+  size, quality Low/Standard/High, sound on or off, status, Stop), Stop casting in the tray
+- [x] Video libraries (av, dxcam, numpy) in the app and the installer, pinned
+- [ ] [Spike I](spikes/spike-i-cast.md) on the TV: lag measurements and a 10-minute run
+- [ ] Hardware check: casting from the installed app, with sound, then Stop from the tray
 
 ### Phase 9 · Hardening and v1.0
 Installer with firewall rules, auto-update via GitHub Releases, code signing (SignPath
@@ -475,14 +491,14 @@ its own PR with its own gate.
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| FairPlay encryption blocks mirroring | High | Confirmed in Spike D; Phase 8 shelved (ADR-0006). Rest of the app doesn't depend on it |
+| FairPlay encryption blocks mirroring | High | Confirmed in Spike D (ADR-0006). Phase 8 is Cast screen instead: live HLS, a few seconds behind, no FairPlay |
 | tvOS / HomePod updates break protocols | Medium | Track pyatv upstream; version-gated code paths |
 | Home app access setting blocks connections | Medium | Onboarding detects it and guides the fix |
 | Multi-output drift (incl. PC speakers) | Medium | Shared clock, delay compensation, manual offset per output |
 | AirPlay latency too high for comfortable use (HomePod ~5 s in Phase 4) | Medium | Measure the receiver buffer and pyatv's latency setting; tune before Phase 5 |
 | Virtual audio driver licensing/signing | Medium | ADR-0005 accepted: no open-source signed driver exists; users install one (e.g. VB-CABLE) themselves; loopback works without it |
 | Test receiver can't take pyatv's AirPlay 2 stream (NTP vs PTP timing) | Medium | Spike F: Pi tests cover classic AirPlay; the AirPlay 2 path stays on the hardware checklist; Phase 5 checks early whether NTP timing holds multi-speaker sync |
-| 4K60 video needs frames kept on the GPU, which PyAV can't do | Low (mirroring shelved) | Spike E: 1080p works from Python; a small native helper would carry 4K60 if Phase 8 reopens |
+| 4K60 video needs frames kept on the GPU, which PyAV can't do | Low | Spike E: 1080p works from Python, so Cast screen tops out at 1080p30; a small native helper would carry 4K60 |
 | Unsigned builds trigger SmartScreen or are blocked by Smart App Control | High | SignPath code signing; until then, test from source with signed `python.exe` |
 | Smart App Control blocks a newly released native npm binary in the front-end toolchain | Medium | Pin the last version that loads (`overrides` in `web/package.json`); end users never run Node |
 | WebView2 runtime missing on an older Windows 10 PC | Low | Ships with Windows 11 and with Edge on Windows 10; the Phase 9 installer adds Microsoft's bootstrapper |

@@ -37,6 +37,7 @@ from tandem.ui.backend import (
     Backend,
     BackendError,
     BackendEvent,
+    CastChanged,
     CatalogChanged,
     CommandOutcome,
     ControlsChanged,
@@ -70,6 +71,7 @@ from tandem.ui.backend import (
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
+from tandem.ui.cast_panel import CastPanel
 from tandem.ui.library_panel import FolderPicker, LibraryPanel
 from tandem.ui.spotify_panel import SpotifyPanel
 from tandem.ui.updates import GetJson, Update
@@ -434,6 +436,7 @@ class AppController:
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.cast = CastPanel(backend, self.runner.run, on_change=self._changed)
         self.library = LibraryPanel(
             backend, self.runner.run, on_change=self._changed, picker=folder_picker
         )
@@ -472,6 +475,7 @@ class AppController:
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
+            "cast": self.cast.snapshot(),
             **self.library.snapshot(),
             **self.spotify.snapshot(),
             "home": {
@@ -521,11 +525,13 @@ class AppController:
             if controls is not None:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
+        self.cast.cast = self._backend.cast()
         self.library.load()
         self.spotify.load()
         self.home = self._backend.home()
         self.network = self._backend.network()
         self._changed()
+        self.cast.load_screens()
         if self._get_json is not None and self.appearance.update_check:
             self.runner.run(self._check_for_update(self._get_json))
         await self._backend.start()
@@ -769,6 +775,7 @@ class AppController:
         self._device_commands(table)
         self._window_commands(table)
         self.audio.register(table)
+        self.cast.register(table)
         self.library.register(table)
         self.spotify.register(table)
         return table
@@ -939,6 +946,8 @@ class AppController:
                 self.audio.audio = audio
             case HomeUpdated(home=home):
                 self.home = home
+            case CastChanged(cast=cast):
+                self.cast.cast = cast
             case NetworkChanged(network=network):
                 self.network = network
             case SendChanged(device_id=device_id, send=send):

@@ -36,6 +36,9 @@ your home Wi-Fi: no extra box, no account, no sign-up, and nothing collected abo
   Tandem tells you before sending if the TV can't play the file's format.
 - **Use your speakers' own buttons.** Where a speaker sends them, its play, pause, skip and
   volume buttons control what your PC is playing.
+- **Show your screen on the TV.** **Cast screen** puts your PC's screen, with its sound, on the
+  Apple TV. The picture runs a few seconds behind, so it suits slides, photos and videos better
+  than games. (Not released yet.)
 - **Control your music.** See and control what any app on your PC is playing (Spotify, Apple
   Music, a browser tab), from Tandem's window or the system tray.
 - **Play your own music and the radio.** Tandem plays the albums in your music folders (MP3,
@@ -55,9 +58,10 @@ your home Wi-Fi: no extra box, no account, no sign-up, and nothing collected abo
 
 That's all. You don't need a Mac or any extra hardware.
 
-**What Tandem doesn't do:** it can't mirror your screen to the Apple TV. Apple protects screen
-mirroring with its FairPlay copy protection, and there is no legitimate open-source way to send
-it ([why](docs/adr/0006-screen-mirroring-fairplay.md)). It also can't make your PC into an
+**What Tandem doesn't do:** it can't use AirPlay screen mirroring, the instant kind an iPhone
+does. Apple protects it with its FairPlay copy protection, and Tandem won't work around that
+([why](docs/adr/0006-screen-mirroring-fairplay.md)). **Cast screen** sends your screen as a
+video stream instead, a few seconds behind. Tandem also can't make your PC into an
 AirPlay speaker for your iPhone, and it doesn't support Chromecast.
 
 ## Install
@@ -89,8 +93,9 @@ When Tandem opens, it finds the AirPlay devices on your network by itself, and a
   Whatever your PC plays now goes there too. Its **Remote** is audio only: play, pause, skip
   back and forward, and volume. While the speaker plays your PC's sound, those buttons control
   the app on your PC.
-- **Apple TV:** press **Audio** to use it as a speaker, or **Video** to send it a video file or
-  link. The first time, Tandem pairs it: type the PIN the TV shows. It asks twice, once for the
+- **Apple TV:** press **Audio** to use it as a speaker, **Video** to send it a video file or
+  link, or **Screen** to cast your PC's screen to it (pick the screen, the quality and whether
+  the sound goes too; **Stop casting** is also in the tray menu). The first time, Tandem pairs it: type the PIN the TV shows. It asks twice, once for the
   remote and once for AirPlay. **Remote** opens its controls: the touch pad (or your
   arrow keys, Enter and Backspace), Back, Home, what's playing and volume. **Apps** opens any app
   on the TV, and **Keyboard** types into the TV's search boxes.
@@ -191,8 +196,10 @@ same network can reach:
   same Wi-Fi could at most disturb that stream.
 - **Your speakers' own buttons:** a small server that takes play, pause, skip and volume from
   your speakers. It only accepts requests that carry the secret Tandem gave the speaker.
-- **Once you've sent a video to the TV:** a small file server, until Tandem quits. It hands out
-  only the files you sent, each at an address with a random secret in it.
+- **Once you've sent a video to the TV or cast your screen:** a small file server, until Tandem
+  quits. It hands out only the files you sent, and the live screen stream only while you cast,
+  each at an address with a random secret in it, and it answers devices on your home network
+  only.
 - **The Home app bridge** (off unless you turn it on): Apple's HomeKit protocol, encrypted, and
   it pairs only with the 8-digit code shown in Tandem's window.
 
