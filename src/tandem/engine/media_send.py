@@ -172,25 +172,30 @@ class MediaSends:
 
     def __init__(self, publish: Any) -> None:
         self._publish = publish
-        self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._tasks: dict[str, tuple[asyncio.Task[None], str]] = {}
 
     def playing(self, device_id: str) -> bool:
-        task = self._tasks.get(device_id)
-        return task is not None and not task.done()
+        entry = self._tasks.get(device_id)
+        return entry is not None and not entry[0].done()
 
     async def start(self, device_id: str, sender: MediaSender, url: str, title: str) -> None:
         await self.stop(device_id)
         self._publish(MediaSendChanged(device_id, SendState.STARTING, title))
-        self._tasks[device_id] = asyncio.get_running_loop().create_task(
+        task = asyncio.get_running_loop().create_task(
             self._run(device_id, sender, url, title), name="media-send"
         )
+        self._tasks[device_id] = (task, title)
 
     async def stop(self, device_id: str) -> None:
-        task = self._tasks.pop(device_id, None)
-        if task is not None and not task.done():
-            task.cancel()
-            with suppress(asyncio.CancelledError, Exception):
-                await task
+        entry = self._tasks.pop(device_id, None)
+        if entry is None or entry[0].done():
+            return
+        task, title = entry
+        task.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+        # Said here, not in `_run`: a task cancelled before it first ran never says anything.
+        self._publish(MediaSendChanged(device_id, SendState.ENDED, title))
 
     async def close(self) -> None:
         for device_id in list(self._tasks):

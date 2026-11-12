@@ -169,6 +169,18 @@ class FolderShare(Protocol):
 Sleep = Callable[[float], Any]
 
 
+@dataclass(eq=False, slots=True)
+class _Cast:
+    """One running cast and what to tidy up when it ends."""
+
+    device_id: str
+    encoder: ScreenEncoder
+    folder: CastFolder
+    share: FolderShare
+    path: str
+    finished: bool = False
+
+
 class ScreenCasts:
     """One cast at a time (there is one screen capture): starting another stops the first."""
 
@@ -185,6 +197,7 @@ class ScreenCasts:
         self._ready_timeout = ready_timeout
         self._folder_parent = folder_parent
         self._task: asyncio.Task[None] | None = None
+        self._cast: _Cast | None = None
         self._device_id: str | None = None
 
     @property
@@ -221,9 +234,11 @@ class ScreenCasts:
                 self._publish(ScreenCastChanged(device_id, CastState.FAILED, reason))
             raise
         path = share.share_folder(folder.path, is_cast_file, PLAYLIST)
+        cast = _Cast(device_id, encoder, folder, share, path)
+        self._cast = cast
+        self._publish(ScreenCastChanged(device_id, CastState.PLAYING))
         self._task = asyncio.get_running_loop().create_task(
-            self._run(device_id, sender, encoder, folder, share, path, base_url + path),
-            name="screen-cast",
+            self._run(cast, sender, base_url + path), name="screen-cast"
         )
 
     async def _wait_ready(self, folder: CastFolder, encoder: ScreenEncoder) -> None:
@@ -237,19 +252,9 @@ class ScreenCasts:
                 raise CastError(CastError.ENCODER)
             await asyncio.sleep(self._poll)
 
-    async def _run(
-        self,
-        device_id: str,
-        sender: MediaSender,
-        encoder: ScreenEncoder,
-        folder: CastFolder,
-        share: FolderShare,
-        path: str,
-        url: str,
-    ) -> None:
-        self._publish(ScreenCastChanged(device_id, CastState.PLAYING))
+    async def _run(self, cast: _Cast, sender: MediaSender, url: str) -> None:
         play = asyncio.ensure_future(sender.play_url(url))
-        watch = asyncio.ensure_future(self._watch(encoder))
+        watch = asyncio.ensure_future(self._watch(cast.encoder))
         state, reason = CastState.ENDED, None
         try:
             done, _ = await asyncio.wait({play, watch}, return_when=asyncio.FIRST_COMPLETED)
@@ -257,37 +262,45 @@ class ScreenCasts:
                 state, reason = CastState.FAILED, type(play.exception()).__name__
             elif watch in done:
                 state, reason = CastState.FAILED, CastError.ENCODER
-        except asyncio.CancelledError:
-            state = CastState.ENDED
-            raise
         finally:
             for task in (play, watch):
                 task.cancel()
                 with suppress(asyncio.CancelledError, Exception):
                     await task
-            share.unshare(path)
-            await asyncio.to_thread(encoder.stop)
-            await asyncio.to_thread(folder.remove)
-            if self._device_id == device_id:
-                self._device_id = None
-            if state is CastState.FAILED:
-                _LOGGER.info("Casting the screen stopped (%s)", reason)
-            self._publish(ScreenCastChanged(device_id, state, reason))
+            await self._finish(cast, state, reason)
+
+    async def _finish(self, cast: _Cast, state: CastState, reason: str | None) -> None:
+        """Tidy up after a cast, once: stop sharing, stop the encoder, delete the folder."""
+        if cast.finished:
+            return
+        cast.finished = True
+        cast.share.unshare(cast.path)
+        await asyncio.to_thread(cast.encoder.stop)
+        await asyncio.to_thread(cast.folder.remove)
+        if self._cast is cast:
+            self._cast = None
+            self._device_id = None
+        if state is CastState.FAILED:
+            _LOGGER.info("Casting the screen stopped (%s)", reason)
+        self._publish(ScreenCastChanged(cast.device_id, state, reason))
 
     async def _watch(self, encoder: ScreenEncoder) -> None:
-        while not encoder.failed:
+        # The encoder runs on its own thread and only sets a flag: polling it is simplest.
+        while not encoder.failed:  # noqa: ASYNC110
             await asyncio.sleep(self._poll * 5)
 
     async def stop(self, device_id: str | None = None) -> None:
         """Stop the cast (only if it is to `device_id`, when given)."""
-        task = self._task
-        if task is None or (device_id is not None and device_id != self._device_id):
+        task, cast = self._task, self._cast
+        if task is None or cast is None or (device_id is not None and device_id != cast.device_id):
             return
         self._task = None
         if not task.done():
             task.cancel()
             with suppress(asyncio.CancelledError, Exception):
                 await task
+        # A task cancelled before it first ran never reached its own clean-up.
+        await self._finish(cast, CastState.ENDED, None)
 
     async def close(self) -> None:
         await self.stop()

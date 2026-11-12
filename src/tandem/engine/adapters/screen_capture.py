@@ -14,6 +14,7 @@ import logging
 import threading
 import time
 from collections import deque
+from contextlib import suppress
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -275,10 +276,8 @@ class DxcamScreenEncoder:  # pragma: no cover - needs a display, a GPU and FFmpe
         if camera is not None:
             # dxcam crashes in release() and its COM cleanup (Spike E): only stop it. dxcam
             # keeps one camera per output and hands the same one back next time.
-            try:
+            with suppress(Exception):
                 camera.stop()
-            except Exception:
-                pass
         sound, self._sound = self._sound, None
         if sound is not None:
             sound.stop()
