@@ -515,6 +515,12 @@ async def cast(args: argparse.Namespace) -> dict:
         await asyncio.sleep(0.05)
     ready = caster.media_now()
     loop = asyncio.get_running_loop()
+    if args.airplay_version != "auto":
+        # tvOS answers 403 to pyatv's AirPlay 2 /play; the AirPlay 1 request plays (Spike I).
+        from pyatv.settings import AirPlayVersion
+
+        settings = await storage.get_settings(conf)
+        settings.protocols.raop.protocol_version = AirPlayVersion(args.airplay_version)
     atv = await pyatv.connect(conf, loop, storage=storage)
     asked = time.perf_counter()
     play = loop.create_task(atv.stream.play_url(server.url))
@@ -562,6 +568,7 @@ async def cast(args: argparse.Namespace) -> dict:
         "size": args.size, "fps": args.fps, "segment_s": args.segment,
         "list_size": args.list_size, "start_offset": args.start_offset,
         "segment_type": args.segment_type, "seconds": args.seconds, "ended": ended_reason,
+        "airplay_version": args.airplay_version,
         "first_segments_ready_s": round(ready, 2),
         "tv_started_after_request_s": round(first_play - asked, 2) if first_play else None,
         "lag_s": {"median": round(statistics.median(lag_values), 2),
@@ -625,6 +632,7 @@ def main() -> int:
     parser.add_argument("--label", default="run")
     parser.add_argument("--storage", default=str(ROOT / "local" / "spike-i" / "pyatv-storage.json"))
     parser.add_argument("--pin-file", default=str(ROOT / "local" / "spike-i" / "pin.txt"))
+    parser.add_argument("--airplay-version", choices=["auto", "1", "2"], default="auto")
     parser.add_argument("--pin-wait", type=float, default=1800,
                         help="seconds to wait for the PIN file (the PIN is relayed by hand)")
     args = parser.parse_args()
