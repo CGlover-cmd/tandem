@@ -65,6 +65,24 @@ async def _pc_muted(controller: object) -> None:
         await asyncio.sleep(0.02)
 
 
+async def _casting(controller: object) -> None:
+    """Wait, in real time, for the demo TV to show the screen: the cast's first segments are
+    checked on a worker thread."""
+    from tandem.ui.controller import AppController
+
+    assert isinstance(controller, AppController)
+    loop = asyncio.get_running_loop()
+    end = loop.time() + 5
+    while (
+        controller.cast.casting_to is None
+        or controller.cast.cast is None
+        or (controller.cast.cast.state.value != "playing")
+    ):
+        if loop.time() > end:
+            raise RuntimeError("the demo cast never started")
+        await asyncio.sleep(0.02)
+
+
 async def _demo_snapshot() -> tuple[dict[str, object], list[str]]:
     from tandem.bridge import DemoBackend
     from tandem.ui.controller import AppController
@@ -75,7 +93,7 @@ async def _demo_snapshot() -> tuple[dict[str, object], list[str]]:
     await controller.start()
     await _settle(controller)
     # Fill in the nested parts: a connected TV with controls and apps, a playing speaker, a
-    # group, a message.
+    # group, a screen cast, a message.
     controller.press("demo-speaker-2", *_tap())  # not connected: sets a message
     controller.pair("demo-tv")
     await _settle(controller)
@@ -88,8 +106,13 @@ async def _demo_snapshot() -> tuple[dict[str, object], list[str]]:
     controller.handle(
         {"type": "saveGroup", "name": "Out Back", "outputs": ["demo-speaker-1", "demo-soundbar"]}
     )
+    controller.handle(
+        {"type": "castScreen", "id": "demo-tv", "screen": 0, "quality": "standard", "sound": True}
+    )
     await _settle(controller)
     await _pc_muted(controller)
+    await _casting(controller)
+    await _settle(controller)
     snapshot = controller.snapshot()
     audio = snapshot["audio"]
     assert isinstance(audio, dict)

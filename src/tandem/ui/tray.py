@@ -21,8 +21,8 @@ from tandem.ui.controller import AppController
 class Entry:
     label: str = ""
     action: str = ""
-    """"open", "activate", "pair", "output", "report", "quit", "music_play_pause" or
-    "music_next"; "" for a separator or a note."""
+    """"open", "activate", "pair", "output", "stop_cast", "report", "quit",
+    "music_play_pause" or "music_next"; "" for a separator or a note."""
     device_id: str = ""
     checked: bool = False
     enabled: bool = True
@@ -60,8 +60,23 @@ def music_entries(controller: AppController) -> list[Entry]:
     ]
 
 
+def cast_entries(controller: AppController) -> list[Entry]:
+    """While the screen is cast to a TV: which one, and Stop. Empty otherwise."""
+    device_id = controller.cast.casting_to
+    if device_id is None:
+        return []
+    device = controller.device(device_id)
+    label = f"Casting the screen to {device.name}" if device else "Casting the screen"
+    return [Entry(label, enabled=False), Entry("Stop casting", "stop_cast"), SEPARATOR]
+
+
 def menu_entries(controller: AppController) -> list[Entry]:
-    entries = [Entry("Open Tandem", "open"), SEPARATOR, *music_entries(controller)]
+    entries = [
+        Entry("Open Tandem", "open"),
+        SEPARATOR,
+        *cast_entries(controller),
+        *music_entries(controller),
+    ]
     devices = controller.devices()
     if not devices:
         entries.append(Entry("Looking for devices…", enabled=False))
@@ -195,6 +210,8 @@ class Tray:  # pragma: no cover - needs a desktop; checked by hand
                 self._loop.call_soon_threadsafe(
                     self._controller.handle, {"type": "setOutput", "id": entry.device_id, "on": on}
                 )
+            elif entry.action == "stop_cast":
+                self._loop.call_soon_threadsafe(self._controller.cast.stop)
             elif entry.action == "report":
                 self._loop.call_soon_threadsafe(self._controller.report_problem)
             elif entry.action == "activate":

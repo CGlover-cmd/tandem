@@ -34,6 +34,7 @@ function state(over: Partial<AppState> = {}): AppState {
     discovering: false,
     pairing: { state: "closed", deviceId: "", deviceName: "", error: null, step: 1, steps: 1 },
     commands: { text: "", preview: null, running: false, result: null, resultFor: "" },
+    cast: { screens: [], active: null },
     audio: {
       source: "system",
       pcOutputsHidden: true,

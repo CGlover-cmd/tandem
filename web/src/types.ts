@@ -149,6 +149,25 @@ export interface AudioPanel {
   picking: boolean;
 }
 
+export type CastQuality = "low" | "standard" | "high";
+export type CastStep = "starting" | "playing" | "ended" | "failed";
+
+/** One of the PC's displays: its place and size only (a monitor's name can identify it). */
+export interface Screen {
+  index: number;
+  width: number;
+  height: number;
+  primary: boolean;
+}
+
+/** Cast screen: this PC's screen and sound on an Apple TV, one TV at a time. */
+export interface CastPanel {
+  /** The displays that can be cast, the main one first; empty if this PC can't cast. */
+  screens: Screen[];
+  /** The cast while it starts or plays, or how the last one ended. */
+  active: { deviceId: string; state: CastStep; problem: Problem | null } | null;
+}
+
 /** Something to tell the user. `code` picks the words (`problems` in strings.ts). */
 export interface Problem {
   code: string;
@@ -247,6 +266,7 @@ export interface AppState {
   pairing: Pairing;
   commands: CommandBarState;
   audio: AudioPanel;
+  cast: CastPanel;
   home: HomeBridge;
   message: Problem | null;
   appearance: Appearance;
@@ -301,5 +321,7 @@ export type Command =
   | { type: "setHomeBridge"; on: boolean }
   | { type: "sendMedia"; id: string; location: string }
   | { type: "pickMedia" | "stopMedia"; id: string }
+  | { type: "castScreen"; id: string; screen: number; quality: CastQuality; sound: boolean }
+  | { type: "stopCast" | "loadScreens" }
   | { type: "music"; command: MusicCommand }
   | { type: "musicSeek"; position: number };

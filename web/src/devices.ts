@@ -3,7 +3,16 @@
 // fallback action AppController.activate.
 
 import { strings } from "./strings";
-import type { Device, DeviceAudio } from "./types";
+import type { CastPanel, Device, DeviceAudio } from "./types";
+
+/** The card's Screen button: is this PC's screen cast to this device? */
+export type DeviceCast = "off" | "starting" | "on";
+
+export function castFor(device: Device, active: CastPanel["active"]): DeviceCast {
+  if (active === null || active.deviceId !== device.id) return "off";
+  if (active.state === "playing") return "on";
+  return active.state === "starting" ? "starting" : "off";
+}
 
 export type Tone = "neutral" | "accent" | "success" | "warning" | "danger";
 
@@ -36,6 +45,8 @@ export interface CardButtons {
   audio: { state: DeviceAudio; enabled: boolean; on: boolean } | null;
   /** Send a video or link: Apple TV only. */
   video: boolean;
+  /** Cast this PC's screen: Apple TV only, when the PC has a screen to cast. */
+  cast: boolean;
   remote: boolean;
   /** The old Pair/Connect button, for a device with neither Audio nor Video. */
   fallback: CardAction | null;
@@ -43,7 +54,7 @@ export interface CardButtons {
   quiet: CardAction | null;
 }
 
-export function cardButtons(device: Device): CardButtons {
+export function cardButtons(device: Device, canCast = false): CardButtons {
   const busy = device.state === "connecting";
   const video = device.kind === "apple_tv";
   const audio =
@@ -63,14 +74,21 @@ export function cardButtons(device: Device): CardButtons {
   return {
     audio,
     video,
+    cast: video && canCast,
     remote: !device.needsPairing && (!plain || connected),
     fallback: plain && !connected ? actionFor(device) : null,
     quiet: plain && device.state === "waiting" ? null : quiet,
   };
 }
 
-export function statusFor(device: Device, secondsLeft: number): { text: string; tone: Tone } {
+export function statusFor(
+  device: Device,
+  secondsLeft: number,
+  cast: DeviceCast = "off",
+): { text: string; tone: Tone } {
   if (device.needsPairing) return { text: strings.status.needsPairing, tone: "warning" };
+  if (cast === "on") return { text: strings.status.casting, tone: "success" };
+  if (cast === "starting") return { text: strings.status.startingCast, tone: "accent" };
   if (device.state !== "waiting" && device.state !== "connecting") {
     if (device.audio === "on") return { text: strings.status.playingAudio, tone: "success" };
     if (device.audio === "starting") return { text: strings.status.startingAudio, tone: "accent" };

@@ -250,6 +250,27 @@ export const demoSnapshot: AppState = {
     "canPickFiles": false,
     "picking": false
   },
+  "cast": {
+    "screens": [
+      {
+        "index": 0,
+        "width": 1920,
+        "height": 1080,
+        "primary": true
+      },
+      {
+        "index": 1,
+        "width": 2560,
+        "height": 1440,
+        "primary": false
+      }
+    ],
+    "active": {
+      "deviceId": "demo-tv",
+      "state": "playing",
+      "problem": null
+    }
+  },
   "home": {
     "enabled": false,
     "running": false,
@@ -335,6 +356,7 @@ export const commandTypes = [
   "activate",
   "allOutputsOff",
   "cancelPairing",
+  "castScreen",
   "clearCommand",
   "closePairing",
   "connect",
@@ -345,6 +367,7 @@ export const commandTypes = [
   "launchApp",
   "lineUp",
   "loadApps",
+  "loadScreens",
   "media",
   "music",
   "musicSeek",
@@ -369,6 +392,7 @@ export const commandTypes = [
   "setPower",
   "setText",
   "setVolume",
+  "stopCast",
   "stopMedia",
   "submitPin",
 ] as const satisfies readonly Command["type"][];
@@ -383,6 +407,8 @@ export const problemCodes = [
   "appDidntRespond",
   "badGroup",
   "cantDoThat",
+  "castFailed",
+  "castRefused",
   "connectFirst",
   "couldNotPair",
   "fileGone",
@@ -394,6 +420,7 @@ export const problemCodes = [
   "noLocation",
   "noPairingNeeded",
   "noResponse",
+  "noScreen",
   "noSend",
   "noTextField",
   "notATv",

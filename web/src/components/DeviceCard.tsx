@@ -1,8 +1,8 @@
 import { Button, Card, Spinner } from "@heroui/react";
 import { useEffect, useState } from "react";
 
-import { cardButtons, statusFor, type Tone } from "../devices";
-import { DeviceIcon, RemoteIcon, SendIcon, WavesIcon } from "../icons";
+import { cardButtons, statusFor, type DeviceCast, type Tone } from "../devices";
+import { CastIcon, DeviceIcon, RemoteIcon, SendIcon, WavesIcon } from "../icons";
 import { strings } from "../strings";
 import type { Device } from "../types";
 
@@ -33,21 +33,36 @@ function useCountdown(device: Device): number {
 
 interface Props {
   device: Device;
+  /** Is this PC's screen cast to this device? */
+  cast?: DeviceCast;
+  /** This PC has a screen to cast. */
+  canCast?: boolean;
   onAudio: () => void;
+  onCast?: () => void;
   onVideo: () => void;
   onRemote: () => void;
   /** The fallback Pair/Connect button, Disconnect and Cancel. */
   onActivate: () => void;
 }
 
-export function DeviceCard({ device, onAudio, onVideo, onRemote, onActivate }: Props) {
+export function DeviceCard({
+  device,
+  cast = "off",
+  canCast = false,
+  onAudio,
+  onCast,
+  onVideo,
+  onRemote,
+  onActivate,
+}: Props) {
   const secondsLeft = useCountdown(device);
-  const buttons = cardButtons(device);
-  const status = statusFor(device, secondsLeft);
+  const buttons = cardButtons(device, canCast && onCast !== undefined);
+  const status = statusFor(device, secondsLeft, cast);
   const connected = device.state === "connected" && !device.needsPairing;
   const playing = connected ? device.controls?.nowPlaying : null;
-  // While the device plays this PC's sound, what it reports playing is that stream, not news.
-  const showPlaying = playing && playing.title && playing.state !== "idle" && device.audio !== "on";
+  // While the device plays this PC's sound or screen, what it reports playing is that stream.
+  const showPlaying =
+    playing && playing.title && playing.state !== "idle" && device.audio !== "on" && cast === "off";
   const audio = buttons.audio;
 
   return (
@@ -112,6 +127,20 @@ export function DeviceCard({ device, onAudio, onVideo, onRemote, onActivate }: P
           >
             <SendIcon size={16} />
             {strings.action.video}
+          </Button>
+        )}
+        {buttons.cast && (
+          <Button
+            size="sm"
+            variant={cast === "off" ? "secondary" : "primary"}
+            isDisabled={device.state === "connecting"}
+            aria-label={strings.action.castOn(device.name)}
+            onPress={onCast}
+            className="card-media-button"
+            data-on={cast !== "off" || undefined}
+          >
+            {cast === "starting" ? <Spinner size="sm" color="current" /> : <CastIcon size={16} />}
+            {strings.action.cast}
           </Button>
         )}
         {buttons.fallback && (

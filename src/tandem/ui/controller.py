@@ -37,6 +37,7 @@ from tandem.ui.backend import (
     Backend,
     BackendError,
     BackendEvent,
+    CastChanged,
     CommandOutcome,
     ControlsChanged,
     ControlsSnapshot,
@@ -63,6 +64,7 @@ from tandem.ui.backend import (
     WrongPinError,
 )
 from tandem.ui.background_photo import BackgroundPhoto
+from tandem.ui.cast_panel import CastPanel
 from tandem.ui.network_trust import NetworkWatch
 from tandem.ui.updates import GetJson, Update
 from tandem.ui.updates import check as check_for_update
@@ -412,6 +414,7 @@ class AppController:
         )
         self.commands = CommandBar(backend, self.runner, on_change=self._changed)
         self.audio = AudioPanel(backend, self.runner.run, on_change=self._changed, picker=picker)
+        self.cast = CastPanel(backend, self.runner.run, on_change=self._changed)
         self.home = backend.home()
         self._unsubscribe: Callable[[], None] | None = None
         self._table = self._commands_table()
@@ -444,6 +447,7 @@ class AppController:
                 for d in self.devices()
             ],
             "audio": self.audio.snapshot(),
+            "cast": self.cast.snapshot(),
             "home": {
                 "enabled": self.home.enabled,
                 "running": self.home.running,
@@ -491,8 +495,10 @@ class AppController:
             if controls is not None:
                 self._controls[device.id] = controls
         self.audio.audio = self._backend.audio()
+        self.cast.cast = self._backend.cast()
         self.home = self._backend.home()
         self._changed()
+        self.cast.load_screens()
         if self.network is not None:
             self.network.start(self._changed)
         if self._get_json is not None and self.appearance.update_check:
@@ -724,6 +730,7 @@ class AppController:
         self._device_commands(table)
         self._window_commands(table)
         self.audio.register(table)
+        self.cast.register(table)
         return table
 
     def _device_commands(self, table: CommandTable) -> None:
@@ -864,6 +871,8 @@ class AppController:
                 self.audio.audio = audio
             case HomeUpdated(home=home):
                 self.home = home
+            case CastChanged(cast=cast):
+                self.cast.cast = cast
             case SendChanged(device_id=device_id, send=send):
                 if send is None:
                     self.audio.sends.pop(device_id, None)

@@ -2,9 +2,11 @@ import { Button, Chip, Kbd, Spinner, Tabs, Toast, toast } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { useBridge } from "./bridge";
+import { castFor } from "./devices";
 import { isCommandShortcut } from "./commands";
 import { AdvancedSheet } from "./components/AdvancedSheet";
 import { AudioSheet } from "./components/AudioSheet";
+import { CastSheet } from "./components/CastSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DeviceCard } from "./components/DeviceCard";
 import { MusicPanel, NowPlayingBar } from "./components/Music";
@@ -69,22 +71,41 @@ export function App() {
   };
   const [sendId, setSendId] = useState<string | null>(null);
   const sendDevice = state?.devices.find((d) => d.id === sendId) ?? null;
-  // Video on an unpaired TV: pair first, then open the Send sheet.
-  const [videoAfterPairing, setVideoAfterPairing] = useState<string | null>(null);
+  const [castId, setCastId] = useState<string | null>(null);
+  const castDevice = state?.devices.find((d) => d.id === castId) ?? null;
+  const castActive = state?.cast.active ?? null;
+  const castingTo =
+    castActive && (castActive.state === "starting" || castActive.state === "playing")
+      ? (state?.devices.find((d) => d.id === castActive.deviceId) ?? null)
+      : null;
+  // Video or Screen on an unpaired TV: pair first, then open its sheet.
+  const [afterPairing, setAfterPairing] = useState<{ id: string; sheet: "send" | "cast" } | null>(null);
   const pairingState = state?.pairing.state ?? "closed";
   const pairingWasOpen = useRef(false);
   useEffect(() => {
-    if (videoAfterPairing === null) return;
-    const device = state?.devices.find((d) => d.id === videoAfterPairing);
+    if (afterPairing === null) return;
+    const device = state?.devices.find((d) => d.id === afterPairing.id);
     if (pairingState !== "closed") pairingWasOpen.current = true;
     if (device && !device.needsPairing) {
       if (pairingState !== "closed") return; // wait for the pairing sheet to close
-      setVideoAfterPairing(null);
-      setSendId(device.id);
+      setAfterPairing(null);
+      if (afterPairing.sheet === "cast") setCastId(device.id);
+      else setSendId(device.id);
     } else if (!device || (pairingState === "closed" && pairingWasOpen.current)) {
-      setVideoAfterPairing(null); // the device left, or pairing was cancelled
+      setAfterPairing(null); // the device left, or pairing was cancelled
     }
-  }, [videoAfterPairing, pairingState, state?.devices]);
+  }, [afterPairing, pairingState, state?.devices]);
+  const openSheet = (device: { id: string; needsPairing: boolean }, sheet: "send" | "cast") => {
+    send({ type: "openDevice", id: device.id });
+    if (device.needsPairing) {
+      pairingWasOpen.current = false;
+      setAfterPairing({ id: device.id, sheet });
+    } else if (sheet === "cast") {
+      setCastId(device.id);
+    } else {
+      setSendId(device.id);
+    }
+  };
   const streaming = state?.audio.streaming ?? 0;
   const [view, setView] = useState<View>("devices");
   const music = state?.music ?? null;
@@ -219,6 +240,9 @@ export function App() {
                 <li key={device.id}>
                   <DeviceCard
                     device={device}
+                    cast={castFor(device, castActive)}
+                    canCast={state.cast.screens.length > 0}
+                    onCast={() => openSheet(device, "cast")}
                     onActivate={() => send({ type: "activate", id: device.id })}
                     onAudio={() =>
                       send({
@@ -227,15 +251,7 @@ export function App() {
                         on: device.audio !== "on" && device.audio !== "starting",
                       })
                     }
-                    onVideo={() => {
-                      send({ type: "openDevice", id: device.id });
-                      if (device.needsPairing) {
-                        pairingWasOpen.current = false;
-                        setVideoAfterPairing(device.id);
-                      } else {
-                        setSendId(device.id);
-                      }
-                    }}
+                    onVideo={() => openSheet(device, "send")}
                     onRemote={() => {
                       send({ type: "openDevice", id: device.id });
                       setRemoteId(device.id);
@@ -321,6 +337,17 @@ export function App() {
         onClose={() => setSendId(null)}
         send={send}
       />
+      {state && (
+        <CastSheet
+          device={castDevice}
+          cast={state.cast}
+          elsewhere={castingTo && castingTo.id !== castId ? castingTo.name : null}
+          source={state.audio.source}
+          untrusted={state.network.untrusted}
+          onClose={() => setCastId(null)}
+          send={send}
+        />
+      )}
       {state && (
         <SettingsSheet
           isOpen={settingsOpen}
