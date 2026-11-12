@@ -91,6 +91,16 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   loopback class, so open `ma_device_type_loopback` via `_miniaudio.lib` (see `spikes/spike_c_loopback.py`).
   On this laptop loopback follows the Windows volume and mute (Spike C). Loopback delivers
   nothing at all while nothing plays (Phase 4), so the audio pipeline fills silence itself.
+- PC mute (ADR-0020): the app captures with process loopback (`adapters/process_loopback.py`,
+  own ctypes; miniaudio's `loopbackProcessID` fails on desktop with -2), which ignores the
+  output's mute, so `engine/pc_mute.py` mutes Windows' default output while AirPlay plays.
+  Per-app session mute is refused here (E_NOINTERFACE). A leftover mute is undone at start from
+  `pc-mute.json` in the data folder. COM vtable calls: raise on failed HRESULTs via
+  `WINFUNCTYPE(HRESULT, ...)`; call `CoUninitialize`/`CoTaskMemFree` through `WinDLL`, never
+  `OleDLL` (they return nothing). pyright here: add `--pythonplatform Windows` off Windows.
+- Tests that wait on a worker thread (`asyncio.to_thread`) must wait by time, not by a count
+  of short sleeps: on Windows `asyncio.sleep(0.01)` can return at once (timers are as coarse
+  as the clock), so a count runs out early. Use `demo_harness.until` or a deadline.
 - The test Pi answers at its mDNS name (`<host>.local`); the maintainer's spike scripts read it
   from `TANDEM_PI_HOST`. The Phase 4 Pi check needs numpy in the venv.
 - Front end (ADR-0010): Node 24 and npm are installed. Smart App Control can block a native npm
@@ -138,6 +148,11 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
 - Firewall (ADR-0017, 1.1.1): allowed from the local subnet on Private/Domain networks, blocked on
   Public; `tandem.ui.network_trust` reads the category (no admin) and the window offers to mark
   the network Private. This PC's Wi-Fi is Public, so the installed app shows that note.
+- PTP timing (ADR-0022): Tandem's PTP clock binds UDP 319/320 (no admin needed on Windows; the
+  firewall rule is per program). Time everything audio with `time.perf_counter_ns`
+  (`engine.timeline.now_ns`): `time.monotonic` is 15.6 ms coarse on Python 3.11 for Windows.
+  `pyatv_ptp` wraps `AirPlayV2._setup_base` and `ControlClient._sync_task`; re-check both when
+  moving the pyatv pin.
 - `local/denylist.txt` holds real room and device names, so even an invented test name can clash
   with it. If the privacy hook flags a test value, pick another invented one.
 
@@ -223,7 +238,7 @@ steps (reading PINs off the TV, confirming audio, changing Home app settings).
   limit. Don't open a real song link without the maintainer's OK (it plays from their account).
   A song link opens its album page in the Apple Music app and doesn't start it (checked
   2026-11-09): keep the button "Open", not "Play".
-- Spotify (ADR-0020): `engine/spotify.py` (PKCE, tokens, playlists, devices, search, play,
+- Spotify (ADR-0021): `engine/spotify.py` (PKCE, tokens, playlists, devices, search, play,
   transfer) with HTTP, the 127.0.0.1 listener and the browser in `adapters/spotify_web.py`;
   `tandem.bridge_spotify` and `ui/spotify_panel.py`; the demo's invented Spotify answers in
   `engine/adapters/demo_spotify.py` (ADR-0019). The user registers

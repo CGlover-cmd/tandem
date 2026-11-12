@@ -74,6 +74,8 @@ class Appearance:
     """Look for a newer Tandem on GitHub when the window opens (Advanced settings)."""
     restore_outputs: bool = False
     """Turn the speakers that were on back on when Tandem starts (Advanced settings)."""
+    mute_pc: bool = True
+    """Mute the PC's own speakers while AirPlay plays its sound (Advanced settings, ADR-0020)."""
     photo_blur: int = 0
     """Blur over the user's background photo, in pixels."""
 
@@ -225,6 +227,12 @@ class OutputState(Enum):
     WAITING = "waiting"  # the connection dropped; it resumes on reconnect
     FAILED = "failed"
     DIRECT = "direct"  # the PC's default output: Windows plays there itself, not Tandem
+    MUTED = "muted"  # the PC's default output, muted by Tandem while AirPlay plays (ADR-0020)
+    AHEAD = "ahead"  # the PC's default output, kept on while AirPlay plays: it plays ahead
+
+
+PC_DIRECT = frozenset({OutputState.DIRECT, OutputState.MUTED, OutputState.AHEAD})
+"""States of the PC's default output, where Windows plays (Tandem never streams there)."""
 
 
 class OutputProblem(Enum):
@@ -266,7 +274,7 @@ def output_order(output: OutputSnapshot) -> tuple[bool, bool, str, str]:
     then the rest by name."""
     return (
         output.kind is OutputKind.PC,
-        output.state is not OutputState.DIRECT,
+        output.state not in PC_DIRECT,
         output.name.casefold(),
         output.id,
     )
@@ -920,7 +928,7 @@ class Backend(Protocol):
         """Apple's "Listen on Apple Music" badge, fetched from Apple; None when offline."""
         ...
 
-    # Spotify (Web API remote only; ADR-0020)
+    # Spotify (Web API remote only; ADR-0021)
 
     def spotify(self) -> SpotifySnapshot: ...
 

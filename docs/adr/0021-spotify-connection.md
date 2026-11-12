@@ -1,4 +1,4 @@
-# ADR-0020: Spotify connection
+# ADR-0021: Spotify connection
 
 - Status: Accepted
 - Date: 2026-11-08

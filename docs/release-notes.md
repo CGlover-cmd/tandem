@@ -16,6 +16,10 @@ of logs with names, addresses and identifiers replaced.
 - **A speaker's remote is audio only:** play, pause, skip back and forward, and volume. There's
   no touch pad any more. While the speaker plays your PC's sound, the buttons control the app
   playing on your PC.
+- **Your PC goes quiet while AirPlay plays.** Tandem mutes Windows' default output while your
+  speakers play the PC's sound, so there's no echo, and unmutes it when they stop. Turn the
+  PC's switch on in the Audio panel to hear both (the PC plays a little ahead), or turn this off
+  in Advanced settings. No virtual audio cable needed for that any more.
 
 ## Fixed in 1.2.1
 

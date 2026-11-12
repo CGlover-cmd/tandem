@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from tandem.ui.audio_panel import LIVE
-from tandem.ui.backend import DeviceKind, LinkState, MusicCommand, OutputState
+from tandem.ui.backend import PC_DIRECT, DeviceKind, LinkState, MusicCommand, OutputState
 from tandem.ui.controller import AppController
 
 
@@ -94,7 +94,7 @@ def output_entries(controller: AppController) -> list[Entry]:
     outputs = [
         o
         for o in controller.audio.audio.outputs
-        if not o.needs_pairing and o.state is not OutputState.DIRECT
+        if not o.needs_pairing and o.state not in PC_DIRECT
     ]
     if not outputs:
         return []

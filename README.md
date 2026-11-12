@@ -125,13 +125,17 @@ When Tandem opens, it finds the AirPlay devices on your network by itself, and a
 Closing the window sends Tandem to the system tray, where each speaker has its own switch.
 Choose **Quit Tandem** from the tray menu to exit. **Settings** (the gear at the top right)
 holds the theme and window background. **Advanced settings** there holds speaker delays and
-automatic line-up, turning your speakers back on at start, the Home app switches, and the
-update check.
+automatic line-up, turning your speakers back on at start, muting the PC while AirPlay plays,
+the Home app switches, and the update check.
 
-**Using your PC's own speakers alongside AirPlay ones:** Tandem sends the sound your PC is
-playing, so it can't also play that sound on the same PC speakers (it would echo). Install a
-virtual audio cable such as [VB-CABLE](https://vb-audio.com/Cable/), make it Windows' default
-output, then switch your real PC speakers on in Tandem's Audio panel
+**Your PC's own speakers:** while AirPlay plays your PC's sound, Tandem mutes Windows' default
+output, because AirPlay plays a moment later and hearing both sounds like an echo. It unmutes
+when the speakers stop. To hear the PC too, turn its switch back on in the Audio panel (it plays
+a little ahead of AirPlay), or turn the muting off in Advanced settings
+([details](docs/adr/0020-mute-the-pc-while-airplay-plays.md)). Headphones or another output you
+turn on in the Audio panel play in step with AirPlay. To hear the PC's main speakers in step,
+install a virtual audio cable such as [VB-CABLE](https://vb-audio.com/Cable/), make it Windows'
+default output, then switch your real PC speakers on in the Audio panel
 ([details](docs/adr/0005-multi-output-audio-routing.md)).
 
 **Siri and the Home app:** turn on **Show Tandem in the Home app** in Advanced settings and add

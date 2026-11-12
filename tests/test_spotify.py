@@ -1,4 +1,4 @@
-"""Spotify as a Web API remote (Phase 6, ADR-0020). Every id, name and token is invented."""
+"""Spotify as a Web API remote (Phase 6, ADR-0021). Every id, name and token is invented."""
 
 from __future__ import annotations
 

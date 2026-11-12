@@ -54,6 +54,7 @@ function state(over: Partial<AppState> = {}): AppState {
       photo: null,
       updateCheck: true,
       restoreOutputs: false,
+      mutePc: true,
       photoBlur: 0,
     },
     network: { untrusted: false },

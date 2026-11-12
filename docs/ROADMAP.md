@@ -14,12 +14,22 @@ Tandem can't call Siri, but Siri on a HomePod can drive Tandem through the Home 
 
 _Update this section at the end of every working session._
 
+- **PTP timing (2026-11-10, not released):** Tandem now runs an AirPlay 2 PTP clock and the
+  speakers follow it, so every PTP speaker plays the same moment together
+  ([ADR-0022](adr/0022-ptp-timing-for-airplay-2.md)). Spike H passed on the soundbar and a
+  HomePod mini: they beep together, through the engine too. This is the fix for the HomePod's
+  ~5 s lag. Next: the Phase 5 exit check with the PC's speakers lined up to them.
 - **Device cards rework (2026-11-09, after 1.2.1 feedback):** cards offer Audio (every
   AirPlay device, the Audio panel's switch; pairs first if needed) and Video (Apple TV, opens
   Send to TV) instead of Pair/Connect/Send. Speakers get an audio-only remote; while they play
-  the PC's sound, it drives the PC's media app. Open: mute the PC's speakers while AirPlay
-  plays (Spike G found process loopback keeps capturing with the speakers muted; the
-  maintainer is choosing between options). The HomePod's ~5 s lag is still open.
+  the PC's sound, it drives the PC's media app. The HomePod's ~5 s lag is fixed by PTP timing
+  (above).
+- **PC muted while AirPlay plays (2026-11-09, not released):** Spike G found process loopback
+  keeps the sound with the PC's speakers muted (per-app mute isn't available). Tandem now
+  captures that way and mutes Windows' default output while AirPlay plays, with a switch to keep
+  the PC on and an Advanced setting ([ADR-0020](adr/0020-mute-the-pc-while-airplay-plays.md)).
+  Needs a hardware check: AirPlay keeps playing with the PC muted, system sounds included, and
+  the PC unmutes on stop and after a crash.
 - **1.2.1 (2026-11-09), a pre-release: fixes 1.2.0's install.** It carries the three entries
   below.
 - **1.2.0's window doesn't open (2026-11-09, fixed in 1.2.1):** the app folder left out
@@ -144,13 +154,13 @@ _Update this section at the end of every working session._
   controls (see Phase 6). The Apple Music token test and Apple Music browsing are on hold
   (needs a paid Apple Developer membership; resumes if the maintainer joins). The now-playing
   bar passed its exit test with the Apple Music app and a browser. The local player and radio
-  are in the window too (This PC, Radio and Queue in the Music tab); their speaker check is
-  still to run. Apple Music catalog search is built too (Apple's keyless Search API; results
+  are in the window too (This PC, Radio and Queue in the Music tab) and passed their speaker
+  check on the soundbar and a HomePod mini, including a one-hour radio run. Apple Music catalog search is built too (Apple's keyless Search API; results
   open in the Apple Music app; Apple's terms in the 2026-11-08 note on ADR-0013). **Next for
-  Music:** the speaker check's one-hour radio run, a decision on the catalog search's exit
-  (a link opens the song's page but doesn't play it), and the Spotify live test. Connections
-  and Spotify are built ([ADR-0020](adr/0020-spotify-connection.md)); the live test needs the
-  maintainer's own Spotify developer app.
+  Music:** a decision on the catalog search's exit (a link opens the song's page but doesn't
+  play it), and the Spotify live test. Connections and Spotify are built
+  ([ADR-0021](adr/0021-spotify-connection.md)); the live test needs the maintainer's own
+  Spotify developer app.
 
 ## Scope
 
@@ -305,6 +315,12 @@ delayed to match the AirPlay buffer so everything plays in sync. Per-output volu
 - [x] Audio panel in the window; command-bar "send audio" and "stop streaming"
 - [ ] Exit check on the reference devices (lined up by ear with the delay sliders; no automatic
   sync yet)
+- [x] PTP timing for AirPlay 2 speakers (ADR-0022, the maintainer's go 2026-11-09): Tandem runs
+  a PTP clock that the speakers follow, and each stream reads the shared source by capture time,
+  so every PTP speaker plays the same moment together. Spike H passed on 2026-11-10: the soundbar
+  and a HomePod mini follow the clock and beep together, through the spike and through the
+  engine ([findings](spikes/spike-h-ptp-timing.md)). Next: the Phase 5 exit check above, with
+  the PC's speakers lined up to the PTP speakers.
 
 ### Phase 6 · Music
 A Music tab where Tandem is a remote for Spotify and Apple Music and its audio router carries
@@ -333,7 +349,7 @@ one.)
   (2026-11-06, while the maintainer played songs): 5 track changes (skips sent through
   Windows' media controls, each confirmed by a new track), max 16 ms, mean 6 ms, with artwork
   each time; playback was left running.
-- [ ] Local player and internet radio: folder picker, library index, queue, radio search;
+- [x] Local player and internet radio: folder picker, library index, queue, radio search;
   plays straight to the chosen speakers. **Exit:** an album plays gaplessly to the soundbar and
   a HomePod mini; a radio station plays for an hour without dropouts.
   Built: the Music tab has **This PC** (music folders, an album grid with artwork, artists,
@@ -343,12 +359,14 @@ one.)
   `library.json`; artwork is read from the files into memory. Tracks join without a gap: one
   player thread and one real-time clock across tracks. Checked on this PC without speakers: a
   scan of test files, gapless decoding (6.00 s of 6.0 s of audio, no pauses, after fixing a
-  decoder bug that dropped each track's first 23 ms) and a live radio search. **To run:** an
-  album to the soundbar and a HomePod mini, and a station for an hour.
+  decoder bug that dropped each track's first 23 ms) and a live radio search. **Passed**
+  (2026-11-09): an album played to the soundbar and a HomePod mini with no errors (one brief
+  underrun each; the HomePod lags until AirPlay 2 timing lands), and a station played for an
+  hour to both: 3599 s sent to each, no dropouts, reconnects or errors.
 - [ ] Connections tab and Spotify: PKCE sign-in, vault storage, library, playlists, search,
   play on a Spotify Connect device, transfer playback. **Exit:** a tester sets up their own
   Spotify developer key and plays a playlist without help.
-  Built ([ADR-0020](adr/0020-spotify-connection.md)): Settings → Connections with a setup
+  Built ([ADR-0021](adr/0021-spotify-connection.md)): Settings → Connections with a setup
   walkthrough (dashboard link, the redirect address to copy, Client ID, sign in), PKCE in the
   system browser with a one-shot 127.0.0.1 listener, the Client ID and refresh token in a
   DPAPI-encrypted `spotify.bin`, and a **Spotify** source in the Music tab: playlists,
