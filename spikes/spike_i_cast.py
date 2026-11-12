@@ -408,7 +408,7 @@ async def pair(args: argparse.Namespace) -> dict:
     try:
         await pairing.begin()
         print("PIN showing on the TV; waiting for", pin_file.name, flush=True)
-        deadline = time.monotonic() + 600
+        deadline = time.monotonic() + args.pin_wait
         while not pin_file.exists() or not pin_file.read_text().strip():
             if time.monotonic() > deadline:
                 raise SystemExit("no PIN arrived")
@@ -625,6 +625,8 @@ def main() -> int:
     parser.add_argument("--label", default="run")
     parser.add_argument("--storage", default=str(ROOT / "local" / "spike-i" / "pyatv-storage.json"))
     parser.add_argument("--pin-file", default=str(ROOT / "local" / "spike-i" / "pin.txt"))
+    parser.add_argument("--pin-wait", type=float, default=1800,
+                        help="seconds to wait for the PIN file (the PIN is relayed by hand)")
     args = parser.parse_args()
     if args.mode == "pair":
         print(json.dumps(asyncio.run(pair(args))))
